@@ -70,7 +70,7 @@ export function renderRates(countries) {
     text: `${rate(c.curve.path[12])} (${moves(i12(c))})`, textShort: rate(c.curve.path[12]),
     title: `${c.bank}: ${rate(c.rates.policy)} nå, ${rate(c.curve.path[12])} ventet om 12 mnd (${pp(i12(c))}) · ${c.curve.source}`,
     bank: c.cb_path?.level ?? null,
-    bankTitle: c.cb_path ? `${c.bank}s eget anslag: ${rate(c.cb_path.level)} ${c.cb_path.horizon} (${c.cb_path.source})` : "",
+    bankTitle: c.cb_path ? `${c.bank}s eget anslag: ${rate(c.cb_path.level)} ${c.cb_path.horizon} (${c.cb_path.source}${c.cb_path.stale ? ", utdatert" : ""})` : "",
   }));
   // Hvor ligger markedet lengst fra sentralbankens egen bane?
   const gaps = rows.filter((c) => c.cb_path?.level != null)
@@ -84,7 +84,7 @@ export function renderRates(countries) {
     const week = r == null || Math.abs(r) < 5 ? "" : ` <span class="${cls(r)}">${r > 0 ? "↑" : "↓"} ${r > 0 ? "høyere" : "lavere"} enn for en uke siden</span>`;
     const src = c.rates.policy_unconfirmed ? ` <small class="neg" title="${c.rates.policy_source}">⚠ ubekreftet etter møtet ${shortDate(c.rates.policy_unconfirmed)}</small>`
       : c.rates.policy_source?.startsWith("vedtak") ? ` <small>(manuelt registrert)</small>` : "";
-    const bank = c.cb_path ? ` · banken selv: ${rate(c.cb_path.level)} ${c.cb_path.horizon}` : "";
+    const bank = c.cb_path ? ` · banken selv: ${rate(c.cb_path.level)} ${c.cb_path.horizon}${c.cb_path.stale ? " ⚠ utdatert anslag" : ""}` : "";
     const kind = curveKind(c) ? ` <small class="muted" title="${c.curve.source}">${curveKind(c)}</small>` : "";
     return `<li><b>${c.flag} ${c.bank}</b>${kind} · ${rate(c.rates.policy)} nå${src} → <b>${moves(i12(c))}</b> neste 12 mnd
       <span class="muted">(${pp(i12(c))}, ${extremeText(c.curve)}${bank})</span>${week}</li>`;
@@ -235,10 +235,11 @@ export function renderSources(sources, updated) {
     policy_no: "Styringsrente NOK (Norges Bank)", policy_se: "Styringsrente SEK (Riksbanken)", policy_ca: "Styringsrente CAD (BoC)",
     policy_ea: "Styringsrente EUR (ECB)", policy_us: "Styringsrente USD (FRED)", policy_gb: "Styringsrente GBP (BoE)",
     policy_au: "Styringsrente AUD (RBA)", policy_ch: "Styringsrente CHF (SNB)", policy_jp: "Styringsrente JPY (BIS + manuell)", policy_nz: "Styringsrente NZD (BIS + manuell)",
+    cb_path_us: "Fed dot plot (SEP)", cb_path_no: "Norges Banks rentebane (PPR)", cb_path_se: "Riksbankens prognos", cb_path_nz: "RBNZ-bane (manuell)",
     futures_us: "Fed funds-futures (CME/Yahoo)", futures_au: "Cash rate-futures (ASX)", futures_ca: "CORRA-futures (TMX)", futures_nz: "Bankvekselfutures NZ (ASX)" };
   const today = new Date(updated);
   const age = (iso) => (iso ? Math.round((today - new Date(iso.length === 4 ? `${iso}-12-31` : iso.length === 7 ? `${iso}-28` : iso)) / 86400000) : null);
-  const limit = (k) => (k === "ppp" ? 800 : k === "cot" || k === "policy_ch" ? 14 : ["irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "ssb_kpi_jae", "scb_kpif", "unemployment"].includes(k) ? 75 : 10);
+  const limit = (k) => (k === "ppp" ? 800 : k.startsWith("cb_path_") ? 120 : k === "cot" || k === "policy_ch" ? 14 : ["irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "ssb_kpi_jae", "scb_kpif", "unemployment"].includes(k) ? 75 : 10);
   const items = Object.entries(sources).map(([k, s]) => {
     const a = age(s.latest);
     return { label: labels[k] || k, ok: s.ok, latest: s.latest, stale: !s.ok || a == null || a > limit(k) || !!s.warn, error: s.error, warn: s.warn };

@@ -302,6 +302,130 @@ def unconfirmed_meeting(meetings, policy_day, today):
     return max(passed) if passed else None
 
 
+# ---------------------------------------------------------------------------
+# Sentralbankenes egne rentebaner (halvautomatisk): Fed SEP, Norges Bank PPR, Riksbanken.
+# RBNZ ligger bak Cloudflare og vedlikeholdes i data/cb_paths.json, som også er reserve.
+# Hver henter gir {"path": {iso-dato: nivå}, "as_of": dato, "label": tekst}.
+# ---------------------------------------------------------------------------
+FED_CALENDAR = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+NB_PPR_LIST = "https://www.norges-bank.no/aktuelt/nyheter-og-hendelser/Publikasjoner/Pengepolitisk-rapport-med-vurdering-av-finansiell-stabilitet/"
+RB_FORECASTS = "https://www.riksbank.se/globalassets/media/statistik/makro/sve/utfall-och-prognoser.xlsx"
+
+
+def parse_fed_sep(html_text):
+    """Median for fed funds-renten per år fra SEP-tabellen: {«ÅÅÅÅ-12-31»: nivå, «longer_run»: nivå}."""
+    table = next((t for t in re.findall(r"<table.*?</table>", html_text, re.S) if "Federal funds rate" in t and "Median" in t), None)
+    if not table:
+        raise RuntimeError("fant ikke SEP-tabellen")
+    rows = [[re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", c)).strip() for c in re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", r, re.S)]
+            for r in re.findall(r"<tr.*?</tr>", table, re.S)]
+    years = next((r for r in rows if r and re.fullmatch(r"20\d\d", r[0])), None)
+    ffr = next((r for r in rows if r and r[0].startswith("Federal funds rate")), None)
+    if not years or not ffr:
+        raise RuntimeError("fant ikke år- eller renteraden i SEP-tabellen")
+    out = {}
+    for label, value in zip(years, ffr[1:]):
+        v = to_float(value)
+        if v is None:
+            continue
+        if re.fullmatch(r"20\d\d", label):
+            out[f"{label}-12-31"] = v
+        elif label.lower().startswith("longer"):
+            out["longer_run"] = v
+    if not out:
+        raise RuntimeError("tom renterad i SEP-tabellen")
+    return out
+
+
+def fetch_cb_path_us():
+    calendar = fetch(FED_CALENDAR, timeout=60)
+    links = sorted(set(re.findall(r"fomcprojtabl(\d{8})\.htm", calendar)))
+    if not links:
+        raise RuntimeError("ingen SEP-tabeller i FOMC-kalenderen")
+    stamp = links[-1]
+    path = parse_fed_sep(fetch(f"https://www.federalreserve.gov/monetarypolicy/fomcprojtabl{stamp}.htm", timeout=60))
+    as_of = f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}"
+    return {"path": path, "as_of": as_of, "label": f"FOMC dot plot (median), {as_of}"}
+
+
+def parse_nb_tallsett(xlsx_bytes):
+    """Styringsrenten (nivå), kvartalsvis anslag, fra arket «Data A» i PPR-tallsettet."""
+    rows = xlsx_sheet_rows(xlsx_bytes, "Data A")
+    header = next((c for _, c in rows if c.get("A") == "Dato"), None)
+    col = next((k for k, v in (header or {}).items() if isinstance(v, str) and v.startswith("Styringsrenten (nivå)")), None)
+    if not col:
+        raise RuntimeError("fant ikke kolonnen «Styringsrenten (nivå)» i Data A")
+    out = {}
+    for _, c in rows:
+        if isinstance(c.get("A"), (int, float)) and isinstance(c.get(col), (int, float)):
+            out[excel_date(c["A"])] = round(c[col], 3)
+    if not out:
+        raise RuntimeError("ingen rentebane i Data A")
+    return out
+
+
+def fetch_cb_path_no():
+    listing = fetch(NB_PPR_LIST, timeout=60)
+    pages = sorted(set(re.findall(r'href="(/aktuelt/publikasjoner/Pengepolitisk-rapport/(\d{4})/ppr-(\d)\d{4}/)"', listing)),
+                   key=lambda m: (m[1], m[2]))
+    if not pages:
+        raise RuntimeError("ingen PPR-sider i listen")
+    href, year, no = pages[-1]
+    page = fetch("https://www.norges-bank.no" + href, timeout=60)
+    m = re.search(r'href="(/contentassets/[^"]*tallsett-ppr-[^"?]*\.xlsx)(?:\?v=(\d{8}))?', page)
+    if not m:
+        raise RuntimeError(f"fant ikke tallsett-xlsx på {href}")
+    req = urllib.request.Request("https://www.norges-bank.no" + m.group(1), headers={"User-Agent": "valuta-dashboard/1.0", "Accept": "*/*"})
+    with urllib.request.urlopen(req, timeout=90) as resp:
+        path = parse_nb_tallsett(resp.read())
+    stamp = m.group(2)
+    as_of = f"{stamp[4:]}-{stamp[2:4]}-{stamp[:2]}" if stamp else str(date.today())
+    return {"path": path, "as_of": as_of, "label": f"Norges Bank, Pengepolitisk rapport {no}/{year[2:]}"}
+
+
+def parse_rb_forecasts(xlsx_bytes):
+    """Riksbankens styrränteprognose (kvartalssnitt) fra arket SEQRATENAYNA: nyeste rapport i kolonne B."""
+    rows = xlsx_sheet_rows(xlsx_bytes, "SEQRATENAYNA")
+    cells = {c.get("A"): c for _, c in rows if isinstance(c.get("A"), str)}
+    report = (cells.get("PPR") or {}).get("B")
+    published = (cells.get("Publiceringsdatum") or {}).get("B")
+    out = {}
+    for _, c in rows:
+        a = c.get("A")
+        if isinstance(a, str) and DATE_RE.match(a) and isinstance(c.get("B"), (int, float)):
+            out[a] = round(c["B"], 3)
+    if not out or not report:
+        raise RuntimeError("fant ikke prognosen i SEQRATENAYNA")
+    as_of = excel_date(published) if isinstance(published, (int, float)) else str(date.today())
+    return {"path": out, "as_of": as_of, "label": f"Riksbanken, Penningpolitisk rapport {report}"}
+
+
+def fetch_cb_path_se():
+    req = urllib.request.Request(RB_FORECASTS, headers={"User-Agent": "valuta-dashboard/1.0", "Accept": "*/*"})
+    with urllib.request.urlopen(req, timeout=90) as resp:
+        return parse_rb_forecasts(resp.read())
+
+
+CB_PATH_FETCHERS = {"us": fetch_cb_path_us, "no": fetch_cb_path_no, "se": fetch_cb_path_se}
+
+
+def cb_path_at(path, target):
+    """Bankens anslag ved horisonten: første datapunkt på eller etter `target` (kvartals-
+    eller årsslutt), ellers siste punkt. Returnerer (dato, nivå) eller (None, None)."""
+    dated = sorted((d, v) for d, v in path.items() if DATE_RE.match(d))
+    if not dated:
+        return None, None
+    later = [(d, v) for d, v in dated if d >= target]
+    return later[0] if later else dated[-1]
+
+
+def horizon_text(day):
+    d = date.fromisoformat(day)
+    if d.month == 12 and d.day == 31:
+        return f"utgangen av {d.year}"
+    return f"{(d.month - 1) // 3 + 1}. kvartal {d.year}"
+
+
 def fetch_oecd_rates(measure):
     """Månedlige renter fra OECD: IRLT (10 år) eller IR3TIB (3 mnd)."""
     start = date.today() - timedelta(days=430)
@@ -1795,14 +1919,19 @@ def main():
         "futures_ca": fetch_futures_ca,
         "futures_nz": fetch_futures_nz,
         **{f"policy_{cid}": fn for cid, fn in POLICY_FETCHERS.items()},
+        **{f"cb_path_{cid}": fn for cid, fn in CB_PATH_FETCHERS.items()},
     }
     # RBNZ ligger bak Cloudflare, som også blokkerer GitHub-runnere; B2-kurven hentes bare
     # når scripts/fetch_rbnz.py har lagt fila klar (f.eks. lokalt)
     if Path(os.environ.get("RBNZ_B2_FILE", RBNZ_B2_FILE)).exists():
         jobs["curve_nz"] = fetch_curve_nz
     results, status = run_parallel(jobs)
-    sources = {k: v for k, v in results.items() if not k.startswith(("curve_", "futures_", "policy_"))}
+    sources = {k: v for k, v in results.items() if not k.startswith(("curve_", "futures_", "policy_", "cb_path_"))}
     official_policy = {k[7:]: v for k, v in results.items() if k.startswith("policy_")}
+    auto_cb_paths = {k[8:]: v for k, v in results.items() if k.startswith("cb_path_")}
+    for cid, auto in auto_cb_paths.items():  # banen peker fremover; kildens dato er rapportdatoen
+        if auto and auto.get("as_of") and status.get(f"cb_path_{cid}", {}).get("ok"):
+            status[f"cb_path_{cid}"]["latest"] = auto["as_of"]
     curves = {k[6:]: v for k, v in results.items() if k.startswith("curve_")}
     futures = {k[8:]: v for k, v in results.items() if k.startswith("futures_")}
 
@@ -2018,6 +2147,27 @@ def main():
             if base and now:
                 policy_change["fx_since"] = round((now / base - 1) * 100, 2)
 
+        # Sentralbankens egen bane: automatisk der den finnes, ellers manuell fil (med gyldighetsdato)
+        horizon_day = str(add_months(date.today(), 12))
+        cb_path, auto = None, auto_cb_paths.get(c["id"])
+        if auto and auto.get("path"):
+            at_day, level = cb_path_at(auto["path"], horizon_day)
+            if level is not None:
+                cb_path = {"level": level, "horizon": horizon_text(at_day), "source": auto["label"], "as_of": auto.get("as_of"),
+                           "path": {d: v for d, v in sorted(auto["path"].items()) if DATE_RE.match(d) and d >= today}}
+        if cb_path is None and cb_paths.get(c["id"]):
+            manual = cb_paths[c["id"]]
+            cb_path = {k: manual[k] for k in ("level", "horizon", "source", "as_of", "valid_until") if k in manual}
+            key = f"cb_path_{c['id']}"
+            expired = manual.get("valid_until") and manual["valid_until"] < today
+            if key in status and not status[key]["ok"]:
+                status[key]["warn"] = "bruker manuell reserve i cb_paths.json"
+            elif key not in status:
+                status[key] = {"ok": True, "error": None, "latest": manual.get("as_of"), "fetched": today_iso,
+                               "warn": f"manuell, gyldig til {manual['valid_until']} – utløpt" if expired else None}
+            if expired:
+                cb_path["stale"] = True
+
         # Neste rentemøte fra den statiske kalenderen, og hva markedet priser for det
         upcoming = [d for d in meetings.get(c["id"], []) if d >= today]
         odds = meeting_odds.get(c["id"])
@@ -2045,7 +2195,7 @@ def main():
             "cpi": cpi,
             "cpi_core": cpi_core,
             "policy_change": policy_change,
-            "cb_path": cb_paths.get(c["id"]),
+            "cb_path": cb_path,
             "unemployment": unemployment,
             "ppp": ppp,
             "cot": cot,

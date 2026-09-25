@@ -475,6 +475,55 @@ class MeetingImpliedCurveTest(unittest.TestCase):
         self.assertIsNone(fd.meeting_implied_curve({}, 4.35, 0.04, ["2026-09-29"], today=d(2026, 9, 25)))
 
 
+class CentralBankPathTest(unittest.TestCase):
+    def workbook(self, sheet, shared, rows_xml):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("xl/workbook.xml", f'<workbook><sheets><sheet name="{sheet}" sheetId="1" r:id="rId1"/></sheets></workbook>')
+            z.writestr("xl/_rels/workbook.xml.rels", '<Relationships><Relationship Id="rId1" Type="ws" Target="worksheets/sheet1.xml"/></Relationships>')
+            z.writestr("xl/sharedStrings.xml", "<sst>" + "".join(f"<si><t>{t}</t></si>" for t in shared) + "</sst>")
+            z.writestr("xl/worksheets/sheet1.xml", f"<worksheet><sheetData>{rows_xml}</sheetData></worksheet>")
+        return buf.getvalue()
+
+    def test_parse_fed_sep(self):
+        html_text = ("<table><tr><th>Variable</th><th>Median</th></tr>"
+                     "<tr><th>2026</th><th>2027</th><th>2028</th><th>Longer run</th><th>2026</th></tr>"
+                     "<tr><th>PCE inflation</th><td>3.7</td><td>2.3</td><td>2.1</td><td>2.0</td><td>3.5–3.7</td></tr>"
+                     "<tr><th>Federal funds rate</th><td>4.1</td><td>4.1</td><td>3.9</td><td>3.2</td><td>4.1–4.4</td></tr></table>")
+        self.assertEqual(fd.parse_fed_sep(html_text), {"2026-12-31": 4.1, "2027-12-31": 4.1, "2028-12-31": 3.9, "longer_run": 3.2})
+        with self.assertRaises(RuntimeError):
+            fd.parse_fed_sep("<table><tr><td>ingenting</td></tr></table>")
+
+    def test_parse_nb_tallsett(self):
+        xlsx = self.workbook("Data A", ["Dato", "Styringsrenten (nivå)", "Styringsrenten PPR 2/26 (nivå)"],
+                             '<row r="9"><c r="A9" t="s"><v>0</v></c><c r="B9" t="s"><v>1</v></c><c r="C9" t="s"><v>2</v></c></row>'
+                             '<row r="11"><c r="A11"><v>46295</v></c><c r="B11"><v>4.27</v></c><c r="C11"><v>4.32</v></c></row>'
+                             '<row r="12"><c r="A12"><v>46387</v></c><c r="B12"><v>4.51</v></c></row>'
+                             '<row r="13"><c r="A13"><v>46477</v></c><c r="B13" t="e"><v>#N/A</v></c></row>')
+        self.assertEqual(fd.parse_nb_tallsett(xlsx), {"2026-09-30": 4.27, "2026-12-31": 4.51})
+        with self.assertRaises(RuntimeError):
+            fd.parse_nb_tallsett(self.workbook("Data A", ["Dato", "Noe annet"], '<row r="9"><c r="A9" t="s"><v>0</v></c><c r="B9" t="s"><v>1</v></c></row>'))
+
+    def test_parse_rb_forecasts(self):
+        xlsx = self.workbook("SEQRATENAYNA", ["PPR", "2026:3", "Publiceringsdatum", "Datum", "2027-06-30", "2027-09-30"],
+                             '<row r="8"><c r="A8" t="s"><v>0</v></c><c r="B8" t="s"><v>1</v></c></row>'
+                             '<row r="9"><c r="A9" t="s"><v>2</v></c><c r="B9"><v>46289</v></c></row>'
+                             '<row r="11"><c r="A11" t="s"><v>3</v></c></row>'
+                             '<row r="12"><c r="A12" t="s"><v>4</v></c><c r="B12"><v>2.24</v></c><c r="C12"><v>1.93</v></c></row>'
+                             '<row r="13"><c r="A13" t="s"><v>5</v></c><c r="B13"><v>2.38</v></c></row>')
+        out = fd.parse_rb_forecasts(xlsx)
+        self.assertEqual(out["path"], {"2027-06-30": 2.24, "2027-09-30": 2.38})
+        self.assertEqual((out["as_of"], out["label"]), ("2026-09-24", "Riksbanken, Penningpolitisk rapport 2026:3"))
+
+    def test_cb_path_at_and_horizon_text(self):
+        path = {"2026-12-31": 4.1, "2027-12-31": 4.1, "2028-12-31": 3.9, "longer_run": 3.2}
+        self.assertEqual(fd.cb_path_at(path, "2027-09-25"), ("2027-12-31", 4.1))
+        self.assertEqual(fd.cb_path_at(path, "2031-01-01"), ("2028-12-31", 3.9))  # utenfor: siste punkt
+        self.assertEqual(fd.cb_path_at({"longer_run": 3.2}, "2027-09-25"), (None, None))
+        self.assertEqual(fd.horizon_text("2027-12-31"), "utgangen av 2027")
+        self.assertEqual(fd.horizon_text("2027-09-30"), "3. kvartal 2027")
+
+
 if __name__ == "__main__":
     unittest.main()
 

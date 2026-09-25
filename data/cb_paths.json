@@ -1,23 +1,31 @@
 {
-  "_kommentar": "Sentralbankenes egne renteanslag (prognose/dot plot), oppdateres manuelt etter pengepolitiske rapporter. level = styringsrente ved horisonten, horizon = tekst.",
+  "_kommentar": "Sentralbankenes egne renteanslag. Fed (SEP), Norges Bank (PPR-tallsett) og Riksbanken (utfall och prognoser) hentes automatisk av fetch_data.py; postene her er reserve for dem og eneste kilde for RBNZ (bak Cloudflare). level = styringsrente ved horisonten, horizon = tekst, as_of = rapportdato, valid_until = neste rapportdato (etter den merkes anslaget som utdatert).",
   "us": {
     "level": 4.125,
     "horizon": "utgangen av 2026 og 2027",
-    "source": "FOMC dot plot, september 2026 (4,00–4,25 %)"
+    "source": "FOMC dot plot, september 2026 (4,00–4,25 %)",
+    "as_of": "2026-09-16",
+    "valid_until": "2026-12-09"
   },
   "se": {
     "level": 2.3,
     "horizon": "i løpet av 2027",
-    "source": "Riksbanken, september 2026: «omkring 2,3 % under 2027»"
+    "source": "Riksbanken, september 2026: «omkring 2,3 % under 2027»",
+    "as_of": "2026-09-24",
+    "valid_until": "2026-11-04"
   },
   "nz": {
     "level": 3.28,
     "horizon": "endepunkt i OCR-banen",
-    "source": "RBNZ Monetary Policy Statement"
+    "source": "RBNZ Monetary Policy Statement",
+    "as_of": "2026-08-19",
+    "valid_until": "2026-11-25"
   },
   "no": {
     "level": 4.5,
     "horizon": "neste år (nær dagens nivå, deretter noe ned)",
-    "source": "Norges Bank, Pengepolitisk rapport september 2026"
+    "source": "Norges Bank, Pengepolitisk rapport september 2026",
+    "as_of": "2026-09-24",
+    "valid_until": "2026-12-17"
   }
 }

@@ -7,7 +7,8 @@ from datetime import date
 from pathlib import Path
 
 MONTHLY = {"irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "ssb_kpi_jae", "scb_kpif", "unemployment", "ppp"}
-LIMITS = {"cot": 14, "ppp": 800, "policy_ch": 14}  # ukentlig / årlig med 1–2 års etterslep / SNB publiserer ukentlig
+LIMITS = {"cot": 14, "ppp": 800, "policy_ch": 14,  # ukentlig / årlig med 1–2 års etterslep / SNB publiserer ukentlig
+          **{f"cb_path_{c}": 120 for c in ("us", "no", "se", "nz")}}  # kvartalsvise rapporter
 DEFAULT_DAYS, MONTHLY_DAYS = 10, 75
 
 
@@ -23,12 +24,16 @@ def age_days(period):
 
 def main():
     sources = json.loads((Path(__file__).resolve().parent.parent / "data" / "dashboard.json").read_text()).get("sources", {})
-    stale = []
+    stale, notes = [], []
     for name, st in sources.items():
         limit = LIMITS.get(name, MONTHLY_DAYS if name in MONTHLY else DEFAULT_DAYS)
         age = age_days(st.get("latest"))
         if age is None or age > limit:
             stale.append(f"{name}: nyeste {st.get('latest')} ({age} dager, grense {limit}){'' if st.get('ok') else ' – siste henting feilet: ' + str(st.get('error'))}")
+        if st.get("warn"):  # f.eks. «ubekreftet etter møtet»: vises, men gir ikke rød kjøring
+            notes.append(f"{name}: {st['warn']}")
+    if notes:
+        print("MERKNADER:\n  " + "\n  ".join(notes))
     if stale:
         print("GAMLE KILDER:\n  " + "\n  ".join(stale))
         sys.exit(1)
