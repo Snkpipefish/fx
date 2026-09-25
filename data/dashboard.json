@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-25T19:49:31+00:00",
+ "updated": "2026-09-25T19:57:28+00:00",
  "countries": [
   {
    "id": "us",
@@ -106,19 +106,19 @@
      "10": 5.11
     },
     "repricing": {
-     "w1": 8,
-     "m1": 69
+     "w1": 7,
+     "m1": 68
     },
     "repricing_detail": {
      "w1": {
-      "level": 8,
+      "level": 7,
       "delivered": 0,
-      "remaining": 8
+      "remaining": 7
      },
      "m1": {
-      "level": 69,
+      "level": 68,
       "delivered": 25,
-      "remaining": 44
+      "remaining": 43
      }
     },
     "y2_change": {
@@ -153,17 +153,17 @@
      4.437
     ],
     "implied": {
-     "3m": 31,
+     "3m": 30,
      "6m": 56,
-     "12m": 88,
+     "12m": 87,
      "24m": 82
     },
     "path": [
      3.884,
      3.898,
-     4.043,
-     4.183,
-     4.253,
+     4.038,
+     4.178,
+     4.248,
      4.358,
      4.438,
      4.528,
@@ -171,8 +171,8 @@
      4.678,
      4.708,
      4.733,
+     4.748,
      4.753,
-     4.758,
      4.748,
      4.738,
      4.728,
@@ -212,17 +212,17 @@
      [
       "2026-11-01",
       "2026-11-30",
-      4.04
+      4.035
      ],
      [
       "2026-12-01",
       "2026-12-31",
-      4.18
+      4.175
      ],
      [
       "2027-01-01",
       "2027-01-31",
-      4.25
+      4.245
      ],
      [
       "2027-02-01",
@@ -262,12 +262,12 @@
      [
       "2027-09-01",
       "2027-09-30",
-      4.75
+      4.745
      ],
      [
       "2027-10-01",
       "2027-10-31",
-      4.755
+      4.75
      ],
      [
       "2027-11-01",
@@ -287,7 +287,7 @@
    "meeting": "2026-10-28",
    "next_meeting": {
     "date": "2026-10-28",
-    "bp": 17,
+    "bp": 16,
     "move": "heving",
     "source": "fed funds-futures per måned (CME via Yahoo)"
    },
@@ -2164,13 +2164,13 @@
    }
   },
   "brent_fut": {
-   "value": 104.25,
+   "value": 104.36,
    "date": "2026-09-25",
    "changes": {
-    "d1": -2.2,
-    "w1": 0.37,
-    "m1": 19.91,
-    "y1": 56.81
+    "d1": -2.1,
+    "w1": 0.47,
+    "m1": 20.04,
+    "y1": 56.98
    },
    "contract": "nov. 2026-kontrakten (BZX26)"
   },
@@ -2263,22 +2263,16 @@
    "avg90": 5.6
   },
   "brent_next": {
-   "value": 97.38,
+   "value": 97.54,
    "date": "2026-09-25",
    "contract": "des. 2026-kontrakten (BZZ26)"
   },
   "brent_spread": {
-   "value": 6.87,
+   "value": 6.82,
    "date": "2026-09-25"
   }
  },
  "sources": {
-  "fx": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-25",
-   "fetched": "2026-09-25"
-  },
   "brent_fut": {
    "ok": true,
    "error": null,
@@ -2291,16 +2285,16 @@
    "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
-  "ttf": {
+  "fx": {
    "ok": true,
    "error": null,
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
-  "ons_cpi": {
+  "ttf": {
    "ok": true,
    "error": null,
-   "latest": "2026-08",
+   "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
   "irlt": {
@@ -2315,19 +2309,13 @@
    "latest": "2026-08",
    "fetched": "2026-09-25"
   },
-  "scb_kpif": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
   "pce_core": {
    "ok": true,
    "error": null,
    "latest": "2026-07",
    "fetched": "2026-09-25"
   },
-  "ssb_kpi_jae": {
+  "ons_cpi": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -2339,16 +2327,10 @@
    "latest": "2026-08",
    "fetched": "2026-09-25"
   },
-  "abs_trimmed": {
+  "ssb_kpi_jae": {
    "ok": true,
    "error": null,
-   "latest": "2026-07",
-   "fetched": "2026-09-25"
-  },
-  "ppp": {
-   "ok": true,
-   "error": null,
-   "latest": "2025",
+   "latest": "2026-08",
    "fetched": "2026-09-25"
   },
   "vix": {
@@ -2357,7 +2339,55 @@
    "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
+  "scb_kpif": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
   "unemployment": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "ppp": {
+   "ok": true,
+   "error": null,
+   "latest": "2025",
+   "fetched": "2026-09-25"
+  },
+  "abs_trimmed": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-07",
+   "fetched": "2026-09-25"
+  },
+  "cpi_core": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "curve_jp": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "curve_ca": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "curve_gb": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "cpi": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -2375,46 +2405,22 @@
    "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
-  "curve_gb": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "cpi_core": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "curve_ca": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
   "curve_no": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_jp": {
+  "curve_us": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-23",
+   "fetched": "2026-09-25"
+  },
+  "curve_au": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "cpi": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "curve_ch": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
   "futures_au": {
@@ -2423,10 +2429,10 @@
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
-  "curve_us": {
+  "curve_ch": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-23",
+   "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
   "futures_nz": {
@@ -2465,6 +2471,12 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
+  "policy_au": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
   "policy_us": {
    "ok": true,
    "error": null,
@@ -2483,13 +2495,13 @@
    "latest": "2026-09-16",
    "fetched": "2026-09-25"
   },
-  "curve_au": {
+  "cb_path_se": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "policy_au": {
+  "cb_path_no": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
@@ -2501,28 +2513,10 @@
    "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
-  "cb_path_no": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "cb_path_se": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
   "futures_ca": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "futures_us": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
   "tbill_jp": {
@@ -2530,6 +2524,12 @@
    "error": "HTTP Error 429: Too Many Requests",
    "latest": null,
    "fetched": null
+  },
+  "futures_us": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-25",
+   "fetched": "2026-09-25"
   },
   "curve_se": {
    "ok": true,
