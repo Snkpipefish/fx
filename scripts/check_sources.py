@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 
 MONTHLY = {"irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "ssb_kpi_jae", "scb_kpif", "unemployment", "ppp"}
-LIMITS = {"cot": 14, "ppp": 800}  # ukentlig / årlig med 1–2 års etterslep
+LIMITS = {"cot": 14, "ppp": 800, "policy_ch": 14}  # ukentlig / årlig med 1–2 års etterslep / SNB publiserer ukentlig
 DEFAULT_DAYS, MONTHLY_DAYS = 10, 75
 
 

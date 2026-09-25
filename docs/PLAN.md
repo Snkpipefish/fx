@@ -39,6 +39,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
   | RBA | `f1-data.csv` (`FIRMMCRTD`) |
   | SNB | kube `snbpolizid` (sjekk) |
   BoJ og RBNZ: behold override, men legg til *kalendervakt*: hvis `meetings.json` har et møte ≤ i dag og `policy_date` < møtedato, vis «ubekreftet etter møtet» på kortet og i kildestatus.
+  ✅ *(PR «styringsrenter», 25. sep 2026)* Alle åtte kildene over virker (SNB: `snbgwdzid` serie `LZ`, daglig; ECB gir bare endringsdatoer og videreføres som trapp; Fed = midtpunkt av `DFEDTARU`/`DFEDTARL`). `merge_policy` lar sentralbankens serie overstyre BIS fra sin første dato. Seriene fører **virkningsdato**, så Norges Bank viste 4,25 % t.o.m. 24. sep etter vedtaket 23. sep: `apply_policy_override` bruker den manuelle posten (annonseringsdato) inntil fem dager etter, deretter vinner serien og fila varsles som «avvik». Kalendervakt for alle banker (`unconfirmed_meeting`): `rates.policy_unconfirmed` på kortet og i lista, `warn` i kildestatus; BoJ/RBNZ får egne statusrader «BIS + manuell».
 
 - [ ] **Neste-møte-prising er manuell.**
   *Problem:* `meeting_odds.json` finnes bare for RBA og BoC. Andre banker viser kurvens 3-mnd-prising, som ikke skiller møtet fra resten av kvartalet.

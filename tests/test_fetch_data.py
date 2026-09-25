@@ -437,24 +437,68 @@ if __name__ == "__main__":
 
 
 class OverrideTest(unittest.TestCase):
-    """Manuelt registrerte vedtak skal overstyre BIS-serien fra vedtaksdatoen."""
+    """Manuelt registrerte vedtak overstyrer serien til den har fått vedtaket med seg."""
 
-    def test_override_logic_matches_main(self):
-        # Speiler logikken i main(): BIS 4,25 t.o.m. 24.9, vedtak 4,50 den 23.9
+    def test_override_within_grace(self):
+        # Serien fører virkningsdato: 4,25 t.o.m. 24.9, vedtaket 4,50 annonsert 23.9
         series = {"2026-09-22": 4.25, "2026-09-23": 4.25, "2026-09-24": 4.25}
         ov = {"date": "2026-09-23", "rate": 4.5}
-        policy_day, policy = fd.latest(series)
-        if policy_day < ov["date"] or policy != ov["rate"]:
-            for d in list(series):
-                if d >= ov["date"]:
-                    series[d] = ov["rate"]
-            series[ov["date"]] = ov["rate"]
-        self.assertEqual(series["2026-09-22"], 4.25)
-        self.assertEqual(series["2026-09-24"], 4.5)
-        self.assertEqual(fd.latest(series), ("2026-09-24", 4.5))
-        # curve_metrics ankrer nå på 4,50: flat kurve på 4,5 gir null priset endring
-        m = fd.curve_metrics({"0.25": 4.5, "1": 4.5, "2": 4.5}, fd.latest(series)[1])
+        out, st = fd.apply_policy_override(series, ov, "2026-09-25")
+        self.assertEqual(st, "brukt")
+        self.assertEqual((out["2026-09-22"], out["2026-09-23"], out["2026-09-24"]), (4.25, 4.5, 4.5))
+        self.assertEqual(series["2026-09-24"], 4.25)  # original urørt
+        # Serien har ikke nådd vedtaksdatoen ennå
+        self.assertEqual(fd.apply_policy_override({"2026-09-20": 4.25}, ov, "2026-09-25")[1], "brukt")
+        # curve_metrics ankrer på 4,50: flat kurve på 4,5 gir null priset endring
+        m = fd.curve_metrics({"0.25": 4.5, "1": 4.5, "2": 4.5}, fd.latest(out)[1])
         self.assertEqual(m["implied"]["12m"], 0)
+
+    def test_override_confirmed_or_conflicting(self):
+        ov = {"date": "2026-09-23", "rate": 4.5}
+        self.assertEqual(fd.apply_policy_override({"2026-09-24": 4.5}, ov, "2026-09-25")[1], "bekreftet")
+        # Mer enn fem dager etter vedtaket viser serien fortsatt 4,25: serien vinner, fila avviker
+        series = {"2026-09-24": 4.25, "2026-09-30": 4.25}
+        out, st = fd.apply_policy_override(series, ov, "2026-10-01")
+        self.assertEqual((st, out), ("avvik", series))
+        # Fremtidig eller ufullstendig post ignoreres
+        self.assertEqual(fd.apply_policy_override(series, {"date": "2026-10-05", "rate": 4.5}, "2026-10-01")[1], None)
+        self.assertEqual(fd.apply_policy_override(series, {"date": "2026-09-23"}, "2026-10-01")[1], None)
+        self.assertEqual(fd.apply_policy_override(series, None, "2026-10-01"), (series, None))
+
+
+class PolicySourcesTest(unittest.TestCase):
+    def test_merge_policy_official_wins_from_first_date(self):
+        bis = {"2026-09-10": 4.25, "2026-09-15": 4.25, "2026-09-22": 4.25}
+        official = {"2026-09-15": 4.25, "2026-09-25": 4.5}
+        out = fd.merge_policy(bis, official)
+        self.assertEqual(out, {"2026-09-10": 4.25, "2026-09-15": 4.25, "2026-09-22": 4.25, "2026-09-25": 4.5})
+        # Trapp (ECB): endringsdato 12.3 gjelder for alle senere dager, også BIS-dager med annen verdi
+        self.assertEqual(fd.merge_policy({"2026-03-11": 2.75, "2026-03-13": 2.75}, {"2026-03-12": 2.5}),
+                         {"2026-03-11": 2.75, "2026-03-12": 2.5, "2026-03-13": 2.5})
+        self.assertEqual(fd.merge_policy(bis, {}), bis)
+
+    def test_unconfirmed_meeting(self):
+        meetings = ["2026-08-13", "2026-09-23", "2026-11-05"]
+        self.assertEqual(fd.unconfirmed_meeting(meetings, "2026-09-22", "2026-09-25"), "2026-09-23")
+        self.assertIsNone(fd.unconfirmed_meeting(meetings, "2026-09-23", "2026-09-25"))
+        self.assertIsNone(fd.unconfirmed_meeting(meetings, "2026-09-24", "2026-09-22"))  # møtet er ikke kommet
+        self.assertEqual(fd.unconfirmed_meeting(meetings, None, "2026-09-25"), "2026-09-23")
+
+    def test_expand_daily(self):
+        out = fd.expand_daily({"2026-09-16": 2.5, "2026-09-23": 2.25}, "2026-09-25")
+        self.assertEqual(out, {"2026-09-16": 2.5, "2026-09-17": 2.5, "2026-09-18": 2.5, "2026-09-21": 2.5, "2026-09-22": 2.5,
+                               "2026-09-23": 2.25, "2026-09-24": 2.25, "2026-09-25": 2.25})  # helg hoppes over
+        self.assertEqual(fd.expand_daily({}, "2026-09-25"), {})
+
+    def test_parsers(self):
+        nb = ('FREQ;Frequency;TIME_PERIOD;OBS_VALUE;CALC_METHOD\nB;Business;2026-09-23;4.25;\nB;Business;2026-09-24;4.25;\n')
+        self.assertEqual(fd.parse_norges_bank_policy(nb), {"2026-09-23": 4.25, "2026-09-24": 4.25})
+        valet = {"observations": [{"d": "2026-09-24", "V39079": {"v": "2.25"}}, {"d": "2026-09-23", "V39079": {"v": None}}]}
+        self.assertEqual(fd.parse_valet(valet, "V39079"), {"2026-09-24": 2.25})
+        ecb = "KEY,FREQ,TIME_PERIOD,OBS_VALUE,OBS_STATUS\nFM.B.U2.EUR.4F.KR.DFR.LEV,B,2025-03-12,2.5,A\n"
+        self.assertEqual(fd.parse_ecb_csv(ecb), {"2025-03-12": 2.5})
+        boe = "DATE,IUDBEDR\n23 Sep 2026,3.75\n24 Sep 2026,3.75\nrubbish,\n"
+        self.assertEqual(fd.parse_boe_csv(boe), {"2026-09-23": 3.75, "2026-09-24": 3.75})
 
 
 class BrentContractTest(unittest.TestCase):

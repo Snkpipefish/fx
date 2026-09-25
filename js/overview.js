@@ -82,7 +82,8 @@ export function renderRates(countries) {
   const list = rows.map((c) => {
     const r = c.curve.repricing?.w1;
     const week = r == null || Math.abs(r) < 5 ? "" : ` <span class="${cls(r)}">${r > 0 ? "↑" : "↓"} ${r > 0 ? "høyere" : "lavere"} enn for en uke siden</span>`;
-    const src = c.rates.policy_source && c.rates.policy_source !== "BIS" ? ` <small>(${c.rates.policy_source})</small>` : "";
+    const src = c.rates.policy_unconfirmed ? ` <small class="neg" title="${c.rates.policy_source}">⚠ ubekreftet etter møtet ${shortDate(c.rates.policy_unconfirmed)}</small>`
+      : c.rates.policy_source?.startsWith("vedtak") ? ` <small>(manuelt registrert)</small>` : "";
     const bank = c.cb_path ? ` · banken selv: ${rate(c.cb_path.level)} ${c.cb_path.horizon}` : "";
     const kind = curveKind(c) ? ` <small class="muted" title="${c.curve.source}">${curveKind(c)}</small>` : "";
     return `<li><b>${c.flag} ${c.bank}</b>${kind} · ${rate(c.rates.policy)} nå${src} → <b>${moves(i12(c))}</b> neste 12 mnd
@@ -231,15 +232,18 @@ export function renderSources(sources, updated) {
     brent_fut: "Brent-futures (Yahoo)", ttf: "TTF-gass (Yahoo)", curve_us: "Kurve USD", curve_ea: "Kurve EUR", curve_jp: "Kurve JPY", curve_gb: "Kurve GBP",
     curve_ca: "Kurve CAD", curve_au: "Kurve AUD", curve_se: "Kurve SEK", curve_no: "Kurve NOK",
     curve_nz: "Kurve NZD", curve_ch: "Kurve CHF",
+    policy_no: "Styringsrente NOK (Norges Bank)", policy_se: "Styringsrente SEK (Riksbanken)", policy_ca: "Styringsrente CAD (BoC)",
+    policy_ea: "Styringsrente EUR (ECB)", policy_us: "Styringsrente USD (FRED)", policy_gb: "Styringsrente GBP (BoE)",
+    policy_au: "Styringsrente AUD (RBA)", policy_ch: "Styringsrente CHF (SNB)", policy_jp: "Styringsrente JPY (BIS + manuell)", policy_nz: "Styringsrente NZD (BIS + manuell)",
     futures_us: "Fed funds-futures (CME/Yahoo)", futures_au: "Cash rate-futures (ASX)", futures_ca: "CORRA-futures (TMX)", futures_nz: "Bankvekselfutures NZ (ASX)" };
   const today = new Date(updated);
   const age = (iso) => (iso ? Math.round((today - new Date(iso.length === 4 ? `${iso}-12-31` : iso.length === 7 ? `${iso}-28` : iso)) / 86400000) : null);
-  const limit = (k) => (k === "ppp" ? 800 : k === "cot" ? 14 : ["irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "ssb_kpi_jae", "scb_kpif", "unemployment"].includes(k) ? 75 : 10);
+  const limit = (k) => (k === "ppp" ? 800 : k === "cot" || k === "policy_ch" ? 14 : ["irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "ssb_kpi_jae", "scb_kpif", "unemployment"].includes(k) ? 75 : 10);
   const items = Object.entries(sources).map(([k, s]) => {
     const a = age(s.latest);
-    return { label: labels[k] || k, ok: s.ok, latest: s.latest, stale: !s.ok || a == null || a > limit(k), error: s.error };
+    return { label: labels[k] || k, ok: s.ok, latest: s.latest, stale: !s.ok || a == null || a > limit(k) || !!s.warn, error: s.error, warn: s.warn };
   });
   const bad = items.filter((i) => i.stale);
   el.innerHTML = `<details class="more"><summary>Kildestatus: ${items.length - bad.length} av ${items.length} oppdatert${bad.length ? ` · <span class="neg">${bad.length} bak</span>` : ""}</summary>
-    <ul class="sources">${items.map((i) => `<li class="${i.stale ? "neg" : ""}">${i.stale ? "⚠" : "✓"} ${i.label}: ${i.latest ?? "ingen data"}${i.ok ? "" : ` (feilet: ${i.error ?? "ukjent"})`}</li>`).join("")}</ul></details>`;
+    <ul class="sources">${items.map((i) => `<li class="${i.stale ? "neg" : ""}">${i.stale ? "⚠" : "✓"} ${i.label}: ${i.latest ?? "ingen data"}${i.ok ? "" : ` (feilet: ${i.error ?? "ukjent"})`}${i.warn ? ` (${i.warn})` : ""}</li>`).join("")}</ul></details>`;
 }
