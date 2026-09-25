@@ -1839,6 +1839,129 @@ def decision_reaction(curve, series, futures_series, policy_series, decision_day
     return {"path12_change_bp": change, "tone": tone, "measured": [b, a]}
 
 
+# ---------------------------------------------------------------------------
+# Daglige snapshots: kompakt tilstand per dag i data/snapshots/ÅÅÅÅ-MM-DD.json, så
+# vekter kan kalibreres og reprisingen vises over tid. Historikk fylles ut bakover fra
+# kurve-, futures-, kurs- og posisjoneringshistorikken med dagens basis.
+# ---------------------------------------------------------------------------
+SNAPSHOT_DIR = DATA_DIR / "snapshots"
+SNAPSHOT_BACKFILL_DAYS = 400
+
+
+def world_fx(fx_series, i44, day, is_nok=False):
+    """Kursen mot handelspartnerne: X/NOK ÷ I-44 (NOK selv = 1/I-44), på eller like før dagen."""
+    b = value_at_or_before(i44, day)
+    if not b:
+        return None
+    if is_nok:
+        return round(1 / b, 6)
+    x = value_at_or_before(fx_series, day)
+    return round(x / b, 6) if x else None
+
+
+def snapshot_record(countries, market, day, history):
+    """Ett snapshot: det som trengs for å kalibrere retningssignalet og følge reprisingen."""
+    i44 = history.get("fx", {}).get("I44", {})
+    out = {"date": day, "backfilled": False, "market": {}, "countries": {}}
+    for key in ("brent", "brent_fut", "ttf", "vix", "audjpy"):
+        m = market.get(key)
+        out["market"][key] = m["value"] if m else None
+    out["market"]["i44"] = value_at_or_before(i44, day)
+    for c in countries:
+        cv = c.get("curve") or {}
+        fx = c.get("fx") or {}
+        rec = {
+            "fx": fx.get("value"),
+            "fx_world": world_fx(history.get("fx", {}).get(c["currency"], {}), i44, day, c["id"] == "no"),
+            "fx_m3": (fx.get("changes") or {}).get("m3"),
+            "policy": (c.get("rates") or {}).get("policy"),
+            "path": [cv["path"][m] for m in (0, 3, 6, 12, 24)] if cv.get("path") else None,
+            "implied": cv.get("implied"),
+            "curve_kind": cv.get("kind"),
+            "cb_level": (c.get("cb_path") or {}).get("level"),
+            "repricing_w1": (cv.get("repricing") or {}).get("w1"),
+            "cpi_target": (c.get("cpi_core") or {}).get("value") if (c.get("cpi_core") or {}).get("is_target") else (c.get("cpi") or {}).get("value"),
+            "cot_net": (c.get("cot") or {}).get("net"),
+            "cot_pct_oi": (c.get("cot") or {}).get("pct_oi"),
+            "vol30": c.get("vol30"),
+            "next_meeting_bp": (c.get("next_meeting") or {}).get("bp"),
+        }
+        out["countries"][c["id"]] = rec
+    return out
+
+
+def backfill_snapshots(snapshot_dir, countries, curves, futures, history, days=SNAPSHOT_BACKFILL_DAYS, today=None):
+    """Lager snapshots bakover for dager som mangler, fra lagret historikk: kurs, styringsrente,
+    bane (path[12] m.fl. regnet med dagens basis, så serien er et rent forventningsskift),
+    posisjonering og marked. Felt uten historikk (inflasjon, bankens bane) er None og
+    snapshotet er merket backfilled. Returnerer antall skrevne filer."""
+    today = today or date.today()
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    i44 = history.get("fx", {}).get("I44", {})
+    written = 0
+    for n in range(1, days + 1):
+        d = today - timedelta(days=n)
+        if d.weekday() >= 5:
+            continue
+        day = str(d)
+        path = snapshot_dir / f"{day}.json"
+        if path.exists():
+            continue
+        rec = {"date": day, "backfilled": True, "market": {k: value_at_or_before(history.get("market", {}).get(k, {}), day)
+                                                          for k in ("brent", "brent_fut", "ttf", "vix", "audjpy")}, "countries": {}}
+        rec["market"]["i44"] = value_at_or_before(i44, day)
+        any_data = False
+        for c in countries:
+            cv = c.get("curve") or {}
+            cfg = next((x for x in COUNTRIES if x["id"] == c["id"]), {})
+            cur, bis = c["currency"], cfg.get("bis")
+            policy_series = history.get("policy", {}).get(bis, {})
+            series, fut = curves.get(cur, {}), (futures or {}).get(cur)
+            path12 = path12_at(cv, series, fut, policy_series, day) if cv else None
+            fx_series = history.get("fx", {}).get(cur, {})
+            fx = value_at_or_before(fx_series, day) if c["id"] != "no" else value_at_or_before(i44, day)
+            cot = value_at_or_before(history.get("cot", {}).get(cur, {}), day) if history.get("cot", {}).get(cur) else None
+            past_fx = value_at_or_before(fx_series, str(d - timedelta(days=91))) if c["id"] != "no" else None
+            rec["countries"][c["id"]] = {
+                "fx": fx,
+                "fx_world": world_fx(fx_series, i44, day, c["id"] == "no"),
+                "fx_m3": round((fx / past_fx - 1) * 100, 2) if fx and past_fx else None,
+                "policy": value_at_or_before(policy_series, day) if policy_series else None,
+                "path": [None, None, None, path12, None] if path12 is not None else None,
+                "implied": None,
+                "curve_kind": cv.get("kind"),
+                "cb_level": None,
+                "repricing_w1": None,
+                "cpi_target": None,
+                "cot_net": cot["net"] if cot else None,
+                "cot_pct_oi": round(cot["net"] / cot["oi"] * 100, 1) if cot and cot.get("oi") else None,
+                "vol30": None,
+                "next_meeting_bp": None,
+            }
+            any_data = any_data or fx is not None or path12 is not None
+        if not any_data:
+            continue
+        path.write_text(json.dumps(rec, ensure_ascii=False, separators=(",", ":"), allow_nan=False))
+        written += 1
+    return written
+
+
+def path12_history(snapshot_dir, countries):
+    """{valuta: {dag: renten ventet om 12 mnd}} fra alle snapshots – til reprisingshistorikk."""
+    out = {c["currency"]: {} for c in countries}
+    ids = {c["id"]: c["currency"] for c in countries}
+    for path in sorted(snapshot_dir.glob("????-??-??.json")) if snapshot_dir.exists() else []:
+        try:
+            rec = json.loads(path.read_text())
+        except ValueError:
+            continue
+        for cid, r in rec.get("countries", {}).items():
+            p = r.get("path")
+            if cid in ids and p and p[3] is not None:
+                out[ids[cid]][rec["date"]] = p[3]
+    return {k: v for k, v in out.items() if v}
+
+
 def curve_at(series, target_day):
     """Kurvepunktene på eller like før en dato."""
     days = [d for d in series if d <= target_day]
@@ -2483,6 +2606,15 @@ def main():
                 d = spread_days[-1]
                 market["brent_next"] = {"value": round(brent_next[d], 2), "date": d, "contract": brent_next_label}
                 market["brent_spread"] = {"value": round(brent_fut[d] - brent_next[d], 2), "date": d}
+
+    # Daglig snapshot (og utfylling bakover første gang), pluss path[12]-historikk til frontenden
+    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    (SNAPSHOT_DIR / f"{today}.json").write_text(json.dumps(snapshot_record(countries, market, today, history),
+                                                           ensure_ascii=False, separators=(",", ":"), allow_nan=False))
+    filled = backfill_snapshots(SNAPSHOT_DIR, countries, curve_history, futures_history, history)
+    if filled:
+        print(f"Fylte ut {filled} snapshots bakover")
+    history["path12"] = path12_history(SNAPSHOT_DIR, countries)
 
     dashboard_path.write_text(json.dumps(
         {"updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),

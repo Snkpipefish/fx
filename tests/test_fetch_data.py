@@ -1,5 +1,6 @@
 """Tester for beregningene i scripts/fetch_data.py (kjør: python3 -m unittest discover tests)."""
 import importlib.util
+import json
 import io
 import unittest
 import zipfile
@@ -627,6 +628,44 @@ class DecisionReactionTest(unittest.TestCase):
         r = fd.decision_reaction(curve, {}, fut, policy, decision)
         self.assertEqual(r["tone"], "duete")
         self.assertEqual(r["measured"], [before, after])
+
+
+class SnapshotTest(unittest.TestCase):
+    def test_snapshot_record_and_backfill(self):
+        import tempfile
+        from datetime import date as d
+        from pathlib import Path
+        govt = {"0.25": 4.05, "0.5": 4.1, "1": 4.2, "2": 4.4, "5": 4.5}
+        series = {str(d(2026, 9, 1) + __import__("datetime").timedelta(days=i)): dict(govt) for i in range(0, 25)}
+        policy = {"2026-01-01": 4.0}
+        history = {"fx": {"NOK": {}, "USD": {"2026-09-24": 9.5, "2026-06-25": 9.7}, "I44": {"2026-09-24": 118.0, "2026-06-25": 120.0}},
+                   "policy": {"US": policy}, "cot": {"USD": {"2026-09-22": {"net": 10000, "oi": 40000}}},
+                   "market": {"brent": {"2026-09-24": 100.0}, "vix": {}, "brent_fut": {}, "ttf": {}, "audjpy": {}}}
+        curve = fd.build_curve("us", series, policy)
+        countries = [{"id": "us", "currency": "USD", "curve": curve, "fx": {"value": 9.5, "changes": {"m3": -2.1}},
+                      "rates": {"policy": 4.0}, "cpi": {"value": 3.4}, "cpi_core": {"value": 3.3, "is_target": True},
+                      "cot": {"net": 10000, "pct_oi": 25.0}, "vol30": 6.4, "next_meeting": {"bp": 17}, "cb_path": {"level": 4.1}}]
+        rec = fd.snapshot_record(countries, {"brent": {"value": 100.0}}, "2026-09-25", history)
+        us = rec["countries"]["us"]
+        self.assertEqual((rec["date"], rec["backfilled"], rec["market"]["brent"], rec["market"]["i44"]), ("2026-09-25", False, 100.0, 118.0))
+        self.assertEqual((us["fx"], us["policy"], us["cpi_target"], us["cb_level"], us["next_meeting_bp"]), (9.5, 4.0, 3.3, 4.1, 17))
+        self.assertAlmostEqual(us["fx_world"], 9.5 / 118.0, places=5)
+        self.assertEqual(len(us["path"]), 5)
+        self.assertEqual(us["path"][3], curve["path"][12])
+        with tempfile.TemporaryDirectory() as tmp:
+            sd = Path(tmp)
+            n = fd.backfill_snapshots(sd, countries, {"USD": series}, {}, history, days=10, today=d(2026, 9, 25))
+            self.assertEqual(n, 8)  # ti dager bakover uten helg
+            back = json.loads((sd / "2026-09-24.json").read_text())
+            self.assertTrue(back["backfilled"])
+            self.assertEqual(back["countries"]["us"]["path"][3], curve["path"][12])  # samme kurve og basis → samme nivå
+            self.assertAlmostEqual(back["countries"]["us"]["fx_m3"], round((9.5 / 9.7 - 1) * 100, 2))
+            self.assertEqual(back["countries"]["us"]["cot_pct_oi"], 25.0)
+            self.assertEqual(fd.backfill_snapshots(sd, countries, {"USD": series}, {}, history, days=10, today=d(2026, 9, 25)), 0)  # finnes alt
+            (sd / "2026-09-25.json").write_text(json.dumps(rec))
+            hist = fd.path12_history(sd, countries)
+            self.assertEqual(len(hist["USD"]), 9)
+            self.assertEqual(hist["USD"]["2026-09-25"], curve["path"][12])
 
 
 if __name__ == "__main__":
