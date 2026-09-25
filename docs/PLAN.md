@@ -103,6 +103,18 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
   *Problem:* Testnettleseren er upålitelig, mobilkontroll gjøres med DOM-målinger og enkeltbilder.
   *Løsning:* ✅ *(PR «skjermbilder», 25. sep 2026)* `@playwright/test` (dev-avhengighet) med `playwright.config.mjs`: tre prosjekter (mobil 390, tablet 768, desktop 1280), egen `python3 -m http.server` som webServer, data rutet til `tests/fixtures/` og klokken frosset til 25. sep 2026 så bildene er stabile. `tests/screenshots.spec.mjs`: `scrollWidth <= clientWidth + 1` i kompakt og detaljert visning, `locator.screenshot()` per seksjon (hero, renter, kronen, tre ting, handel, land) og NOK-kortet i detaljvisning som artifact, `toHaveScreenshot` med `maxDiffPixelRatio 0.05` mot baselines i `tests/screenshots/<prosjekt>/`, pluss hele siden som artifact. Første CI-kjøring: 26 av 27 innenfor 2 %, men tablet «tre ting» brøt linjene ett ord annerledes (4 %), så baselines regnes som tatt i CI (Ubuntu-Chromium) og toleransen er 5 %; ved avvik lastes CI-bildet ned fra artifacten og brukes som ny baseline. Egen workflow `screenshots.yml` (push/PR på frontend-filer + manuelt), så visuelle avvik ikke stopper datapubliseringen; `npx playwright test -u` godtar nye baselines.
 
+## Gjennomgang 25. september, kveld
+
+Punktene fra gjennomgangen av kveldsoppdateringen (16:28 UTC), sortert etter påvirkning.
+
+- [ ] **NOK-basis med feil fortegn.**
+  *Problem:* Median siste år av (3-mnd veksel − styringsrente) = +0,06 inneholdt hevingene markedet ventet i syklusen; `path[0]` 4,39 lå under styringsrenten 4,50 og 12 mnd ble bare +0,19.
+  *Løsning:* ✅ *(PR «rentebane», 25. sep 2026)* `curve_basis` måler vekselen mot styringsrenten slik den **faktisk ble i snitt de neste 90 dagene** (`realized_policy_average`), median over 250 kurvedager; de siste tre månedene har ikke kjent utfall og hoppes over, og med færre enn 40 slike dager brukes samme-dag-renten som før. Dager med syntetisk anker teller ikke. NOK: +0,06 → −0,01 (12 mnd +0,31, gap til Norges Banks 4,58 ≈ +0,23). Også GBP OIS (+0,00 → −0,03, SONIA under Bank Rate) og EUR (+0,02 → −0,03) flytter 3–5 bp; SEK, USD, CAD, AUD uendret. Norges Banks datasett har bare NOWA (ikke NIBOR), så en pengemarkedsfront var ikke mulig; historiske møtedatoer finnes ikke i meetings.json, så «dager >5 uker fra møtet» kunne ikke brukes.
+
+- [ ] **SEK-fronten ujevn (3 mnd > 6 mnd).**
+  *Problem:* Lineær interpolasjon av spotkurven gir knekk i terminrentene ved hvert punkt; med 6-mnd-vekselen (2,23) høyt mot 3 mnd og 2 år ble 3 mnd-terminen om 3 mnd (2,37) høyere enn den om 6 mnd (2,32).
+  *Løsning:* ✅ *(PR «rentebane»)* `spot_rate` bruker monoton kubisk interpolasjon (PCHIP, Fritsch–Carlson) mellom punktene: går gjennom punktene, overskyter ikke, og gir kontinuerlig terminbane. SEK-fronten er nå stigende (1,72 → 2,38 → 2,50 → 2,81 ved 12 mnd; 6 mnd +0,58 → +0,75). 6-mnd-serien (SETB6MBENCH) oppdateres daglig og er ikke frosset, men er tynt handlet; det er ikke rettet på.
+
 ## Avhengigheter
 
 - Markedsanker (punkt 1) må inn før reprising-dekomponering og «heving levert»-klassifisering.

@@ -1695,13 +1695,51 @@ def curve_points(points, policy):
     return pts, synthetic
 
 
+def pchip_slopes(pts):
+    """Stigninger i punktene for monoton kubisk interpolasjon (Fritsch–Carlson/PCHIP):
+    harmonisk vektet snitt av nabosekantene, null der kurven snur, så interpolanten ikke
+    overskyter og er monoton mellom punktene. Endepunktene med ensidig formel."""
+    x, y = [t for t, _ in pts], [r for _, r in pts]
+    n = len(pts)
+    h = [x[i + 1] - x[i] for i in range(n - 1)]
+    d = [(y[i + 1] - y[i]) / h[i] for i in range(n - 1)]
+    m = [0.0] * n
+    for i in range(1, n - 1):
+        if d[i - 1] * d[i] > 0:
+            w1, w2 = 2 * h[i] + h[i - 1], h[i] + 2 * h[i - 1]
+            m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i])
+
+    def end(h0, h1, d0, d1):
+        slope = ((2 * h0 + h1) * d0 - h0 * d1) / (h0 + h1)
+        if slope * d0 <= 0:
+            return 0.0
+        if d0 * d1 <= 0 and abs(slope) > abs(3 * d0):
+            return 3 * d0
+        return slope
+
+    if n >= 3:
+        m[0], m[-1] = end(h[0], h[1], d[0], d[1]), end(h[-1], h[-2], d[-1], d[-2])
+    else:
+        m[0] = m[-1] = d[0]
+    return m
+
+
 def spot_rate(pts, T):
-    """Spotrente ved løpetid T, lineært interpolert mellom punktene (flat utenfor)."""
+    """Spotrente ved løpetid T: monoton kubisk interpolasjon (PCHIP) mellom punktene, flat
+    utenfor. Lineær spot gir knekk i terminrentene ved hvert punkt (SEK: 3 mnd-terminen om
+    3 mnd over den om 6 mnd med stigende kurve); den glatte spotkurven gir en kontinuerlig
+    terminbane som er monoton der punktene er det."""
     if T <= pts[0][0]:
         return pts[0][1]
-    for (t0, r0), (t1, r1) in zip(pts, pts[1:]):
+    if T >= pts[-1][0]:
+        return pts[-1][1]
+    m = pchip_slopes(pts)
+    for i, ((t0, r0), (t1, r1)) in enumerate(zip(pts, pts[1:])):
         if T <= t1:
-            return r0 + (r1 - r0) * (T - t0) / (t1 - t0)
+            h = t1 - t0
+            u = (T - t0) / h
+            return ((2 * u ** 3 - 3 * u ** 2 + 1) * r0 + (u ** 3 - 2 * u ** 2 + u) * h * m[i]
+                    + (-2 * u ** 3 + 3 * u ** 2) * r1 + (u ** 3 - u ** 2) * h * m[i + 1])
     return pts[-1][1]
 
 
@@ -1711,19 +1749,55 @@ def front_rate(points, policy):
     return spot_rate(pts, 0.25) if pts else None
 
 
-def curve_basis(series, policy_series, day, window=BASIS_WINDOW):
-    """Basis s = median over siste `window` kurvedager t.o.m. `day` av
-    (3-mnd-rente − styringsrente). Fanger terminpremie/kredittpåslag i instrumentet
-    uten å følge dagens vedtak. None hvis ingen dager kan regnes."""
-    values = []
+def realized_policy_average(policy_series, start, days=91):
+    """Gjennomsnittlig styringsrente over `days` dager fra `start` (det en 3-mnd-rente dekker).
+    None hvis serien mangler starten."""
+    s = date.fromisoformat(start)
+    values = [value_at_or_before(policy_series, str(s + timedelta(days=n))) for n in range(days)]
+    return None if any(v is None for v in values) else sum(values) / len(values)
+
+
+BASIS_MIN_REALIZED = 40  # kurvedager med kjent utfall før den realiserte basisen brukes
+
+
+def curve_basis(series, policy_series, day, window=BASIS_WINDOW, min_realized=BASIS_MIN_REALIZED):
+    """Basis s = median over siste `window` kurvedager t.o.m. `day` av (3-mnd-rente −
+    styringsrenten slik den faktisk ble i snitt de neste 90 dagene). Fanger terminpremie/
+    knapphetspåslag i instrumentet uten det markedet ventet av vedtak – i en hevingssyklus
+    ligger ventede hevinger i 3-mnd-renten og ville ellers blitt lest som basis (NOK 2026:
+    +0,06 mot styringsrenten samme dag, −0,01 mot den som kom). De siste tre månedene har
+    ikke kjent utfall og hoppes over; med færre enn `min_realized` slike dager brukes
+    styringsrenten samme dag (kort historikk). Dager med syntetisk anker (ingen korte
+    punkter) sier ingenting om basisen; er det bare slike dager, er basisen 0.
+    None hvis ingen dager kan regnes."""
+    if not policy_series:
+        return None
+    known = max(max(policy_series), day)
+    realized, naive, synthetic_days = [], [], 0
     for d in sorted((d for d in series if d <= day), reverse=True):
-        policy = value_at_or_before(policy_series, d) if policy_series else None
-        front = front_rate(series[d], policy) if policy is not None else None
-        if front is not None:
-            values.append(front - policy)
-        if len(values) >= window:
+        policy = value_at_or_before(policy_series, d)
+        if policy is None:
+            continue
+        pts, synthetic = curve_points(series[d], policy)
+        if not pts:
+            continue
+        if synthetic:
+            synthetic_days += 1
+            continue
+        front = spot_rate(pts, 0.25)
+        if len(naive) < window:
+            naive.append(front - policy)
+        if str(date.fromisoformat(d) + timedelta(days=90)) <= known and len(realized) < window:
+            avg = realized_policy_average(policy_series, d)
+            if avg is not None:
+                realized.append(front - avg)
+        if len(realized) >= window:
             break
-    return statistics.median(values) if values else None
+    if len(realized) >= min_realized:
+        return statistics.median(realized)
+    if naive:
+        return statistics.median(naive)
+    return 0.0 if synthetic_days else None
 
 
 def curve_metrics(points, policy, basis=None):
