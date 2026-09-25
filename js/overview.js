@@ -31,20 +31,20 @@ export function renderHero(countries, market, updated) {
     .sort((a, b) => a.next_meeting.date.localeCompare(b.next_meeting.date))[0];
   if (soon) {
     const nm = soon.next_meeting, d = daysUntil(nm.date);
-    const what = nm.prob != null ? `~${Math.round(nm.prob * 100)} % for ${nm.move ?? "bevegelse"} (${nm.source})`
-      : nm.bp != null ? `${pp(nm.bp)} priset (${nm.source})` : `kurven priser ${moves(nm.bp_3m)} innen 3 mnd`;
-    stats.push([`<span class="text">${soon.flag} ${soon.bank.replace("Reserve Bank of ", "RB ")}</span>`, `nærmest et vedtak: ${shortDate(nm.date)} (${d === 0 ? "i dag" : `om ${d} dager`}) · ${what}`]);
+    const what = nm.prob != null ? `<span title="${nm.source}">~${Math.round(nm.prob * 100)} % for ${nm.move ?? "bevegelse"}</span>`
+      : nm.bp != null ? `<span title="${nm.source}">${pp(nm.bp)} priset</span>` : `kurven priser ${moves(nm.bp_3m)} innen 3 mnd`;
+    stats.push([`<span class="text">${soon.flag} ${soon.bank.replace("Reserve Bank of ", "RB ")}</span>`, `nærmest et vedtak: ${shortDate(nm.date)}, ${d === 0 ? "i dag" : `om ${d} dager`} · ${what}`]);
   }
   // 2) Mest priset på 12 mnd, som nivå fra → til
   if (rows.length) {
     const most = [...rows].sort((a, b) => Math.abs(i12(b)) - Math.abs(i12(a)))[0];
-    stats.push([`<span class="text nowrap">${rate(most.rates.policy)} → ${rate(most.curve.path[12])}</span>`, `mest priset på 12 mnd: ${most.bank} (${moves(i12(most))} – fra lavt nivå, ikke nødvendigvis snart)`]);
+    stats.push([`<span class="text nowrap">${rate(most.rates.policy)} → ${rate(most.curve.path[12])}</span>`, `mest priset på 12 mnd: ${most.bank}, ${moves(i12(most))} <span title="Antall hevinger belønner lavt utgangspunkt; sier ikke at vedtaket er nært">– fra lavt nivå</span>`]);
   }
   // 3) Størst uenighet med bankens eget anslag
   const gaps = rows.filter((c) => c.cb_path?.level != null).map((c) => ({ c, gap: c.curve.path[12] - c.cb_path.level })).sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
   if (gaps.length) {
     const { c, gap } = gaps[0];
-    stats.push([`<span class="${cls(gap)}">${signed(gap, nb2)} pp</span>`, `størst uenighet med banken selv: ${c.currency} ligger ${gap > 0 ? "over" : "under"} ${c.bank}s eget anslag – der har kursen mest å tape`]);
+    stats.push([`<span class="${cls(gap)}">${signed(gap, nb2)} pp</span>`, `størst uenighet med banken selv: ${c.currency} ligger ${gap > 0 ? "over" : "under"} ${c.bank}s eget anslag`]);
   }
   // 4) Ukens sterkeste mot kronen
   const movers = countries.filter((c) => c.fx && !c.fx.index && c.fx.changes?.w1 != null).sort((a, b) => b.fx.changes.w1 - a.fx.changes.w1);
@@ -149,19 +149,21 @@ export function renderIdeas(countries, market) {
     const by12 = [...withCurve].sort((a, b) => i12(a) - i12(b));
     const dove = by12[0], hawk = by12[by12.length - 1], gap = i12(hawk) - i12(dove);
     if (gap >= 25) {
-      const side = (c) => {
-        const nm = c.next_meeting, pc = c.policy_change;
+      // Kontekst i vanlige setninger: hva er priset for neste møte, nylig vedtak, bankens eget anslag
+      const context = (c, name) => {
+        const nm = c.next_meeting, pc = c.policy_change, out = [];
         const soonBp = nm?.bp ?? nm?.bp_3m ?? null;
-        const bits = [];
-        if (pc && pc.to > pc.from && daysUntil(pc.date) > -45) bits.push(`hevet nettopp (${shortDate(pc.date)})`);
-        if (nm && soonBp != null) bits.push(Math.abs(soonBp) < 10 ? `lite priset for ${shortDate(nm.date)} – syklusen ligger lenger ut` : `${pp(soonBp)} priset for ${shortDate(nm.date)}`);
-        if (c.cb_path) bits.push(`banken selv: ${rate(c.cb_path.level)} ${c.cb_path.horizon}`);
-        return bits.length ? ` (${bits.join("; ")})` : "";
+        if (pc && pc.to > pc.from && daysUntil(pc.date) > -45) out.push(`${name} hevet nettopp (${shortDate(pc.date)}).`);
+        if (nm && soonBp != null) out.push(Math.abs(soonBp) < 10
+          ? `Bare ${pp(soonBp)} er priset for ${out.length ? "møtet" : name + "s møte"} ${shortDate(nm.date)} – syklusen ligger lenger ut.`
+          : `${pp(soonBp)} er priset for ${out.length ? "møtet" : name + "s møte"} ${shortDate(nm.date)}.`);
+        if (c.cb_path) out.push(`${out.length ? "Banken" : name} sier selv ${rate(c.cb_path.level)} ${c.cb_path.horizon}.`);
+        return out.join(" ");
       };
       ideas.push({ tag: "Størst sprik", text:
-        `Markedet venter <b>${moves(i12(hawk))}</b> fra ${hawk.bank}${side(hawk)}, men bare <b>${moves(i12(dove))}</b> fra ${dove.bank}${side(dove)}.
-         Renteforskjellen ${hawk.currency}–${dove.currency} ventes altså å øke med ${nb2.format(gap / 100)} pp. Tror du markedet tar feil, er
-         ${hawk.currency}/${dove.currency} paret å se på.` });
+        `Markedet venter <b>${moves(i12(hawk))}</b> fra ${hawk.bank}, men bare <b>${moves(i12(dove))}</b> fra ${dove.bank}. Renteforskjellen
+         ${hawk.currency}–${dove.currency} ventes altså å øke med ${nb2.format(gap / 100)} pp. ${context(hawk, hawk.bank)} ${context(dove, dove.bank)}
+         Tror du markedet tar feil, er ${hawk.currency}/${dove.currency} paret å se på.` });
     }
     const rep = withCurve.filter((c) => c.curve.repricing?.w1 != null).sort((a, b) => Math.abs(b.curve.repricing.w1) - Math.abs(a.curve.repricing.w1));
     if (rep.length && Math.abs(rep[0].curve.repricing.w1) >= 8) {
