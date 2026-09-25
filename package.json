@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "description": "G10 valutabrief – frontend-tester (node --test + jsdom)",
   "scripts": {
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "screenshots": "playwright test",
+    "screenshots:update": "playwright test -u"
   },
   "license": "MIT",
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "jsdom": "^29.1.1"
   },
   "private": true,
