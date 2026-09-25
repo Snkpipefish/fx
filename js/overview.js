@@ -8,6 +8,14 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const i12 = (c) => c.curve.implied["12m"];
 /** Hva banen er lest ut av: futures på styringsrenten, OIS eller statskurve (inkl. terminpremie). */
 export const curveKind = (c) => ({ futures: "futures", ois: "OIS", swap: "swapkurve", govt: "statskurve", zero: "statskurve" })[c.curve?.kind] ?? "";
+/**
+ * Hvor mye banen kan bære: «høy» (futures/OIS/swap følger styringsrenten), «middels» (statskurve med
+ * terminpremie), «lav» (syntetisk nåpunkt: ingen korte punkter, eller et månedssnitt som front – JPY/CHF
+ * uten veksler, NZD med OECD-front). Backend setter feltet; eldre data utledes av kind og anker.
+ */
+export const confidence = (c) => c.curve?.confidence ?? (c.curve?.synthetic_anchor ? "lav" : ["futures", "ois", "swap"].includes(c.curve?.kind) ? "høy" : "middels");
+/** Kurver som får bære hero-tall og «størst sprik»: alt unntatt lav sikkerhet. */
+const reliable = (c) => confidence(c) !== "lav";
 
 /** Overskriften: hva markedet venter, i én setning. */
 function headline(rows) {
@@ -37,13 +45,14 @@ export function renderHero(countries, market, updated) {
       : nm.bp != null ? `<span title="${nm.source}">${pp(nm.bp)} priset</span>` : `kurven priser ${moves(nm.bp_3m)} innen 3 mnd`;
     stats.push([`<span class="text">${soon.flag} ${soon.bank.replace("Reserve Bank of ", "RB ")}</span>`, `nærmest et vedtak: ${shortDate(nm.date)}, ${d === 0 ? "i dag" : `om ${d} dager`} · ${what}`]);
   }
-  // 2) Mest priset på 12 mnd, som nivå fra → til
-  if (rows.length) {
-    const most = [...rows].sort((a, b) => Math.abs(i12(b)) - Math.abs(i12(a)))[0];
+  // 2) Mest priset på 12 mnd, som nivå fra → til – bare kurver med markedsanker (ikke lav sikkerhet)
+  const solid = rows.filter(reliable);
+  if (solid.length) {
+    const most = [...solid].sort((a, b) => Math.abs(i12(b)) - Math.abs(i12(a)))[0];
     stats.push([`<span class="text nowrap">${rate(most.rates.policy)} → ${rate(most.curve.path[12])}</span>`, `mest priset på 12 mnd: ${most.bank}, ${moves(i12(most))} <span title="Antall hevinger belønner lavt utgangspunkt; sier ikke at vedtaket er nært">– fra lavt nivå</span>`]);
   }
   // 3) Størst uenighet med bankens eget anslag
-  const gaps = rows.filter((c) => c.cb_path?.level != null).map((c) => ({ c, gap: c.curve.path[12] - c.cb_path.level })).sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
+  const gaps = solid.filter((c) => c.cb_path?.level != null).map((c) => ({ c, gap: c.curve.path[12] - c.cb_path.level })).sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
   if (gaps.length) {
     const { c, gap } = gaps[0];
     stats.push([`<span class="${cls(gap)}">${signed(gap, nb2)} pp</span>`, `størst uenighet med banken selv: ${c.currency} ligger ${gap > 0 ? "over" : "under"} ${c.bank}s eget anslag`]);
@@ -84,8 +93,8 @@ export function renderRates(countries) {
     bank: c.cb_path?.level ?? null,
     bankTitle: c.cb_path ? `${c.bank}s eget anslag: ${rate(c.cb_path.level)} ${c.cb_path.horizon} (${c.cb_path.source}${c.cb_path.stale ? ", utdatert" : ""})` : "",
   }));
-  // Hvor ligger markedet lengst fra sentralbankens egen bane?
-  const gaps = rows.filter((c) => c.cb_path?.level != null)
+  // Hvor ligger markedet lengst fra sentralbankens egen bane? (kurver med lav sikkerhet holdes ute)
+  const gaps = rows.filter((c) => c.cb_path?.level != null && reliable(c))
     .map((c) => ({ c, gap: c.curve.path[12] - c.cb_path.level }))
     .sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
   const gapText = gaps.length ? `<p class="lead">Markedet ligger lengst fra sentralbankens eget anslag for
@@ -97,7 +106,7 @@ export function renderRates(countries) {
     const src = c.rates.policy_unconfirmed ? ` <small class="neg" title="${c.rates.policy_source}">⚠ ubekreftet etter møtet ${shortDate(c.rates.policy_unconfirmed)}</small>`
       : c.rates.policy_source?.startsWith("vedtak") ? ` <small>(manuelt registrert)</small>` : "";
     const bank = c.cb_path ? ` · banken selv: ${rate(c.cb_path.level)} ${c.cb_path.horizon}${c.cb_path.stale ? " ⚠ utdatert anslag" : ""}` : "";
-    const kind = curveKind(c) ? ` <small class="muted" title="${c.curve.source}">${curveKind(c)}</small>` : "";
+    const kind = curveKind(c) ? ` <small class="muted" title="${c.curve.source}">${curveKind(c)}${confidence(c) === "lav" ? " · syntetisk nåpunkt, lav sikkerhet" : ""}</small>` : "";
     return `<li><b>${c.flag} ${c.bank}</b>${kind} · ${rate(c.rates.policy)} nå${src} → <b>${moves(i12(c))}</b> neste 12 mnd
       <span class="muted">(${pp(i12(c))}, ${extremeText(c.curve)}${bank})</span>${week}</li>`;
   }).join("");
@@ -106,6 +115,7 @@ export function renderRates(countries) {
     ${gapText}
     <details class="more"><summary>Vis som liste</summary><ul class="plain">${list}</ul></details>
     <p class="note">Én heving eller ett kutt = 0,25 prosentpoeng. Lest ut av futures (USD, AUD, CAD, NZD), OIS (GBP) eller statskurven (øvrige, med terminpremie), oppdatert hver ukedag.
+      ${rows.some((c) => !reliable(c)) ? `Kurver med syntetisk nåpunkt (${rows.filter((c) => !reliable(c)).map((c) => c.currency).join(", ")}) holdes ute av tallene øverst.` : ""}
       ${missing.length ? `Ingen kurve tilgjengelig for ${missing.join(" og ")}.` : ""}</p>`;
   // Kompakt graf på smale skjermer; tegnes på nytt når bredden krysser grensen
   const mq = window.matchMedia("(max-width: 640px)");
@@ -169,18 +179,22 @@ export function renderKrone(countries, market) {
 export function renderIdeas(countries, market) {
   const ideas = [];
   const withCurve = countries.filter((c) => c.curve);
-  if (withCurve.length >= 2) {
-    const by12 = [...withCurve].sort((a, b) => i12(a) - i12(b));
+  const solid = withCurve.filter(reliable);
+  if (solid.length >= 2) {
+    const by12 = [...solid].sort((a, b) => i12(a) - i12(b));
     const dove = by12[0], hawk = by12[by12.length - 1], gap = i12(hawk) - i12(dove);
     if (gap >= 25) {
       // Kontekst i vanlige setninger: hva er priset for neste møte, nylig vedtak, bankens eget anslag
       const context = (c, name) => {
         const nm = c.next_meeting, pc = c.policy_change, out = [];
-        const soonBp = nm?.bp ?? nm?.bp_3m ?? null;
         if (pc && pc.to > pc.from && daysUntil(pc.date) > -45) out.push(`${name} hevet nettopp (${shortDate(pc.date)}).`);
-        if (nm && soonBp != null) out.push(Math.abs(soonBp) < 10
-          ? `Bare ${pp(soonBp)} er priset for ${out.length ? "møtet" : name + "s møte"} ${shortDate(nm.date)} – syklusen ligger lenger ut.`
-          : `${pp(soonBp)} er priset for ${out.length ? "møtet" : name + "s møte"} ${shortDate(nm.date)}.`);
+        // bp gjelder selve møtet (futures/OIS); bp_3m er det kurven priser innen 3 mnd, ikke for møtet
+        if (nm?.bp != null) out.push(Math.abs(nm.bp) < 10
+          ? `Bare ${pp(nm.bp)} er priset for ${out.length ? "møtet" : name + "s møte"} ${shortDate(nm.date)} – syklusen ligger lenger ut.`
+          : `${pp(nm.bp)} er priset for ${out.length ? "møtet" : name + "s møte"} ${shortDate(nm.date)}.`);
+        else if (nm?.bp_3m != null) out.push(Math.abs(nm.bp_3m) < 10
+          ? `Kurven priser bare ${pp(nm.bp_3m)} innen 3 mnd (neste møte ${shortDate(nm.date)}) – syklusen ligger lenger ut.`
+          : `Kurven priser ${pp(nm.bp_3m)} innen 3 mnd (neste møte ${shortDate(nm.date)}).`);
         if (c.cb_path) out.push(`${out.length ? "Banken" : name} sier selv ${rate(c.cb_path.level)} ${c.cb_path.horizon}.`);
         return out.join(" ");
       };
@@ -189,7 +203,7 @@ export function renderIdeas(countries, market) {
          ${hawk.currency}–${dove.currency} ventes altså å øke med ${nb2.format(gap / 100)} pp. ${context(hawk, hawk.bank)} ${context(dove, dove.bank)}
          Tror du markedet tar feil, er ${hawk.currency}/${dove.currency} paret å se på.` });
     }
-    const rep = withCurve.filter((c) => c.curve.repricing?.w1 != null).sort((a, b) => Math.abs(b.curve.repricing.w1) - Math.abs(a.curve.repricing.w1));
+    const rep = solid.filter((c) => c.curve.repricing?.w1 != null).sort((a, b) => Math.abs(b.curve.repricing.w1) - Math.abs(a.curve.repricing.w1));
     if (rep.length && Math.abs(rep[0].curve.repricing.w1) >= 8) {
       const r = rep[0].curve.repricing.w1;
       const m = rep[0].curve.repricing_detail?.m1;
@@ -210,7 +224,9 @@ export function renderIdeas(countries, market) {
   }
   // Heving levert, men kursen (målt mot handelspartnerne, I-44-justert) har falt. Hva banken
   // signaliserte leses ut av markedet: renten ventet om 12 mnd før og etter vedtaket.
-  const delivered = countries.filter((c) => c.policy_change && c.policy_change.to > c.policy_change.from && c.policy_change.fx_since != null && c.policy_change.fx_since < 0)
+  // Uten måling av forwardene rundt vedtaket (tone mangler) vet vi ikke hva banken signaliserte – da hoppes idéen over
+  const delivered = countries.filter((c) => c.policy_change && c.policy_change.to > c.policy_change.from && c.policy_change.fx_since != null && c.policy_change.fx_since < 0
+      && c.policy_change.tone && c.policy_change.path12_change_bp != null)
     .sort((a, b) => a.policy_change.fx_since - b.policy_change.fx_since);
   for (const c of delivered.slice(0, 1)) {
     const pc = c.policy_change;
@@ -220,7 +236,7 @@ export function renderIdeas(countries, market) {
       ${nb2.format(Math.abs(pc.path12_change_bp) / 100)} pp gjennom vedtaket. Kursen fulgte signalet om pause, ikke hevingen.${carry}` });
     else if (pc.tone === "haukete") ideas.push({ tag: "Haukete heving, kurs ikke fulgt", text: `${head} Forwardene steg ${pp(pc.path12_change_bp)} gjennom vedtaket,
       så signalet var haukete – kursfallet handler om noe annet enn renten.${carry}` });
-    else ideas.push({ tag: "Heving levert, kurs ikke fulgt", text: `${head} Forwardene flyttet seg ${pc.path12_change_bp != null ? `bare ${pp(pc.path12_change_bp)}` : "lite"}
+    else ideas.push({ tag: "Heving levert, kurs ikke fulgt", text: `${head} Forwardene flyttet seg bare ${pp(pc.path12_change_bp)}
       gjennom vedtaket: hevingen var alt i kursen – «selg på nyheten».${carry}` });
   }
   const carry = countries.filter((c) => c.fwd_fx_1y).sort((a, b) => b.fwd_fx_1y.diff - a.fwd_fx_1y.diff);
@@ -233,8 +249,9 @@ export function renderIdeas(countries, market) {
   if (crowded.length) {
     const c = crowded[0];
     const check = c.cot.unusual ? (c.cot.confirmed === true ? " Ukens sving er uvanlig stort, men finnes i alle CFTC-rapportene." : " Ukens sving er uvanlig stort og ikke bekreftet i de andre CFTC-rapportene.") : "";
-    ideas.push({ tag: "Alle på samme side", text: `Spekulantene er tungt <b>${c.cot.net > 0 ? "long" : "short"} ${c.currency}</b> (${signed(c.cot.pct_oi)} % av åpen
-      interesse). Når alle sitter likt, blir reverseringene brå – særlig rundt rentemøtet ${shortDate(c.meeting)}.${check}` });
+    const funds = c.cot.lev_net != null ? ` Hedgefondene alene (TFF) er ${signed(c.cot.lev_net / 1000, nb1)}k kontrakter netto${c.cot.lev_pct_oi != null ? ` (${signed(c.cot.lev_pct_oi)} % av åpen interesse)` : ""}.` : "";
+    ideas.push({ tag: "Alle på samme side", text: `Ikke-kommersielle aktører (spekulanter og kapitalforvaltere) er tungt <b>${c.cot.net > 0 ? "long" : "short"} ${c.currency}</b> (${signed(c.cot.pct_oi)} % av åpen
+      interesse).${funds} Når alle sitter likt, blir reverseringene brå – særlig rundt rentemøtet ${shortDate(c.meeting)}.${check}` });
   }
   const shown = ideas.slice(0, 4);
   const words = ["Ingenting", "Én ting", "To ting", "Tre ting", "Fire ting"];
@@ -254,7 +271,7 @@ export function renderSources(sources, updated) {
     cot: "COT (CFTC)", ppp: "PPP (World Bank)", cpi_core: "Kjerne-KPI (OECD/Eurostat)", ons_cpi: "KPI Storbritannia (ONS)", ssb_kpi_jae: "KPI-JAE (SSB)", scb_kpif: "KPIF (SCB)", pce_core: "Kjerne-PCE (FRED)", abs_trimmed: "Trimmet gjennomsnitt (ABS)", boc_core: "CPI-trim/median (BoC)",
     brent_fut: "Brent-futures (Yahoo)", ttf: "TTF-gass (Yahoo)", curve_us: "Kurve USD", curve_ea: "Kurve EUR", curve_jp: "Kurve JPY", curve_gb: "Kurve GBP",
     curve_ca: "Kurve CAD", curve_au: "Kurve AUD", curve_se: "Kurve SEK", curve_no: "Kurve NOK",
-    curve_nz: "Kurve NZD", curve_ch: "Kurve CHF",
+    curve_nz: "Kurve NZD", curve_ch: "Kurve CHF", tbill_jp: "Statsveksler JPY (JSDA)",
     policy_no: "Styringsrente NOK (Norges Bank)", policy_se: "Styringsrente SEK (Riksbanken)", policy_ca: "Styringsrente CAD (BoC)",
     policy_ea: "Styringsrente EUR (ECB)", policy_us: "Styringsrente USD (FRED)", policy_gb: "Styringsrente GBP (BoE)",
     policy_au: "Styringsrente AUD (RBA)", policy_ch: "Styringsrente CHF (SNB)", policy_jp: "Styringsrente JPY (BIS + manuell)", policy_nz: "Styringsrente NZD (BIS + manuell)",

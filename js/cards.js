@@ -23,10 +23,17 @@ function pppLine(c) {
   return `Kjøpekraft mot USD: <b>${nb1.format(Math.abs(v))} % ${v > 0 ? "dyr" : "billig"}</b>${c.ppp.proxy ? ` <small>(proxy: ${c.ppp.proxy})</small>` : ""}`;
 }
 
+/**
+ * Posisjonering: TFF «leveraged funds» (hedgefond) er spekulantene i snever forstand; legacy
+ * «non-commercial» inkluderer også kapitalforvaltere og vises som ikke-kommersielle.
+ */
 function cotLine(c) {
   if (!c.cot) return c.currency === "NOK" || c.currency === "SEK" ? `Spekulanter: <small>ingen likvide futures for ${c.currency}</small>` : "";
   const oi = c.cot.pct_oi != null ? ` (${signed(c.cot.pct_oi)} % av åpen interesse)` : "";
-  return `Spekulanter: <b class="${cls(c.cot.net)}">${thousands(c.cot.net)}</b> netto${oi}${cotCheck(c.cot)}`;
+  const legacy = `<b class="${cls(c.cot.net)}">${thousands(c.cot.net)}</b> netto${oi}`;
+  if (c.cot.lev_net == null) return `Spekulanter: ${legacy}${cotCheck(c.cot)}`;
+  return `Spekulanter <small title="Hedgefond (TFF leveraged funds), netto">(hedgefond)</small>: <b class="${cls(c.cot.lev_net)}">${thousands(c.cot.lev_net)}</b>
+    <span class="muted" title="Legacy non-commercial: spekulanter og kapitalforvaltere">· ikke-kommersielle ${legacy}</span>${cotCheck(c.cot)}`;
 }
 
 /** Stort ukesving: vis om det finnes i alle CFTC-rapportene, og om det var rulleuke. */

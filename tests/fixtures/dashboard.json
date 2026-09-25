@@ -85,7 +85,8 @@
 "roll_week": true,
 "unusual": false,
 "confirmed": true,
-"lev_net": -4909
+"lev_net": -4909,
+"lev_pct_oi": -11.2
 },
 "curve": {
 "date": "2026-09-23",
@@ -276,7 +277,8 @@
 4.785
 ]
 ],
-"govt_basis": 0.07500000000000018
+"govt_basis": 0.07500000000000018,
+"confidence": "høy"
 },
 "vol30": 6.0,
 "meeting": "2026-10-28",
@@ -366,7 +368,8 @@
 "roll_week": true,
 "unusual": false,
 "confirmed": false,
-"lev_net": -28156
+"lev_net": -28156,
+"lev_pct_oi": -3.0
 },
 "curve": {
 "date": "2026-09-24",
@@ -471,7 +474,8 @@
 "basis": 0.017,
 "kind": "marked"
 },
-"synthetic_anchor": false
+"synthetic_anchor": false,
+"confidence": "middels"
 },
 "vol30": 3.6,
 "meeting": "2026-10-29",
@@ -508,7 +512,7 @@
 },
 "rates": {
 "policy": 1.25,
-"policy_date": "2026-09-22",
+"policy_date": "2026-09-18",
 "policy_source": "vedtak (manuelt registrert)",
 "policy_unconfirmed": null,
 "m3": 1.45845,
@@ -560,7 +564,8 @@
 "roll_week": true,
 "unusual": true,
 "confirmed": true,
-"lev_net": 23170
+"lev_net": 23170,
+"lev_pct_oi": 4.3
 },
 "curve": {
 "date": "2026-09-24",
@@ -663,7 +668,8 @@
 "basis": 0.0,
 "kind": "syntetisk"
 },
-"synthetic_anchor": true
+"synthetic_anchor": true,
+"confidence": "lav"
 },
 "vol30": 8.8,
 "meeting": "2026-10-30",
@@ -741,7 +747,8 @@
 "roll_week": true,
 "unusual": false,
 "confirmed": false,
-"lev_net": 18878
+"lev_net": 18878,
+"lev_pct_oi": 6.0
 },
 "curve": {
 "date": "2026-09-24",
@@ -847,7 +854,8 @@
 "basis": 0.004,
 "kind": "marked"
 },
-"synthetic_anchor": false
+"synthetic_anchor": false,
+"confidence": "høy"
 },
 "vol30": 4.0,
 "meeting": "2026-11-05",
@@ -886,9 +894,9 @@
 },
 "rates": {
 "policy": 0.0,
-"policy_date": "2026-09-22",
-"policy_source": "SNB – ubekreftet etter møtet 2026-09-24",
-"policy_unconfirmed": "2026-09-24",
+"policy_date": "2026-09-24",
+"policy_source": "vedtak (manuelt registrert)",
+"policy_unconfirmed": null,
 "m3": -0.045,
 "y10": 0.649,
 "m3_source": "OECD (månedssnitt)",
@@ -927,7 +935,8 @@
 "roll_week": true,
 "unusual": false,
 "confirmed": false,
-"lev_net": -14964
+"lev_net": -14964,
+"lev_pct_oi": -8.7
 },
 "curve": {
 "date": "2026-09-25",
@@ -1031,7 +1040,8 @@
 "basis": 0.0,
 "kind": "syntetisk"
 },
-"synthetic_anchor": true
+"synthetic_anchor": true,
+"confidence": "lav"
 },
 "vol30": 4.5,
 "meeting": "2026-12-10",
@@ -1109,7 +1119,8 @@
 "roll_week": true,
 "unusual": false,
 "confirmed": true,
-"lev_net": -39022
+"lev_net": -39022,
+"lev_pct_oi": -10.9
 },
 "curve": {
 "date": "2026-09-24",
@@ -1256,7 +1267,8 @@
 3.685
 ]
 ],
-"govt_basis": 0.0
+"govt_basis": 0.0,
+"confidence": "høy"
 },
 "vol30": 4.1,
 "meeting": "2026-10-28",
@@ -1335,7 +1347,8 @@
 "roll_week": true,
 "unusual": false,
 "confirmed": false,
-"lev_net": 61135
+"lev_net": 61135,
+"lev_pct_oi": 12.4
 },
 "curve": {
 "date": "2026-09-24",
@@ -1502,7 +1515,8 @@
 4.95
 ]
 ],
-"govt_basis": 0.040000000000000036
+"govt_basis": 0.040000000000000036,
+"confidence": "høy"
 },
 "vol30": 4.9,
 "meeting": "2026-09-29",
@@ -1587,7 +1601,8 @@
 "roll_week": true,
 "unusual": false,
 "confirmed": true,
-"lev_net": -1766
+"lev_net": -1766,
+"lev_pct_oi": -1.3
 },
 "curve": {
 "date": "2026-09-25",
@@ -1674,9 +1689,10 @@
 "anchor": {
 "rate_front": 2.997,
 "basis": 0.247,
-"kind": "futures"
+"kind": "syntetisk front (månedssnitt)"
 },
-"synthetic_anchor": false
+"synthetic_anchor": true,
+"confidence": "lav"
 },
 "vol30": 6.3,
 "meeting": "2026-10-28",
@@ -1866,7 +1882,8 @@
 "basis": 0.188,
 "kind": "marked"
 },
-"synthetic_anchor": false
+"synthetic_anchor": false,
+"confidence": "middels"
 },
 "vol30": 4.8,
 "meeting": "2026-11-04",
@@ -2072,7 +2089,8 @@
 "basis": 0.062,
 "kind": "marked"
 },
-"synthetic_anchor": false
+"synthetic_anchor": false,
+"confidence": "middels"
 },
 "vol30": 3.8,
 "meeting": "2026-11-05",
