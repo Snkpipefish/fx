@@ -6,7 +6,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-MONTHLY = {"irlt", "ir3", "cpi", "unemployment", "ppp"}
+MONTHLY = {"irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "unemployment", "ppp"}
 LIMITS = {"cot": 14, "ppp": 800}  # ukentlig / årlig med 1–2 års etterslep
 DEFAULT_DAYS, MONTHLY_DAYS = 10, 75
 
