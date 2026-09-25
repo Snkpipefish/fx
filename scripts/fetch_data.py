@@ -452,7 +452,8 @@ def fetch_cpi():
     gamle dataflyt (COICOP 1999) sluttet da å oppdatere NOR/SWE/CHE/EA.
     Vi spør derfor begge flytene og fletter – nyeste observasjon vinner.
     Eurosonen finnes ikke i 2018-flyten og hentes fra Eurostat (EA21).
-    Japan ligger kun i G20-dataflyten (1999); New Zealand er kvartalsvis.
+    Japan ligger kun i G20-dataflyten (1999); New Zealand er kvartalsvis og finnes
+    bare i 1999-flyten (2018-flyten svarer 404 «NoRecordsFound» for NZL).
     """
     start = date.today() - timedelta(days=430)
     result = {}
@@ -462,7 +463,6 @@ def fetch_cpi():
         ("DSD_PRICES@DF_PRICES_ALL,1.0", "NZL", "Q"),
         ("DSD_G20_PRICES@DF_G20_PRICES,1.0", "JPN", "M"),
         ("DSD_PRICES_COICOP2018@DF_PRICES_C2018_ALL,1.0", "+".join(monthly) + "+JPN", "M"),
-        ("DSD_PRICES_COICOP2018@DF_PRICES_C2018_ALL,1.0", "NZL", "Q"),
     ]
     for flow, areas, freq in queries:
         url = (
@@ -471,6 +471,12 @@ def fetch_cpi():
         )
         try:
             raw = fetch(url, timeout=120)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:  # OECD svarer 404 når spørringen ikke har observasjoner
+                print(f"  KPI: ingen observasjoner for {areas} i {flow.split('@')[0]}", file=sys.stderr)
+            else:
+                print(f"  ADVARSEL: KPI-spørring feilet for {areas}: {exc}", file=sys.stderr)
+            continue
         except Exception as exc:  # én delspørring skal ikke velte resten
             print(f"  ADVARSEL: KPI-spørring feilet for {areas}: {exc}", file=sys.stderr)
             continue
