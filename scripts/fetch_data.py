@@ -148,6 +148,160 @@ def fetch_policy_rates():
     return series
 
 
+# ---------------------------------------------------------------------------
+# Styringsrenter direkte fra sentralbankene (BIS henger typisk noen dager etter vedtak).
+# Hver henter gir {dato: rente} for de siste ukene; ECB gir bare endringsdatoer (trapp).
+# ---------------------------------------------------------------------------
+POLICY_SOURCE_LABELS = {"no": "Norges Bank", "se": "Riksbanken", "ca": "Bank of Canada", "ea": "ECB",
+                        "us": "Fed (FRED, midtpunkt i intervallet)", "gb": "Bank of England", "au": "RBA", "ch": "SNB"}
+POLICY_LOOKBACK_DAYS = 60
+OVERRIDE_GRACE_DAYS = 5  # dager etter et manuelt vedtak der den offisielle serien får lov å henge etter (virkningsdato)
+
+
+def policy_start():
+    return str(date.today() - timedelta(days=POLICY_LOOKBACK_DAYS))
+
+
+def parse_norges_bank_policy(csv_text):
+    out = {}
+    for row in csv.DictReader(io.StringIO(csv_text), delimiter=";"):
+        value = to_float(row.get("OBS_VALUE"))
+        if row.get("TIME_PERIOD") and value is not None:
+            out[row["TIME_PERIOD"]] = value
+    return out
+
+
+def fetch_policy_no():
+    return parse_norges_bank_policy(fetch(f"https://data.norges-bank.no/api/data/IR/B.KPRA.SD.?format=csv&startPeriod={policy_start()}", timeout=60))
+
+
+def fetch_policy_se():
+    obs = json.loads(fetch("https://api.riksbank.se/swea/v1/Observations/Latest/SECBREPOEFF", timeout=60))
+    value = to_float(obs.get("value"))
+    if not obs.get("date") or value is None:
+        raise RuntimeError("uventet svar fra Riksbanken")
+    return {obs["date"]: value}
+
+
+def parse_valet(payload, series_id):
+    out = {}
+    for obs in payload.get("observations", []):
+        value = to_float((obs.get(series_id) or {}).get("v"))
+        if obs.get("d") and value is not None:
+            out[obs["d"]] = value
+    return out
+
+
+def fetch_policy_ca():
+    return parse_valet(json.loads(fetch(f"https://www.bankofcanada.ca/valet/observations/V39079/json?start_date={policy_start()}", timeout=60)), "V39079")
+
+
+def parse_ecb_csv(csv_text):
+    out = {}
+    for row in csv.DictReader(io.StringIO(csv_text)):
+        value = to_float(row.get("OBS_VALUE"))
+        if row.get("TIME_PERIOD") and value is not None:
+            out[row["TIME_PERIOD"]] = value
+    return out
+
+
+def expand_daily(series, until):
+    """Trapp → daglige observasjoner (virkedager) fra første dato t.o.m. `until`, så
+    kildestatusen viser dagens dato og ikke siste endringsdato."""
+    if not series:
+        return {}
+    out, day, end = {}, date.fromisoformat(min(series)), date.fromisoformat(until)
+    while day <= end:
+        if day.weekday() < 5:
+            out[str(day)] = value_at_or_before(series, str(day))
+        day += timedelta(days=1)
+    return out
+
+
+def fetch_policy_ea():
+    """Innskuddsrenten (DFR) som endringsdatoer: en trapp, siste verdi gjelder til neste endring."""
+    changes = parse_ecb_csv(fetch("https://data-api.ecb.europa.eu/service/data/FM/B.U2.EUR.4F.KR.DFR.LEV?lastNObservations=3&format=csvdata", timeout=60))
+    return expand_daily(changes, str(date.today()))
+
+
+def fetch_policy_us():
+    """Midtpunktet i fed funds-intervallet (FRED DFEDTARU/DFEDTARL), som BIS-serien."""
+    upper, lower = fetch_fred_series("DFEDTARU"), fetch_fred_series("DFEDTARL")
+    start = policy_start()
+    return {d: round((upper[d] + lower[d]) / 2, 4) for d in upper if d in lower and d >= start}
+
+
+def parse_boe_csv(csv_text):
+    out = {}
+    for row in csv.DictReader(io.StringIO(csv_text)):
+        value = to_float(row.get("IUDBEDR"))
+        try:
+            day = str(datetime.strptime((row.get("DATE") or "").strip(), "%d %b %Y").date())
+        except ValueError:
+            continue
+        if value is not None:
+            out[day] = value
+    return out
+
+
+def fetch_policy_gb():
+    start = date.fromisoformat(policy_start()).strftime("%d/%b/%Y")
+    url = ("https://www.bankofengland.co.uk/boeapps/database/_iadb-fromshowcolumns.asp?csv.x=yes"
+           f"&Datefrom={start}&Dateto=now&SeriesCodes=IUDBEDR&CSVF=TN&UsingCodes=Y&VPD=Y&VFD=N")
+    return parse_boe_csv(fetch(url, timeout=60))
+
+
+def fetch_policy_au():
+    return {d: v["0"] for d, v in rba_series("f1-data", {"FIRMMCRTD": 0}, policy_start()).items() if "0" in v}
+
+
+def fetch_policy_ch():
+    text = fetch(SNB_CUBE.format(cube="snbgwdzid", sel="D0(LZ)", start=policy_start()), timeout=60)
+    return {d: v["0"] for d, v in parse_snb_cube(text, {"LZ": 0}).items() if "0" in v}
+
+
+POLICY_FETCHERS = {"no": fetch_policy_no, "se": fetch_policy_se, "ca": fetch_policy_ca, "ea": fetch_policy_ea,
+                   "us": fetch_policy_us, "gb": fetch_policy_gb, "au": fetch_policy_au, "ch": fetch_policy_ch}
+
+
+def merge_policy(bis, official):
+    """BIS-historikk der sentralbankens egen serie overstyrer fra sin første dato og
+    fremover (også for dager BIS mangler). Sparsom offisiell serie (ECB: endringsdatoer)
+    videreføres som trapp. Returnerer ny dict."""
+    merged = dict(bis)
+    if not official:
+        return merged
+    first = min(official)
+    for day in set(merged) | set(official):
+        if day >= first:
+            merged[day] = value_at_or_before(official, day)
+    return merged
+
+
+def apply_policy_override(series, ov, today, grace_days=OVERRIDE_GRACE_DAYS):
+    """Manuelt registrert vedtak (annonseringsdato). Gjelder når serien ikke har nådd
+    vedtaksdatoen, eller viser gammel rente inntil `grace_days` etter (seriene fører
+    virkningsdato). Viser serien fortsatt noe annet senere enn det, stoler vi på serien.
+    Returnerer (serie, status) der status er «brukt», «bekreftet», «avvik» eller None."""
+    if not ov or not ov.get("date") or ov.get("rate") is None or ov["date"] > today:
+        return series, None
+    policy_day, policy = latest(series)
+    if policy_day and policy_day >= ov["date"] and abs(policy - ov["rate"]) < 1e-9:
+        return series, "bekreftet"
+    grace = str(date.fromisoformat(ov["date"]) + timedelta(days=grace_days))
+    if policy_day and policy_day > grace:
+        return series, "avvik"
+    out = {d: (ov["rate"] if d >= ov["date"] else v) for d, v in series.items()}
+    out[ov["date"]] = ov["rate"]
+    return out, "brukt"
+
+
+def unconfirmed_meeting(meetings, policy_day, today):
+    """Møtedato som er passert, men som styringsrenteserien ennå ikke dekker (dato < møtet)."""
+    passed = [m for m in meetings if m <= today and (policy_day is None or m > policy_day)]
+    return max(passed) if passed else None
+
+
 def fetch_oecd_rates(measure):
     """Månedlige renter fra OECD: IRLT (10 år) eller IR3TIB (3 mnd)."""
     start = date.today() - timedelta(days=430)
@@ -1597,13 +1751,15 @@ def main():
         "futures_au": fetch_futures_au,
         "futures_ca": fetch_futures_ca,
         "futures_nz": fetch_futures_nz,
+        **{f"policy_{cid}": fn for cid, fn in POLICY_FETCHERS.items()},
     }
     # RBNZ ligger bak Cloudflare, som også blokkerer GitHub-runnere; B2-kurven hentes bare
     # når scripts/fetch_rbnz.py har lagt fila klar (f.eks. lokalt)
     if Path(os.environ.get("RBNZ_B2_FILE", RBNZ_B2_FILE)).exists():
         jobs["curve_nz"] = fetch_curve_nz
     results, status = run_parallel(jobs)
-    sources = {k: v for k, v in results.items() if not k.startswith(("curve_", "futures_"))}
+    sources = {k: v for k, v in results.items() if not k.startswith(("curve_", "futures_", "policy_"))}
+    official_policy = {k[7:]: v for k, v in results.items() if k.startswith("policy_")}
     curves = {k[6:]: v for k, v in results.items() if k.startswith("curve_")}
     futures = {k[8:]: v for k, v in results.items() if k.startswith("futures_")}
 
@@ -1665,17 +1821,32 @@ def main():
 
         # Renter
         policy_series = dict((sources["policy"] or {}).get(c["bis"]) or old_history.get("policy", {}).get(c["bis"], {}))
-        policy_day, policy = latest(policy_series)
         policy_source = "BIS"
-        # Manuelt registrert vedtak som BIS ikke har fanget opp ennå: gjelder fra vedtaksdatoen
+        # Sentralbankens egen serie overstyrer BIS der den finnes (BIS henger etter vedtak)
+        official = official_policy.get(c["id"])
+        if official:
+            policy_series = merge_policy(policy_series, official)
+            policy_source = POLICY_SOURCE_LABELS.get(c["id"], "sentralbanken")
+        # Manuelt registrert vedtak (annonseringsdato) bruker vi til seriene har fått det med seg
         ov = overrides.get(c["id"])
-        if ov and ov.get("date") and ov["date"] <= today and (policy_day is None or policy_day < ov["date"] or policy != ov["rate"]):
-            for d in list(policy_series):
-                if d >= ov["date"]:
-                    policy_series[d] = ov["rate"]
-            policy_series[ov["date"]] = ov["rate"]
-            policy_day, policy = ov["date"], ov["rate"]
+        policy_series, ov_status = apply_policy_override(policy_series, ov, today)
+        if ov_status == "brukt":
             policy_source = "vedtak (manuelt registrert)"
+        elif ov_status == "avvik":
+            print(f"  ADVARSEL: policy_overrides.json for {c['id']} ({ov['rate']} fra {ov['date']}) avviker fra "
+                  f"{policy_source}-serien, som brukes", file=sys.stderr)
+        policy_day, policy = latest(policy_series)
+        # Kalendervakt: et møte er passert uten at serien dekker det – tallet kan være utdatert
+        unconfirmed = unconfirmed_meeting(meetings.get(c["id"], []), policy_day, today)
+        if unconfirmed:
+            policy_source += f" – ubekreftet etter møtet {unconfirmed}"
+        key = f"policy_{c['id']}"
+        if key in status:
+            if unconfirmed:
+                status[key]["warn"] = f"ubekreftet etter møtet {unconfirmed}"
+        elif official is None and c["id"] in ("jp", "nz"):
+            status[key] = {"ok": policy_day is not None, "error": None, "latest": policy_day, "fetched": today_iso,
+                           "warn": f"ubekreftet etter møtet {unconfirmed}" if unconfirmed else None}
         history["policy"][c["bis"]] = policy_series
         # Nylig renteendring (siste 30 dager): dato, fra, til
         policy_change = None
@@ -1697,6 +1868,7 @@ def main():
             "policy": policy if policy is not None else old_rates.get("policy"),
             "policy_date": policy_day or old_rates.get("policy_date"),
             "policy_source": policy_source,
+            "policy_unconfirmed": unconfirmed,
             "m3": m3 if m3 is not None else old_rates.get("m3"),
             "y10": y10 if y10 is not None else old_rates.get("y10"),
             "m3_source": "OECD (månedssnitt)",
