@@ -27,6 +27,7 @@ import html
 import io
 import json
 import math
+import os
 import re
 import statistics
 import sys
@@ -474,6 +475,8 @@ CURVE_SOURCES = {
     "au": ("zero", "nullkupong statskurve (RBA F17, månedlig) forskjøvet med daglige obligasjonsrenter"),
     "se": ("govt", "svenske statspapirer (Riksbanken)"),
     "no": ("zero", "nullkupong statskurve (Norges Bank)"),
+    "nz": ("swap", "90-dagers bankveksel + swaprenter (RBNZ B2)"),
+    "ch": ("govt", "statskurve (SNB, publisert månedlig) forskjøvet daglig med SARON og 10-års rente"),
 }
 
 # Løpetider (år) som lagres i historikken. Nøkkel i JSON = f"{tenor:g}".
@@ -526,7 +529,7 @@ def xlsx_sheet_rows(xlsx_bytes, sheet_name):
                 cells[col] = None
             elif 't="s"' in attrs:
                 cells[col] = shared[int(v.group(1))]
-            elif 't="' in attrs:  # t="e" (feil), t="str" (formeltekst) o.l.
+            elif 't="' in attrs and 't="n"' not in attrs:  # t="e" (feil), t="str" (formeltekst) o.l.
                 cells[col] = None
             else:
                 cells[col] = to_float(v.group(1))
@@ -751,7 +754,15 @@ def shift_zero_curve(zero, daily, start):
             continue
         curve = dict(zero[base_day])
         if day != base_day:
-            ref, now = daily.get(base_day, {}), daily.get(day, {})
+            ref, now = daily.get(base_day, {}), dict(daily.get(day, {}))
+            # Et instrument som mangler akkurat denne dagen (f.eks. SARON-fixing før publisering)
+            # tas fra siste dag det finnes, inntil en uke tilbake – ellers ville resten av
+            # kurven blitt forskjøvet med de andre instrumentenes endring.
+            for t in ref:
+                if t not in now:
+                    recent = [d for d in daily if d < day and t in daily[d] and d >= str(date.fromisoformat(day) - timedelta(days=7))]
+                    if recent:
+                        now[t] = daily[max(recent)][t]
             deltas = sorted((float(t), now[t] - ref[t]) for t in now if t in ref)
             if not deltas:
                 continue
@@ -780,6 +791,109 @@ def fetch_curve_au():
         daily.setdefault(day, {}).update(vals)
     if not zero:
         raise RuntimeError("ingen nullkupongkurve i F17")
+    return shift_zero_curve(zero, daily, start)
+
+
+RBNZ_B2_URL = "https://www.rbnz.govt.nz/-/media/project/sites/rbnz/files/statistics/series/b/b2/hb2-daily-close.xlsx"
+RBNZ_B2_FILE = Path(__file__).resolve().parent.parent / ".cache" / "rbnz-b2.xlsx"
+RBNZ_B2 = {"INM.DB03.NZZV": 0.25, "INM.DS01.NZZC": 1, "INM.DS02.NZZC": 2, "INM.DS03.NZZC": 3, "INM.DS04.NZZC": 4,
+           "INM.DS05.NZZC": 5, "INM.DS07.NZZC": 7, "INM.DS10.NZZC": 10}  # 90-dagers veksel + swap (begge BKBM-baserte)
+
+
+def parse_rbnz_b2(xlsx_bytes, start, wanted=RBNZ_B2):
+    """RBNZ tabell B2 (daglige engrosrenter): {dag: {løpetid: rente}} for valgte serie-ID-er.
+    Arket «Data» har en rad «Series Id» med kolonnenøkler og datoer som Excel-serienumre."""
+    rows = xlsx_sheet_rows(xlsx_bytes, "Data")
+    ids = next((cells for _, cells in rows if cells.get("A") == "Series Id"), None)
+    if not ids:
+        raise RuntimeError("fant ikke «Series Id»-raden i B2")
+    columns = {sid: col for col, sid in ids.items() if col != "A"}
+    out = {}
+    for _, cells in rows:
+        serial = cells.get("A")
+        if not isinstance(serial, (int, float)):
+            continue
+        day = excel_date(serial)
+        if day < start:
+            continue
+        for sid, years in wanted.items():
+            value = cells.get(columns.get(sid))
+            if isinstance(value, (int, float)):
+                out.setdefault(day, {})[tenor_key(years)] = value
+    return out
+
+
+def fetch_curve_nz():
+    """NZD-kurven leses fra RBNZ B2, lastet ned på forhånd av scripts/fetch_rbnz.py
+    (Playwright – rbnz.govt.nz ligger bak Cloudflare og avviser vanlige HTTP-klienter).
+    Fila må være fersk (samme kjøring), ellers regnes kilden som feilet og lagret
+    kurvehistorikk brukes videre."""
+    path = Path(os.environ.get("RBNZ_B2_FILE", RBNZ_B2_FILE))
+    if not path.exists():
+        raise RuntimeError(f"{path} mangler – kjør scripts/fetch_rbnz.py først")
+    age_hours = (time.time() - path.stat().st_mtime) / 3600
+    if age_hours > 12:
+        raise RuntimeError(f"{path} er {age_hours:.0f} timer gammel")
+    out = parse_rbnz_b2(path.read_bytes(), str(curve_start()))
+    if not out:
+        raise RuntimeError("ingen kurvepunkter i B2")
+    return out
+
+
+SNB_CUBE = "https://data.snb.ch/api/cube/{cube}/data/csv/en?dimSel={sel}&fromDate={start}"
+SNB_RATES_XLSX = "https://www.snb.ch/public/rates/interestRates.xlsx"
+SNB_ZERO_TENORS = {"1J": 1, "2J": 2, "3J": 3, "5J": 5, "7J": 7, "10J": 10}
+
+
+def parse_snb_cube(csv_text, tenors):
+    """SNB-kube som CSV (semikolon; Date;D0;D1;Value): {dag: {løpetid: rente}} for
+    løpetidskodene i `tenors`. Tomme verdier hoppes over."""
+    out = {}
+    for row in csv.reader(io.StringIO(csv_text), delimiter=";"):
+        if len(row) < 3 or not DATE_RE.match(row[0]):
+            continue
+        code, value = row[-2], to_float(row[-1])
+        if code in tenors and value is not None:
+            out.setdefault(row[0], {})[tenor_key(tenors[code])] = value
+    return out
+
+
+def parse_snb_rates(xlsx_bytes, start):
+    """SNBs «aktuelle renter»-arbeidsbok: daglig SARON (kolonne SARH) og 10-års spotrente
+    på eidgenössische obligasjoner (R10). Kolonnene identifiseres fra raden med kodene."""
+    rows = xlsx_sheet_rows(xlsx_bytes, "Interest_Rates")
+    header = next((cells for _, cells in rows if "SARH" in cells.values() and "R10" in cells.values()), None)
+    if not header:
+        raise RuntimeError("fant ikke kolonneraden (SARH/R10) i interestRates.xlsx")
+    cols = {code: col for col, code in header.items()}
+    out = {}
+    for _, cells in rows:
+        serial = cells.get("A")
+        if not isinstance(serial, (int, float)):
+            continue
+        day = excel_date(serial)
+        if day < start:
+            continue
+        saron, r10 = cells.get(cols["SARH"]), cells.get(cols["R10"])
+        if isinstance(saron, (int, float)):
+            out.setdefault(day, {})[tenor_key(1 / 365)] = saron
+        if isinstance(r10, (int, float)):
+            out.setdefault(day, {})["10"] = r10
+    return out
+
+
+def fetch_curve_ch():
+    """Sveitsiske spotrenter (Konføderasjonen, 1–10 år) fra SNB-kuben rendeiduebd, som har
+    daglige rader men publiseres månedlig. Som for AUD brukes kurven som form og forskyves
+    daglig med endringen i SARON (front) og 10-års spotrente fra snb.ch (interestRates.xlsx)."""
+    start = str(curve_start())
+    early = str(date.fromisoformat(start) - timedelta(days=45))
+    zero = parse_snb_cube(fetch(SNB_CUBE.format(cube="rendeiduebd", sel="D0(CHF)", start=early), timeout=120), SNB_ZERO_TENORS)
+    if not zero:
+        raise RuntimeError("ingen spotrenter i rendeiduebd")
+    req = urllib.request.Request(SNB_RATES_XLSX, headers={"User-Agent": "valuta-dashboard/1.0", "Accept": "*/*"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        daily = parse_snb_rates(resp.read(), early)
     return shift_zero_curve(zero, daily, start)
 
 
@@ -1400,6 +1514,8 @@ def main():
         "curve_au": fetch_curve_au,
         "curve_se": fetch_curve_se,
         "curve_no": fetch_curve_no,
+        "curve_nz": fetch_curve_nz,
+        "curve_ch": fetch_curve_ch,
         "futures_us": fetch_futures_us,
         "futures_au": fetch_futures_au,
         "futures_ca": fetch_futures_ca,

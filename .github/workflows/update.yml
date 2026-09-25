@@ -32,7 +32,19 @@ jobs:
           python3 -m unittest discover -s tests -v
           node --test tests/*.test.mjs
 
+      # RBNZ ligger bak Cloudflare og avviser vanlige HTTP-klienter; B2-tabellen hentes
+      # med headless Chromium (scripts/fetch_rbnz.py). Feiler dette, beholdes forrige NZD-kurve.
+      - name: Hent RBNZ B2 med Playwright
+        env:
+          RBNZ_B2_FILE: ${{ runner.temp }}/rbnz-b2.xlsx
+        run: |
+          pip install --quiet playwright
+          python3 -m playwright install --with-deps chromium
+          python3 scripts/fetch_rbnz.py
+
       - name: Hent ferske markedsdata
+        env:
+          RBNZ_B2_FILE: ${{ runner.temp }}/rbnz-b2.xlsx
         run: python3 scripts/fetch_data.py
 
       - name: Commit oppdaterte data

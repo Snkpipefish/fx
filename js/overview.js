@@ -7,7 +7,7 @@ const longDate = new Intl.DateTimeFormat("nb-NO", { weekday: "long", day: "numer
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const i12 = (c) => c.curve.implied["12m"];
 /** Hva banen er lest ut av: futures på styringsrenten, OIS eller statskurve (inkl. terminpremie). */
-export const curveKind = (c) => ({ futures: "futures", ois: "OIS", govt: "statskurve", zero: "statskurve" })[c.curve?.kind] ?? "";
+export const curveKind = (c) => ({ futures: "futures", ois: "OIS", swap: "swapkurve", govt: "statskurve", zero: "statskurve" })[c.curve?.kind] ?? "";
 
 /** Overskriften: hva markedet venter, i én setning. */
 function headline(rows) {
@@ -92,7 +92,7 @@ export function renderRates(countries) {
     <div id="dumbbell"></div>
     ${gapText}
     <details class="more"><summary>Vis som liste</summary><ul class="plain">${list}</ul></details>
-    <p class="note">Én heving eller ett kutt = 0,25 prosentpoeng. Lest ut av futures på styringsrenten (USD, AUD, CAD), OIS (GBP) eller statskurven (øvrige, med terminpremie), oppdatert hver ukedag.
+    <p class="note">Én heving eller ett kutt = 0,25 prosentpoeng. Lest ut av futures på styringsrenten (USD, AUD, CAD), OIS (GBP), swapkurven (NZD) eller statskurven (øvrige, med terminpremie), oppdatert hver ukedag.
       ${missing.length ? `Ingen kurve tilgjengelig for ${missing.join(" og ")}.` : ""}</p>`;
   // Kompakt graf på smale skjermer; tegnes på nytt når bredden krysser grensen
   const mq = window.matchMedia("(max-width: 640px)");
@@ -223,6 +223,7 @@ export function renderSources(sources, updated) {
     cot: "COT (CFTC)", ppp: "PPP (World Bank)", cpi_core: "Kjerne-KPI (OECD/Eurostat)", ons_cpi: "KPI Storbritannia (ONS)", ssb_kpi_jae: "KPI-JAE (SSB)", scb_kpif: "KPIF (SCB)",
     brent_fut: "Brent-futures (Yahoo)", ttf: "TTF-gass (Yahoo)", curve_us: "Kurve USD", curve_ea: "Kurve EUR", curve_jp: "Kurve JPY", curve_gb: "Kurve GBP",
     curve_ca: "Kurve CAD", curve_au: "Kurve AUD", curve_se: "Kurve SEK", curve_no: "Kurve NOK",
+    curve_nz: "Kurve NZD", curve_ch: "Kurve CHF",
     futures_us: "Fed funds-futures (CME/Yahoo)", futures_au: "Cash rate-futures (ASX)", futures_ca: "CORRA-futures (TMX)" };
   const today = new Date(updated);
   const age = (iso) => (iso ? Math.round((today - new Date(iso.length === 4 ? `${iso}-12-31` : iso.length === 7 ? `${iso}-28` : iso)) / 86400000) : null);
