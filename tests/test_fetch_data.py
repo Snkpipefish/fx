@@ -295,8 +295,12 @@ class RbaCurveTest(unittest.TestCase):
         self.assertAlmostEqual(d["1"], 4.61 + 0.02 + (0.20 - 0.02) * (1 - 1 / 12) / (2 - 1 / 12), places=3)
         self.assertAlmostEqual(d["0.25"], 4.46 + 0.02 + (0.20 - 0.02) * (0.25 - 1 / 12) / (2 - 1 / 12), places=3)
         self.assertNotIn("0.083", d)  # vekselen lagres ikke
-        # Bare 2 år tilgjengelig: hele kurven forskyves med den
-        self.assertAlmostEqual(out["2026-09-25"]["10"], 5.30)
+        # 25. sep mangler 1 mnd og 10 år: de tas fra dagen før (carry-forward), så 10 år følger sin egen endring
+        self.assertAlmostEqual(out["2026-09-25"]["10"], 5.20)
+        self.assertAlmostEqual(out["2026-09-25"]["2"], 4.90)
+        # Uten noen nylig observasjon forskyves alt med det som finnes
+        lone = fd.shift_zero_curve(zero, {"2026-08-31": daily["2026-08-31"], "2026-10-20": {"2": 4.40}}, "2026-08-01")
+        self.assertAlmostEqual(lone["2026-10-20"]["10"], 5.30)
         # Dager før første F17-dato og uten daglige endringer hoppes over
         self.assertNotIn("2026-07-01", fd.shift_zero_curve(zero, {"2026-07-01": {"2": 4.0}}, "2026-01-01"))
         self.assertEqual(fd.shift_zero_curve(zero, {"2026-09-01": {"7": 1.0}}, "2026-01-01").get("2026-09-01"), None)
@@ -315,6 +319,81 @@ class RbaCurveTest(unittest.TestCase):
         self.assertEqual(fd.RBA_ZERO_TENORS["FZCY25D"], 0.25)
         self.assertEqual(fd.RBA_ZERO_TENORS["FZCY175D"], 1.75)
         self.assertEqual(fd.RBA_ZERO_TENORS["FZCY1000D"], 10)
+
+
+class RbnzCurveTest(unittest.TestCase):
+    def b2_workbook(self, id_label="Series Id"):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("xl/workbook.xml", '<workbook><sheets><sheet name="Data" sheetId="1" r:id="rId1"/></sheets></workbook>')
+            z.writestr("xl/_rels/workbook.xml.rels", '<Relationships><Relationship Id="rId1" Type="ws" Target="worksheets/sheet1.xml"/></Relationships>')
+            z.writestr("xl/sharedStrings.xml", f"<sst><si><t>{id_label}</t></si><si><t>INM.DP1.N</t></si><si><t>INM.DB03.NZZV</t></si>"
+                       "<si><t>INM.DS01.NZZC</t></si><si><t>INM.DS10.NZZC</t></si><si><t>Unit</t></si></sst>")
+            z.writestr("xl/worksheets/sheet1.xml",
+                       '<worksheet><sheetData>'
+                       '<row r="4"><c r="A4" t="s"><v>5</v></c></row>'
+                       '<row r="5"><c r="A5" t="s"><v>0</v></c><c r="B5" t="s"><v>1</v></c><c r="C5" t="s"><v>2</v></c><c r="D5" t="s"><v>3</v></c><c r="E5" t="s"><v>4</v></c></row>'
+                       '<row r="6"><c r="A6"><v>46288</v></c><c r="B6"><v>2.75</v></c><c r="C6"><v>3.19</v></c><c r="D6"><v>3.7</v></c><c r="E6"><v>4.7</v></c></row>'
+                       '<row r="7"><c r="A7"><v>46289</v></c><c r="B7"><v>2.75</v></c><c r="C7"><v>3.21</v></c><c r="D7"><v>3.75</v></c><c r="E7" t="e"><v>#N/A</v></c></row>'
+                       '</sheetData></worksheet>')
+        return buf.getvalue()
+
+    def test_parse_rbnz_b2(self):
+        out = fd.parse_rbnz_b2(self.b2_workbook(), "2026-09-23")
+        self.assertEqual(out, {"2026-09-23": {"0.25": 3.19, "1": 3.7, "10": 4.7}, "2026-09-24": {"0.25": 3.21, "1": 3.75}})
+        self.assertEqual(fd.parse_rbnz_b2(self.b2_workbook(), "2026-09-25"), {})  # startdato filtrerer
+        with self.assertRaises(RuntimeError):
+            fd.parse_rbnz_b2(self.b2_workbook(id_label="Serie"), "2026-01-01")
+
+    def test_fetch_curve_nz_requires_fresh_file(self):
+        import os, tempfile, time as t
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "b2.xlsx")
+            os.environ["RBNZ_B2_FILE"] = path
+            try:
+                with self.assertRaises(RuntimeError):  # mangler
+                    fd.fetch_curve_nz()
+                with open(path, "wb") as f:
+                    f.write(self.b2_workbook())
+                self.assertIn("2026-09-24", fd.fetch_curve_nz())
+                os.utime(path, (t.time() - 20 * 3600, t.time() - 20 * 3600))
+                with self.assertRaises(RuntimeError):  # for gammel
+                    fd.fetch_curve_nz()
+            finally:
+                del os.environ["RBNZ_B2_FILE"]
+
+
+class SnbCurveTest(unittest.TestCase):
+    def test_parse_snb_cube(self):
+        text = ('\ufeff"CubeId";"rendeiduebd"\n"PublishingDate";"2026-09-01 14:30"\n\n"Date";"D0";"D1";"Value"\n'
+                '"2026-08-28";"CHF";"1J";"-0.12"\n"2026-08-28";"CHF";"2J";\n"2026-08-28";"CHF";"10J";"0.47"\n'
+                '"2026-08-28";"CHF";"20J";"0.61"\n"2026-08-31";"CHF";"1J";"-0.1"\n')
+        self.assertEqual(fd.parse_snb_cube(text, fd.SNB_ZERO_TENORS),
+                         {"2026-08-28": {"1": -0.12, "10": 0.47}, "2026-08-31": {"1": -0.1}})
+
+    def test_parse_snb_rates_reads_numeric_typed_cells(self):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("xl/workbook.xml", '<workbook><sheets><sheet name="Interest_Rates" sheetId="1" r:id="rId1"/></sheets></workbook>')
+            z.writestr("xl/_rels/workbook.xml.rels", '<Relationships><Relationship Id="rId1" Type="ws" Target="worksheets/sheet1.xml"/></Relationships>')
+            z.writestr("xl/sharedStrings.xml", "<sst><si><t>SNBLZ</t></si><si><t>SARH</t></si><si><t>R10</t></si></sst>")
+            z.writestr("xl/worksheets/sheet1.xml",
+                       '<worksheet><sheetData>'
+                       '<row r="10"><c r="B10" t="s"><v>0</v></c><c r="H10" t="s"><v>1</v></c><c r="I10" t="s"><v>2</v></c></row>'
+                       '<row r="12"><c r="A12" t="n"><v>46289.0</v></c><c r="B12" t="n"><v>0.0</v></c><c r="H12" t="n"><v>-0.04</v></c><c r="I12" t="n"><v>0.615</v></c></row>'
+                       '<row r="13"><c r="A13" t="n"><v>46288.0</v></c><c r="H13" t="n"><v>-0.05</v></c><c r="I13" t="e"><v>#N/A</v></c></row>'
+                       '</sheetData></worksheet>')
+        out = fd.parse_snb_rates(buf.getvalue(), "2026-09-01")
+        self.assertEqual(out, {"2026-09-24": {"0.003": -0.04, "10": 0.615}, "2026-09-23": {"0.003": -0.05}})
+
+    def test_shifted_snb_curve_gets_synthetic_anchor(self):
+        zero = {"2026-08-31": {"1": -0.10, "2": -0.05, "5": 0.26, "10": 0.47}}
+        daily = {"2026-08-31": {"0.003": -0.04, "10": 0.47}, "2026-09-24": {"0.003": -0.04, "10": 0.615}}
+        curve = fd.shift_zero_curve(zero, daily, "2026-08-01")["2026-09-24"]
+        self.assertAlmostEqual(curve["10"], 0.615)
+        self.assertAlmostEqual(curve["1"], -0.10 + 0.145 * (1 - 1 / 365) / (10 - 1 / 365), places=3)  # front uendret, 10 år +14,5 bp
+        m = fd.curve_metrics(curve, 0.0)
+        self.assertTrue(m["synthetic_anchor"])
 
 
 if __name__ == "__main__":
