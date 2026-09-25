@@ -27,8 +27,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
       - name: Kjør tester
         run: |
+          npm ci
           python3 -m unittest discover -s tests -v
           node --test tests/*.test.mjs
 

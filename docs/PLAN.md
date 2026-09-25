@@ -88,7 +88,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **Frontend-tester.**
   *Problem:* Bare beregningene testes. Tekstlogikken i idéene (som ga «Tre ting» med fire punkter) fanges ikke.
-  *Løsning:* `node --test` + jsdom: render hver seksjon fra fixtures (normal dag, vedtaksdag, manglende kurve, syntetisk anker). Assert: ingen `NaN`/`undefined`/`null` i DOM, antall idéer = tallet i overskriften, 4 hero-stats, signal på hvert kort; tekst-snapshot av idéene per fixture. Deploy-workflow feiler på rød test.
+  *Løsning:* ✅ *(PR «frontend-tester», 25. sep 2026)* `tests/render.test.mjs`: jsdom laster `index.html`, stubber `Chart`, `matchMedia` og `localStorage`, og rendrer alle seksjonene i samme rekkefølge som `app.js` fra `tests/fixtures/dashboard.json` (dagens data, frosset) og `history.json` (siste 120 dager). Fire varianter: normal dag, vedtaksdag (vedtak i dag, kalendervakt, duete tone), uten kurve (NZD/CHF), syntetisk anker (JPY, uten reprising). Assert per variant: ingen `NaN`/`undefined`/`null`/`[object Object]` i tekst eller HTML, fire hero-stats, overskriften «N ting» = antall idéer, ett kort per land med signal, lista under hantelgrafen = land med kurve, land uten kurve nevnes, kildestatus > 20 rader, begge Chart.js-grafer tegnet, motpost gir forslag. Tekst-snapshot av idéene per variant i `tests/fixtures/ideas-*.txt` (`UPDATE_SNAPSHOTS=1` for å godta endringer). Pluss kalendervakt/vedtakstone-tekst og kortmodus-knappen. `package.json` med jsdom som dev-avhengighet; workflowen kjører `npm ci` før testene, som alt stopper kjøringen når de er røde.
 
 - [ ] **Manuelle filer uten varsel.**
   *Problem:* Kildesjekken dekker API-kilder, ikke `meetings.json`, `policy_overrides.json`, `cb_paths.json` og `meeting_odds.json`.

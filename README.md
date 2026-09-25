@@ -23,9 +23,11 @@ Redaksjonell «brief» over G10-valutaene (USD, EUR, JPY, GBP, CHF, CAD, AUD, NZ
 ## Tester og kildeovervåking
 
 ```bash
-python3 -m unittest discover -s tests -v   # terminrenter, markedsanker, interpolasjon, xlsx-leser
-node --test tests/*.test.mjs               # korrelasjon, volatilitet, signal, motpost-rangering
+python3 -m unittest discover -s tests -v   # terminrenter, markedsanker, futures, kilder, xlsx-leser
+npm ci && node --test tests/*.test.mjs     # calc.js (korrelasjon, signal, motpost, totalavkastning) + rendering av alle seksjoner i jsdom
 ```
+
+Rendering-testene (`tests/render.test.mjs`) bygger hele siden fra `tests/fixtures/` i fire varianter (normal dag, vedtaksdag, land uten kurve, syntetisk anker) og sjekker at ingen tomme verdier havner i DOM, at overskriften «N ting å legge merke til» stemmer med antall idéer, og at idé-tekstene er uendret mot snapshots (`UPDATE_SNAPSHOTS=1 node --test tests/render.test.mjs` godtar nye tekster).
 
 Testene kjøres i GitHub Actions før innhentingen. Alle kilder hentes parallelt med korte timeouts, og `dashboard.json` inneholder `sources` med status og nyeste dato per kilde (vises under «Kildestatus» i bunnteksten). Etter publisering kjører [scripts/check_sources.py](scripts/check_sources.py), som gir rød kjøring hvis en kilde er mer enn 10 dager gammel (14 for COT, 75 for månedlige serier) – et varsel som ikke stopper oppdateringen.
 
