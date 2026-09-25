@@ -76,6 +76,66 @@ class HelpersTest(unittest.TestCase):
         self.assertEqual(fd.excel_date(46266), "2026-09-01")
 
 
+class MarketAnchorTest(unittest.TestCase):
+    """Banen ankres på markedets 3-mnd-rente minus basis, ikke på styringsrenten."""
+
+    def hike_fixture(self):
+        # Uke før vedtak: 3 mnd-renten priser en fullt ventet heving (4,00 → 4,25) om en uke.
+        # Terminrentene lenger ut er identiske før og etter; bare styringsrenten og fronten flytter.
+        # Vinteren/våren: ingen heving priset, veksel 5 bp over styringsrenten (normal basis).
+        calm = {"0.25": 4.05, "0.5": 4.10, "1": 4.20, "2": 4.40, "5": 4.50}
+        before = {"0.25": 4.23, "0.5": 4.30, "1": 4.40, "2": 4.60, "5": 4.70}
+        after = {"0.25": 4.25, "0.5": 4.30, "1": 4.40, "2": 4.60, "5": 4.70}
+        series = {f"2026-0{m}-{d:02d}": dict(calm) for m in (3, 4, 5, 6, 7) for d in (5, 15, 25)}
+        series.update({"2026-09-01": dict(before), "2026-09-08": dict(before), "2026-09-15": dict(after)})
+        policy = {"2026-01-01": 4.0, "2026-09-15": 4.25}
+        return series, policy
+
+    def test_delivered_hike_gives_no_repricing(self):
+        series, policy = self.hike_fixture()
+        curve = fd.build_curve("no", series, policy)
+        self.assertEqual(curve["date"], "2026-09-15")
+        self.assertEqual(curve["repricing"]["w1"], 0)
+        # Nivået om 12 mnd er det samme før og etter vedtaket
+        self.assertAlmostEqual(curve["path"][12], curve["path_w1"][12], places=6)
+
+    def test_implied_counts_priced_meeting_inside_3m_window(self):
+        series, policy = self.hike_fixture()
+        basis = fd.curve_basis(series, policy, "2026-09-08")
+        before = fd.curve_metrics(series["2026-09-08"], 4.0, basis)
+        after = fd.curve_metrics(series["2026-09-15"], 4.25, basis)
+        # Før vedtaket: hevingen ligger i 3-mnd-vinduet og skal telles med i «priset innen 3 mnd»
+        self.assertGreaterEqual(before["implied"]["3m"], 20)
+        # Etter vedtaket: 25 bp er levert, så priset endring fra ny styringsrente faller tilsvarende
+        self.assertAlmostEqual(before["implied"]["3m"] - after["implied"]["3m"], 25, delta=3)
+        self.assertEqual(before["anchor"]["kind"], "marked")
+
+    def test_basis_is_median_of_front_minus_policy(self):
+        series = {f"2026-01-{d:02d}": {"0.25": 4.0 + b, "1": 4.5, "2": 4.6} for d, b in
+                  ((1, 0.10), (2, 0.12), (3, 0.90), (4, 0.11), (5, 0.13))}  # én dag med støy
+        basis = fd.curve_basis(series, {"2025-12-01": 4.0}, "2026-01-05")
+        self.assertAlmostEqual(basis, 0.12)
+        # Vinduet begrenses bakover fra oppgitt dag
+        self.assertAlmostEqual(fd.curve_basis(series, {"2025-12-01": 4.0}, "2026-01-02"), 0.11)
+        self.assertIsNone(fd.curve_basis(series, {}, "2026-01-05"))
+        self.assertIsNone(fd.curve_basis({}, {"2025-12-01": 4.0}, "2026-01-05"))
+
+    def test_without_history_path_starts_at_policy(self):
+        m = fd.curve_metrics({"0.25": 4.4, "1": 4.4, "2": 4.4}, 4.0)
+        self.assertEqual(m["path"][0], 4.0)
+        self.assertAlmostEqual(m["anchor"]["basis"], 0.4)
+        self.assertEqual(m["anchor"]["rate_3m"], 4.4)
+
+    def test_synthetic_anchor_has_zero_basis(self):
+        series = {"2026-09-01": {"1": 1.6, "2": 1.9, "5": 2.4}, "2026-09-08": {"1": 1.6, "2": 1.9, "5": 2.4}}
+        basis = fd.curve_basis(series, {"2026-01-01": 1.0}, "2026-09-08")
+        self.assertEqual(basis, 0.0)
+        m = fd.curve_metrics(series["2026-09-08"], 1.0, basis)
+        self.assertTrue(m["synthetic_anchor"])
+        self.assertEqual(m["anchor"]["kind"], "syntetisk")
+        self.assertEqual(m["path"][0], 1.0)
+
+
 if __name__ == "__main__":
     unittest.main()
 

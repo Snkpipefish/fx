@@ -22,7 +22,7 @@ Redaksjonell «brief» over G10-valutaene (USD, EUR, JPY, GBP, CHF, CAD, AUD, NZ
 ## Tester og kildeovervåking
 
 ```bash
-python3 -m unittest discover -s tests -v   # terminrenter, interpolasjon, xlsx-leser
+python3 -m unittest discover -s tests -v   # terminrenter, markedsanker, interpolasjon, xlsx-leser
 node --test tests/*.test.mjs               # korrelasjon, volatilitet, signal, motpost-rangering
 ```
 
