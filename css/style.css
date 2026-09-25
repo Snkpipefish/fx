@@ -222,6 +222,10 @@ details.inline summary { display: inline; cursor: pointer; color: var(--accent);
 .spark-line { fill: none; stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .spark-area { fill: var(--accent); opacity: 0.08; }
 .spark-labels { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--muted); }
+.spark-overlay { stroke-dasharray: 3 2; stroke-width: 1.4; }
+.spark-legend { display: flex; gap: 0.9rem; flex-wrap: wrap; font-size: 0.68rem; color: var(--muted); margin-top: -0.1rem; }
+.spark-legend .leg { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--muted); vertical-align: middle; margin-right: 0.3rem; }
+.spark-legend .leg.dash { border-top: 2px dashed var(--accent); }
 
 /* ---------- Bunntekst ---------- */
 .footer { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem 3rem; border-top: 1px solid var(--rule); font-size: 0.82rem; color: var(--muted); line-height: 1.55; }

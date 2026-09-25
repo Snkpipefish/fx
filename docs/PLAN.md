@@ -74,7 +74,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **Reprisingshistorikk.**
   *Problem:* Bare endring siste uke og måned vises, ikke utviklingen over tid.
-  *Løsning:* Fra snapshots: linje per bank av `path[12]` over tid, som ny sparkline under rentekortet. Avhenger av snapshots-punktet over. *(Datagrunnlaget `history.path12` finnes fra PR «snapshots»; frontend gjenstår.)*
+  *Løsning:* ✅ *(PR «reprisingshistorikk», 25. sep 2026)* `history.path12` (fra snapshots) tegnes som stiplet linje over styringsrente-trappen i kortets detaljvisning, med felles tids- og verdiakse (sparkline-funksjonen fikk `overlay` og datobasert x-akse). Vinduet er siste år der serien finnes (minst 20 dager), ellers styringsrenten siste 2 år som før. Forklaring under: «styringsrente» / «ventet om 12 mnd (markedet, samme dag)». Avstanden mellom linjene er det som gjenstår å prise; når den stiplede krysser trappen, har markedet skiftet syn.
 
 - [ ] **Totalavkastning i sammenligningsgrafen.**
   *Problem:* Grafen viser kurs mot NOK, ikke totalavkastning med carry.
