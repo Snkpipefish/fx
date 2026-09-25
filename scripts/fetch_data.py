@@ -13,9 +13,9 @@ Kilder (alle gratis, uten API-nøkkel):
   - COT-posisjonering: CFTC Socrata (legacy futures-only, datasett 6dca-aqww;
                        samme kilde som bedrock-prosjektets cot_cftc-modul)
   - PPP (kjøpekraft):  World Bank (PA.NUS.PPP; Tyskland som proxy for eurosonen)
-  - Rentekurver:       FRED (USA), ECB (eurosonen), MoF (Japan), Bank of England
-                       (OIS), Bank of Canada, RBA, Riksbanken, Norges Bank
-                       (nullkupong) – grunnlag for «hva er priset inn»
+  - Rentekurver:       FRED (USA), ECB (eurosonen), MoF + JSDA (Japan: obligasjoner og
+                       statsveksler), Bank of England (OIS), Bank of Canada, RBA,
+                       Riksbanken, Norges Bank (nullkupong) – grunnlag for «hva er priset inn»
 
 Kjøres uten argumenter. Feiler én kilde beholdes forrige verdi fra eksisterende
 JSON-filer, slik at en enkelt nede-tjeneste ikke velter hele oppdateringen.
@@ -75,7 +75,7 @@ PPP_ISO = {"us": "USA", "ea": "DEU", "jp": "JPN", "gb": "GBR", "ch": "CHE",
            "ca": "CAN", "au": "AUS", "nz": "NZL", "se": "SWE", "no": "NOR"}
 
 
-def fetch(url, timeout=45, attempts=3, errors="strict"):
+def fetch(url, timeout=45, attempts=3, errors="strict", encoding="utf-8"):
     """HTTP GET med få, korte forsøk. Kildene hentes parallelt, så én treg kilde
     skal ikke koste mer enn sin egen timeout."""
     # Accept-headeren er nødvendig: FRED (Akamai) lar forespørsler uten den henge til timeout
@@ -83,7 +83,7 @@ def fetch(url, timeout=45, attempts=3, errors="strict"):
     for attempt in range(attempts):
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return resp.read().decode("utf-8", errors=errors)
+                return resp.read().decode(encoding, errors=errors)
         except Exception:
             if attempt == attempts - 1:
                 raise
@@ -853,6 +853,8 @@ def cot_flags(series, sigma_weeks=COT_SIGMA_WEEKS):
            "confirmed": all(checks) if len(checks) == 2 else None}
     if last.get("lev") is not None:
         out["lev_net"] = last["lev"]
+        if last.get("oi"):
+            out["lev_pct_oi"] = round(last["lev"] / last["oi"] * 100, 1)
     return out
 
 
@@ -928,7 +930,7 @@ def fetch_unemployment():
 CURVE_SOURCES = {
     "us": ("govt", "amerikanske statspapirer (FRED)"),
     "ea": ("govt", "AAA-statskurve eurosonen (ECB)"),
-    "jp": ("govt", "japanske statsobligasjoner (MoF)"),
+    "jp": ("govt", "japanske statsveksler (JSDA) og statsobligasjoner (MoF)"),
     "gb": ("ois", "OIS-kurve (Bank of England)"),
     "ca": ("govt", "kanadiske statspapirer (Bank of Canada)"),
     "au": ("zero", "nullkupong statskurve (RBA F17, månedlig) forskjøvet med daglige obligasjonsrenter"),
@@ -1102,6 +1104,72 @@ def fetch_curve_jp(existing_days):
                 value = to_float(row.get(col))
                 if value is not None:
                     out.setdefault(day, {})[tenor_key(years)] = value
+    return out
+
+
+JSDA_INDEX = "https://market.jsda.or.jp/shijyo/saiken/baibai/baisanchi/index.html"
+JSDA_TENORS = (0.25, 0.5, 1)
+
+
+def parse_jsda_tbills(csv_text, today=None):
+    """JSDAs referansestatistikk for OTC-obligasjonshandel (S-fila, én dag, cp932): statsveksler
+    (国庫短期証券) med forfallsdato (kolonne 5) og gjennomsnittlig rente (kolonne 15, %).
+    Renten ved 3, 6 og 12 mnd interpoleres lineært i gjenstående løpetid mellom nærmeste
+    veksler; mangler veksel på én side brukes nærmeste innenfor 45 dager (flat), ellers hoppes
+    løpetiden over. Rader datert etter i dag (fila for neste oppgjørsdag) hoppes over.
+    {dag: {løpetid: rente}}."""
+    today = today or date.today()
+    bills = {}
+    for row in csv.reader(io.StringIO(csv_text)):
+        if len(row) < 15 or not row[3].startswith("国庫短期証券"):
+            continue
+        try:
+            day = datetime.strptime(row[0], "%Y%m%d").date()
+            due = datetime.strptime(row[4], "%Y%m%d").date()
+        except ValueError:
+            continue
+        rate = to_float(row[14])
+        if rate is None or not -1 < rate < 15 or day > today or due <= day:
+            continue
+        bills.setdefault(day, []).append(((due - day).days / 365.25, rate))
+    out = {}
+    for day, pts in bills.items():
+        pts.sort()
+        for T in JSDA_TENORS:
+            lo = [q for q in pts if q[0] <= T]
+            hi = [q for q in pts if q[0] >= T]
+            if lo and hi:
+                (t0, r0), (t1, r1) = lo[-1], hi[0]
+                rate = r0 if t1 == t0 else r0 + (r1 - r0) * (T - t0) / (t1 - t0)
+            elif lo and T - lo[-1][0] <= 45 / 365.25:
+                rate = lo[-1][1]
+            elif hi and hi[0][0] - T <= 45 / 365.25:
+                rate = hi[0][1]
+            else:
+                continue
+            out.setdefault(str(day), {})[tenor_key(T)] = round(rate, 3)
+    return out
+
+
+def fetch_tbills_jp(existing_days=(), max_files=2):
+    """Japanske statsveksler fra JSDAs daglige S-filer (referansestatistikk, publisert etter
+    børsslutt). Indekssiden lister filene for inneværende måned; den nyeste hentes alltid, pluss
+    inntil `max_files` eldre som mangler i kurvehistorikken, med pause mellom. JSDA svarer 429
+    på raske gjentatte kall og holder sperren en stund, så ingen automatiske nye forsøk –
+    neste kjøring tar det igjen. Historikken bygges opp i curves.json."""
+    index = fetch(JSDA_INDEX, timeout=60, attempts=1, errors="replace")
+    base = JSDA_INDEX.rsplit("/", 1)[0] + "/"
+    files = sorted(set(re.findall(r'href="\./(files/\d{4}/S(\d{6})\.csv)"', index)), key=lambda f: f[1])
+    if not files:
+        raise RuntimeError("fant ingen S-filer på JSDAs indeksside")
+    wanted = [files[-1]] + [f for f in reversed(files[:-1]) if f"20{f[1][:2]}-{f[1][2:4]}-{f[1][4:]}" not in existing_days][:max_files]
+    out = {}
+    for i, (rel, _) in enumerate(wanted):
+        if i:
+            time.sleep(4)
+        out.update(parse_jsda_tbills(fetch(base + rel, timeout=60, attempts=1, errors="replace", encoding="cp932")))
+    if not out:
+        raise RuntimeError("ingen statsveksler i JSDA-filene")
     return out
 
 
@@ -1370,6 +1438,9 @@ FUTURES_SOURCES = {
     "nz": "90-dagers bankvekselfutures (ASX) med OECDs 3-mnd-rente som front",
 }
 FUTURES_MAX_MONTHS = 24
+# Futures-kurver der nåpunktet ikke er en markedsrente samme dag, men et månedssnitt (OECD):
+# banen får syntetisk anker og lav sikkerhet, som statskurver uten korte punkter.
+FUTURES_SYNTHETIC_FRONT = {"nz"}
 
 
 def month_span(year, month):
@@ -1444,14 +1515,17 @@ def parse_asx_ib(payload):
 def parse_asx_bb(payload):
     """ASX NZ 90 Day Bank Bill Futures (BB): {dag: [[start, slutt, rente], ...]}. Kontrakten
     gjør opp mot 90-dagers BKBM på utløpsdagen, så perioden er de 90 dagene fra utløp.
-    Kontrakter uten siste handel (priceLastTrade tom) er illikvide med stående oppgjørspris
-    og hoppes over."""
+    Kontrakter uten siste handel (priceLastTrade tom) eller uten omsetning i dag (volume 0)
+    er illikvide med stående oppgjørspris og hoppes over; 2027-kontraktene handles tynt."""
     out = {}
     for item in payload.get("data", {}).get("items", []):
         m = re.fullmatch(r"BB([FGHJKMNQUVXZ])(\d{4})", item.get("symbol") or "")
         price = to_float(item.get("pricePreviousSettlement"))
         day, expiry = item.get("datePreviousSettlement"), item.get("dateExpiry")
+        volume = to_float(item.get("volume"))
         if not m or price is None or not day or not expiry or item.get("priceLastTrade") is None:
+            continue
+        if volume is not None and volume <= 0:
             continue
         end = str(date.fromisoformat(expiry) + timedelta(days=90))
         out.setdefault(day, []).append([expiry, end, round(100 - price, 4)])
@@ -1607,10 +1681,35 @@ def futures_basis(series, policy_series, day, window=FUTURES_BASIS_WINDOW):
     return statistics.median(values) if values else None
 
 
-def futures_metrics(periods, policy, basis, today, govt_path=None, policy_series=None):
+def monthly_front_basis(monthly, policy_series, known_until=None, months=12, days=91):
+    """Basis for en månedlig 3-mnd-rente (OECD) brukt som front: median over de siste `months`
+    månedene av (månedens rente − styringsrenten slik den faktisk ble i snitt de `days` dagene
+    fra midten av måneden). Måneder der vinduet ikke er kjent ennå hoppes over. Måler
+    påslaget bankveksel/pengemarked mot styringsrenten uten ventede vedtak, som ellers
+    ligger i månedssnittet (NZ august 2026: 3-mnd 2,98 med OCR 2,50 og heving ventet).
+    None uten data."""
+    if not monthly or not policy_series:
+        return None
+    known = known_until or max(policy_series)
+    values = []
+    for month in sorted((m for m, v in monthly.items() if v is not None), reverse=True):
+        start = date.fromisoformat(month + "-15")
+        if str(start + timedelta(days=days - 1)) > known:
+            continue
+        avg = realized_policy_average(policy_series, str(start), days)
+        if avg is not None:
+            values.append(monthly[month] - avg)
+        if len(values) >= months:
+            break
+    return statistics.median(values) if values else None
+
+
+def futures_metrics(periods, policy, basis, today, govt_path=None, policy_series=None, synthetic_front=False):
     """Bane fra futures: path[m] = implisert rente midt i måned m − basis. Inneværende
     måned renses for vedtak tidligere i måneden (kontrakten er et snitt av gammel og ny
-    rente). Utover siste kontrakt skjøtes statskurvens bane på (samme form, forskjøvet)."""
+    rente). Utover siste kontrakt skjøtes statskurvens bane på (samme form, forskjøvet).
+    synthetic_front: nåpunktet er et månedssnitt (OECD), ikke en markedsrente samme dag –
+    banen merkes med syntetisk anker (lav sikkerhet)."""
     if not periods or policy is None:
         return None
     cur = current_month_contract(periods, today)
@@ -1641,8 +1740,9 @@ def futures_metrics(periods, policy, basis, today, govt_path=None, policy_series
         "implied": implied,
         "path": path,
         "extreme": {"months": extreme_m, "level": path[extreme_m], "bp": round((path[extreme_m] - path[0]) * 100)},
-        "anchor": {"rate_front": round(front, 3), "basis": round(basis, 3), "kind": "futures"},
-        "synthetic_anchor": False,
+        "anchor": {"rate_front": round(front, 3), "basis": round(basis, 3),
+                   "kind": "syntetisk front (månedssnitt)" if synthetic_front else "futures"},
+        "synthetic_anchor": synthetic_front,
         "horizon_months": horizon,
     }
 
@@ -2177,11 +2277,22 @@ def curve_at(series, target_day):
     return series[max(days)] if days else None
 
 
-def build_curve(cid, series, policy_series, futures_series=None):
+def curve_confidence(kind, synthetic_anchor):
+    """Hvor mye banen kan bære: «høy» for instrumenter som følger styringsrenten (futures, OIS,
+    swap), «middels» for statskurver (terminpremie/knapphet, delvis renset av basisen), «lav» når
+    nåpunktet er syntetisk (ingen korte punkter, eller et månedssnitt som front). Frontenden
+    holder «lav» ute av hero-tallene og «størst sprik»."""
+    if synthetic_anchor:
+        return "lav"
+    return "høy" if kind in ("futures", "ois", "swap") else "middels"
+
+
+def build_curve(cid, series, policy_series, futures_series=None, front_basis=None):
     """Lager dashboard-objektet for et lands rentekurve, inkl. reprising siste uke/måned.
     Finnes futures på styringsrenten (futures_series), overstyrer de banen og prisingen;
     statskurven beholdes for punktene (3 mnd, 10 år, terminkurs) og for skjøten utover
-    siste kontrakt."""
+    siste kontrakt. front_basis: ferdig regnet basis for en syntetisk front (monthly_front_basis),
+    ellers regnes den av kontraktene (futures_basis)."""
     series = series or {}
     policy_day, policy = latest(policy_series)
     # Kilder med flere delserier kan mangle de korte punktene på siste dag;
@@ -2231,9 +2342,11 @@ def build_curve(cid, series, policy_series, futures_series=None):
     fut_day = max((d for d in (futures_series or {}) if d >= str(date.fromisoformat(day) - timedelta(days=7))), default=None)
     if not fut_day and not metrics:
         return None
+    synthetic_front = cid in FUTURES_SYNTHETIC_FRONT
     if fut_day:
-        fut_basis = futures_basis(futures_series, policy_series, fut_day)
-        fut = futures_metrics(futures_series[fut_day], policy, fut_basis, date.fromisoformat(fut_day), metrics["path"] if metrics else None, policy_series)
+        fut_basis = front_basis if front_basis is not None else futures_basis(futures_series, policy_series, fut_day)
+        fut = futures_metrics(futures_series[fut_day], policy, fut_basis, date.fromisoformat(fut_day), metrics["path"] if metrics else None,
+                              policy_series, synthetic_front)
         if fut:
             fut_rep, fut_detail, fut_w1 = {}, {}, None
             for label, days in (("w1", 7), ("m1", 30)):
@@ -2244,7 +2357,8 @@ def build_curve(cid, series, policy_series, futures_series=None):
                 past_govt = curve_at(series, past_day) if series else None
                 past_govt_metrics = curve_metrics(past_govt, policy, basis) if past_govt else None
                 past_fut = futures_metrics(futures_series[past_key], value_at_or_before(policy_series, past_key) or policy, fut["anchor"]["basis"],
-                                           date.fromisoformat(past_key), past_govt_metrics["path"] if past_govt_metrics else None, policy_series)
+                                           date.fromisoformat(past_key), past_govt_metrics["path"] if past_govt_metrics else None, policy_series,
+                                           synthetic_front)
                 if past_fut:
                     fut_rep[label] = round((fut["path"][12] - past_fut["path"][12]) * 100)
                     fut_detail[label] = repricing_breakdown(fut_rep[label], policy_series, past_key, fut_day)
@@ -2265,6 +2379,7 @@ def build_curve(cid, series, policy_series, futures_series=None):
                 "govt_basis": basis,
                 **fut,
             })
+    out["confidence"] = curve_confidence(out["kind"], out.get("synthetic_anchor", False))
     return out
 
 
@@ -2427,6 +2542,7 @@ def main():
         "curve_us": fetch_curve_us,
         "curve_ea": fetch_curve_ea,
         "curve_jp": lambda: fetch_curve_jp(len(old_curves.get("JPY", {}))),
+        "tbill_jp": lambda: fetch_tbills_jp({d for d, v in old_curves.get("JPY", {}).items() if "0.25" in v}),
         "curve_gb": lambda: fetch_curve_gb(len(old_curves.get("GBP", {}))),
         "curve_ca": fetch_curve_ca,
         "curve_au": fetch_curve_au,
@@ -2445,13 +2561,17 @@ def main():
     if Path(os.environ.get("RBNZ_B2_FILE", RBNZ_B2_FILE)).exists():
         jobs["curve_nz"] = fetch_curve_nz
     results, status = run_parallel(jobs)
-    sources = {k: v for k, v in results.items() if not k.startswith(("curve_", "futures_", "policy_", "cb_path_"))}
+    sources = {k: v for k, v in results.items() if not k.startswith(("curve_", "futures_", "policy_", "cb_path_", "tbill_"))}
     official_policy = {k[7:]: v for k, v in results.items() if k.startswith("policy_")}
     auto_cb_paths = {k[8:]: v for k, v in results.items() if k.startswith("cb_path_")}
     for cid, auto in auto_cb_paths.items():  # banen peker fremover; kildens dato er rapportdatoen
         if auto and auto.get("as_of") and status.get(f"cb_path_{cid}", {}).get("ok"):
             status[f"cb_path_{cid}"]["latest"] = auto["as_of"]
     curves = {k[6:]: v for k, v in results.items() if k.startswith("curve_")}
+    for day, vals in (results.get("tbill_jp") or {}).items():  # statsveksler (JSDA) inn i JPY-kurven
+        if curves.get("jp") is None:
+            curves["jp"] = {}
+        curves["jp"].setdefault(day, {}).update(vals)
     futures = {k[8:]: v for k, v in results.items() if k.startswith("futures_")}
 
     # Kildestatus: ved feil beholdes forrige vellykkede dato, så alder kan overvåkes
@@ -2561,7 +2681,8 @@ def main():
         old_rates = old.get("rates", {})
         rates = {
             "policy": policy if policy is not None else old_rates.get("policy"),
-            "policy_date": policy_day or old_rates.get("policy_date"),
+            # Manuelt registrert vedtak: vis vedtaksdatoen, ikke seriens siste observasjon
+            "policy_date": (ov["date"] if ov_status == "brukt" else policy_day) or old_rates.get("policy_date"),
             "policy_source": policy_source,
             "policy_unconfirmed": unconfirmed,
             "m3": m3 if m3 is not None else old_rates.get("m3"),
@@ -2644,10 +2765,14 @@ def main():
         # Futures på styringsrenten: dagens snapshot (ASX, TMX) eller historikk (Yahoo) flettes inn
         futures_series = {d: list(v) for d, v in old_futures.get(cur, {}).items() if d >= cutoff}
         futures_series.update(futures.get(c["id"]) or {})
-        if c["id"] == "nz" and futures_series:
-            # Kvartalskontraktene starter først om 2–3 mnd; OECDs 3-mnd-rente (månedssnitt) gir nåpunktet
-            futures_series = add_monthly_front(futures_series, (sources["ir3"] or {}).get(c["oecd"], {}))
-        curve = build_curve(c["id"], curve_series, policy_series, futures_series) if c["id"] in CURVE_SOURCES else None
+        front_basis = None
+        if c["id"] in FUTURES_SYNTHETIC_FRONT and futures_series:
+            # Kvartalskontraktene starter først om 2–3 mnd; OECDs 3-mnd-rente (månedssnitt) gir nåpunktet.
+            # Basisen måles mot styringsrenten slik den faktisk ble, ikke månedens (som inneholder ventede vedtak)
+            monthly = (sources["ir3"] or {}).get(c["oecd"]) or old_history.get("ir3", {}).get(cur, {})
+            futures_series = add_monthly_front(futures_series, monthly)
+            front_basis = monthly_front_basis(monthly, policy_series)
+        curve = build_curve(c["id"], curve_series, policy_series, futures_series, front_basis) if c["id"] in CURVE_SOURCES else None
         if curve_series:
             curve_history[cur] = curve_series
         if futures_series:

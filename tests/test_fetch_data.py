@@ -407,6 +407,32 @@ class RbnzCurveTest(unittest.TestCase):
                 del os.environ["RBNZ_B2_FILE"]
 
 
+class JsdaTbillTest(unittest.TestCase):
+    ROW = '{day},01,0{n}0074,"国庫短期証券{n}",{due},99.999,999.999,99.9,0.00,"-----","--",0,0,0,{rate},99.9,{rate},99.9,{rate}," ",8,999.999,0.00,999.999,0.00,999.999,{rate},99.9,0.00'
+
+    def csv(self, day, bills):
+        rows = [self.ROW.format(day=day, n=1390 + i, due=due, rate=rate) for i, (due, rate) in enumerate(bills)]
+        rows.append('20260924,02,000000000,"利付国債（10年）",20360920,1.500,0320,101.0,0.00,"-----","--",0,0,0,3.073,101.0,3.0,101.0,3.0," ",8,0,0,0,0,0,3.073,101.0,0.0')
+        return "\n".join(rows)
+
+    def test_parse_interpolates_tenors_from_bills(self):
+        from datetime import date as d
+        text = self.csv("20260924", [("20261005", 1.19), ("20261222", 1.20), ("20261228", 1.22), ("20270322", 1.30), ("20270921", 1.565)])
+        out = fd.parse_jsda_tbills(text, today=d(2026, 9, 25))
+        pts = out["2026-09-24"]
+        self.assertAlmostEqual(pts["0.25"], 1.21, places=2)  # mellom 22/12 (89 d) og 28/12 (95 d)
+        self.assertAlmostEqual(pts["0.5"], 1.30, places=2)   # 22/3 er 179 d ≈ 0,49 år, nærmeste innenfor 45 dager
+        self.assertAlmostEqual(pts["1"], 1.565, places=3)    # 21/9 2027 er 362 d: flat siste 3 dager
+        # Dager etter i dag (fila for neste oppgjørsdag) og statsobligasjoner ignoreres
+        self.assertEqual(fd.parse_jsda_tbills(self.csv("20260928", [("20261222", 1.2), ("20270322", 1.3)]), today=d(2026, 9, 25)), {})
+        # Uten veksel nær løpetiden hoppes den over
+        short = fd.parse_jsda_tbills(self.csv("20260924", [("20261005", 1.19), ("20261222", 1.20)]), today=d(2026, 9, 25))
+        self.assertEqual(set(short["2026-09-24"]), {"0.25"})
+
+    def test_parse_handles_garbage(self):
+        self.assertEqual(fd.parse_jsda_tbills("x,y\n,,,,\n", today=__import__("datetime").date(2026, 9, 25)), {})
+
+
 class SnbCurveTest(unittest.TestCase):
     def test_parse_snb_cube(self):
         text = ('\ufeff"CubeId";"rendeiduebd"\n"PublishingDate";"2026-09-01 14:30"\n\n"Date";"D0";"D1";"Value"\n'
@@ -449,6 +475,25 @@ class NzFuturesTest(unittest.TestCase):
         out = fd.parse_asx_bb(payload)
         self.assertEqual(out, {"2026-09-25": [["2026-12-14", "2027-03-14", 3.51], ["2027-03-08", "2027-06-06", 3.91]]})
 
+    def test_parse_asx_bb_skips_zero_volume(self):
+        payload = {"data": {"items": [
+            {"symbol": "BBZ2026", "dateExpiry": "2026-12-14", "datePreviousSettlement": "2026-09-25", "pricePreviousSettlement": 96.49, "priceLastTrade": 96.5, "volume": 608},
+            {"symbol": "BBZ2027", "dateExpiry": "2027-12-13", "datePreviousSettlement": "2026-09-25", "pricePreviousSettlement": 95.65, "priceLastTrade": 95.67, "volume": 0}]}}
+        self.assertEqual([p[0] for p in fd.parse_asx_bb(payload)["2026-09-25"]], ["2026-12-14"])
+
+    def test_monthly_front_basis_measures_against_realized_policy(self):
+        # OCR 2,50 til 3. sep 2026, så 2,75. OECD-snitt for august (2,98) inneholder den ventede hevingen.
+        policy = {"2026-01-01": 2.50, "2026-09-03": 2.75, "2026-12-31": 2.75}
+        monthly = {"2026-05": 2.63, "2026-06": 2.68, "2026-07": 2.85, "2026-08": 2.98, "2026-09": None}
+        b = fd.monthly_front_basis(monthly, policy, months=12)
+        # august: 2,98 − snitt(15/8–13/11) ≈ 2,98 − 2,70; mai/juni/juli mot 2,50 (og litt 2,75)
+        self.assertLess(b, 2.98 - 2.50)
+        self.assertGreater(b, 0.10)
+        self.assertIsNone(fd.monthly_front_basis({}, policy))
+        self.assertIsNone(fd.monthly_front_basis(monthly, {}))
+        # Ingen måned med kjent utfall ennå
+        self.assertIsNone(fd.monthly_front_basis({"2026-08": 2.98}, policy, known_until="2026-09-25"))
+
     def test_add_monthly_front(self):
         fut = {"2026-09-25": [["2026-12-14", "2027-03-14", 3.51]], "2026-07-10": [["2026-09-14", "2026-12-13", 3.2]]}
         out = fd.add_monthly_front(fut, {"2026-06": 3.05, "2026-08": 3.10, "2026-10": None})
@@ -472,8 +517,26 @@ class NzFuturesTest(unittest.TestCase):
         self.assertAlmostEqual(curve["path"][0], 2.75)
         self.assertAlmostEqual(curve["path"][6], 3.91 - 0.30)  # mars 2027-kontrakten dekker midten av mars
         self.assertEqual(curve["repricing"], {})
+        # OECD-fronten er et månedssnitt, ikke en markedsrente: syntetisk anker og lav sikkerhet
+        self.assertTrue(curve["synthetic_anchor"])
+        self.assertIn("syntetisk", curve["anchor"]["kind"])
+        self.assertEqual(curve["confidence"], "lav")
+        # Ferdig regnet basis for fronten overstyrer kontraktbasisen
+        with_basis = fd.build_curve("nz", {}, policy, fut, front_basis=0.25)
+        self.assertAlmostEqual(with_basis["anchor"]["basis"], 0.25)
         self.assertIsNone(fd.build_curve("nz", {}, policy, {}))
         self.assertIsNone(fd.build_curve("nz", {}, {}, fut))
+
+    def test_confidence_levels(self):
+        self.assertEqual(fd.curve_confidence("futures", False), "høy")
+        self.assertEqual(fd.curve_confidence("ois", False), "høy")
+        self.assertEqual(fd.curve_confidence("govt", False), "middels")
+        self.assertEqual(fd.curve_confidence("zero", False), "middels")
+        self.assertEqual(fd.curve_confidence("govt", True), "lav")
+        self.assertEqual(fd.curve_confidence("futures", True), "lav")
+        series = {"2026-09-23": {"0.25": 4.0, "1": 4.2, "2": 4.4, "5": 4.5}}
+        self.assertEqual(fd.build_curve("no", series, {"2026-09-01": 4.0})["confidence"], "middels")
+        self.assertEqual(fd.build_curve("jp", {"2026-09-23": {"1": 1.6, "2": 1.9, "5": 2.4}}, {"2026-09-01": 1.0})["confidence"], "lav")
 
 
 class MeetingImpliedCurveTest(unittest.TestCase):
@@ -596,6 +659,12 @@ class CotFlagsTest(unittest.TestCase):
         self.assertTrue(f["confirmed"])
         self.assertEqual(f["lev_net"], 23000)
         self.assertTrue(f["roll_week"])  # siste rapport 15. sep 2026
+
+    def test_lev_pct_oi(self):
+        series = {f"2026-0{m}-01": {"net": 100000 + m, "oi": 500000, "net_comb": 100000, "lev": 20000} for m in range(1, 10)}
+        flags = fd.cot_flags(series)
+        self.assertEqual(flags["lev_net"], 20000)
+        self.assertEqual(flags["lev_pct_oi"], 4.0)
 
     def test_flags_unconfirmed_and_oi_jump(self):
         nets = [(-1) ** i * 10000 for i in range(53)] + [120000]

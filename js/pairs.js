@@ -22,7 +22,7 @@ export function renderPairs(dashboard, history) {
     if (i.r1y != null) bits.push(`en rente på <b>${rate(i.r1y)}</b> i året`);
     if (i.riskCorr != null) bits.push(`<b>${riskLabel(i.riskCorr)}</b>`);
     if (c.id !== "no" && i.m3 != null) bits.push(`en kurs som har gått <b>${pct(i.m3)}</b> mot kronen siste 3 mnd`);
-    if (c.cot?.pct_oi != null && Math.abs(c.cot.pct_oi) >= 15) bits.push(`en posisjon spekulantene alt er tungt <b>${c.cot.pct_oi > 0 ? "long" : "short"}</b> i`);
+    if (c.cot?.pct_oi != null && Math.abs(c.cot.pct_oi) >= 15) bits.push(`en posisjon ikke-kommersielle aktører alt er tungt <b>${c.cot.pct_oi > 0 ? "long" : "short"}</b> i`);
     return bits.join(", ");
   };
   const why = (r) => r.tags.filter(([t]) => t !== "allerede priset").map(([t]) => TAG_TEXT[t] ?? t);

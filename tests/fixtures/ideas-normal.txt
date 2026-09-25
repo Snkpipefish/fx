@@ -1,5 +1,5 @@
 Størst sprik
-Markedet venter ≈ 5 hevinger fra Reserve Bank of New Zealand, men bare ≈ 1 heving fra Swiss National Bank. Renteforskjellen NZD–CHF ventes altså å øke med 1,16 pp. Reserve Bank of New Zealand hevet nettopp (3. sep). +0,51 pp er priset for møtet 28. okt. Banken sier selv 3,28 % endepunkt i OCR-banen. Bare +0,03 pp er priset for Swiss National Banks møte 10. des – syklusen ligger lenger ut. Tror du markedet tar feil, er NZD/CHF paret å se på.
+Markedet venter ≈ 4 hevinger fra Bank of Canada, men bare ≈ 1 heving fra Norges Bank. Renteforskjellen CAD–NOK ventes altså å øke med 0,93 pp. +0,13 pp er priset for Bank of Canadas møte 28. okt. Norges Bank hevet nettopp (23. sep). Kurven priser bare +0,07 pp innen 3 mnd (neste møte 5. nov) – syklusen ligger lenger ut. Banken sier selv 4,58 % 3. kvartal 2027. Tror du markedet tar feil, er CAD/NOK paret å se på.
 
 I bevegelse
 Forventningene til Norges Bank har flyttet seg mest siste uke: høyere rente ventet (+0,15 pp). Siste måned er renten ventet om 12 mnd +0,32 pp, hvorav +0,25 pp allerede er levert av banken. Slike skift smitter ofte over på valutaen – sjekk om NOK har hengt med.
@@ -8,4 +8,4 @@ Hevinger tross lav inflasjon
 Markedet venter ≈ 4 hevinger fra Riksbanken med en inflasjon (KPIF) på bare 0,7 %. Uteblir hevingene, er SEK sårbar.
 
 Heving levert, kurs ikke fulgt
-Reserve Bank of New Zealand hevet til 2,75 % 3. sep, men NZD er −1,9 % mot handelspartnerne siden. Forwardene flyttet seg lite gjennom vedtaket: hevingen var alt i kursen – «selg på nyheten».
+Norges Bank hevet til 4,50 % 23. sep, men NOK er −0,3 % mot handelspartnerne siden. Forwardene flyttet seg bare +0,06 pp gjennom vedtaket: hevingen var alt i kursen – «selg på nyheten».

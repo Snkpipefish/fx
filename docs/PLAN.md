@@ -107,13 +107,30 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 Punktene fra gjennomgangen av kveldsoppdateringen (16:28 UTC), sortert etter påvirkning.
 
+- [ ] **NZD-kurven overpriser og styrte tre hero-utsagn.**
+  *Problem:* ASX-vekselfutures ga +1,31 pp på 12 mnd mot NZ-swaprenter som lå på ~3,3–3,5 % OCR om ett år; 2027-kontraktene er tynt handlet, fronten er OECDs månedssnitt, og basisen (0,247) var regnet mot en måned med ventet heving. «Mest priset», «størst uenighet» og «størst sprik» bygget alle på kurven (og på CHF, som også er syntetisk).
+  *Løsning:* ✅ *(PR «gjennomgang-2», 25. sep 2026)* Hver kurve får `confidence`: **høy** (futures/OIS/swap), **middels** (statskurve), **lav** (syntetisk nåpunkt – JPY/CHF uten korte punkter, NZD med OECD-front). Frontenden holder «lav» ute av hero-tallene 2 og 3, «størst sprik», «i bevegelse» og setningen om størst avstand til bankens anslag, og merker dem i lista («syntetisk nåpunkt, lav sikkerhet»). NZD-fronten er nå merket syntetisk (`synthetic_anchor`), kontrakter uten omsetning (volume 0, Z2027) hoppes over, og basisen regnes med `monthly_front_basis`: månedens 3-mnd-rente mot styringsrenten slik den *faktisk* ble i snitt de neste 90 dagene, median over 12 måneder (gir 0,245 – nivået var altså ikke feilen, det er kontraktsstripen selv). **Ikke løst:** swaprenter. interest.co.nz laster grafdataene med JS uten åpent endepunkt, NZFMA publiserer ikke åpent, RBNZ B2 er Cloudflare-blokkert fra runnere. Tak mot 1-års swap krever samme kilde. Følg med på om ASX-stripen og swapene konvergerer; med en swapkilde kan NZD gå til `swap` (høy).
+
 - [ ] **NOK-basis med feil fortegn.**
   *Problem:* Median siste år av (3-mnd veksel − styringsrente) = +0,06 inneholdt hevingene markedet ventet i syklusen; `path[0]` 4,39 lå under styringsrenten 4,50 og 12 mnd ble bare +0,19.
   *Løsning:* ✅ *(PR «rentebane», 25. sep 2026)* `curve_basis` måler vekselen mot styringsrenten slik den **faktisk ble i snitt de neste 90 dagene** (`realized_policy_average`), median over 250 kurvedager; de siste tre månedene har ikke kjent utfall og hoppes over, og med færre enn 40 slike dager brukes samme-dag-renten som før. Dager med syntetisk anker teller ikke. NOK: +0,06 → −0,01 (12 mnd +0,31, gap til Norges Banks 4,58 ≈ +0,23). Også GBP OIS (+0,00 → −0,03, SONIA under Bank Rate) og EUR (+0,02 → −0,03) flytter 3–5 bp; SEK, USD, CAD, AUD uendret. Norges Banks datasett har bare NOWA (ikke NIBOR), så en pengemarkedsfront var ikke mulig; historiske møtedatoer finnes ikke i meetings.json, så «dager >5 uker fra møtet» kunne ikke brukes.
 
+- [ ] **JPY «≈1 heving innen 3 mnd» var interpolasjon.**
+  *Problem:* Syntetisk 3-mnd-anker (= styringsrenten) og 1-års JGB gir en terminrente som ikke er marked.
+  *Løsning:* ✅ *(PR «gjennomgang-2»)* JSDAs daglige referansestatistikk (`market.jsda.or.jp/…/baisanchi/files/ÅÅÅÅ/SååMMDD.csv`, cp932) har alle statsveksler (国庫短期証券) med forfall og rente; `parse_jsda_tbills` interpolerer 3, 6 og 12 mnd i gjenstående løpetid og `fetch_tbills_jp` (jobb `tbill_jp`) fletter dem inn i JPY-kurven. JSDA svarer 429 på raske gjentatte kall (og holder sperren en stund), så bare nyeste fil pluss inntil to som mangler hentes, uten automatiske nye forsøk. Første vellykkede kjøring gir markedsanker for JPY (middels); til historikken har 40 dager brukes samme-dag-basis. **CHF:** SNB har ingen daglig 3-mnd-rente (kuben `zimoma` har GMBF 3 mnd, men månedlig; `interestRates.xlsx` bare SARON og 10 år), så CHF forblir syntetisk (lav).
+
 - [ ] **SEK-fronten ujevn (3 mnd > 6 mnd).**
   *Problem:* Lineær interpolasjon av spotkurven gir knekk i terminrentene ved hvert punkt; med 6-mnd-vekselen (2,23) høyt mot 3 mnd og 2 år ble 3 mnd-terminen om 3 mnd (2,37) høyere enn den om 6 mnd (2,32).
   *Løsning:* ✅ *(PR «rentebane»)* `spot_rate` bruker monoton kubisk interpolasjon (PCHIP, Fritsch–Carlson) mellom punktene: går gjennom punktene, overskyter ikke, og gir kontinuerlig terminbane. SEK-fronten er nå stigende (1,72 → 2,38 → 2,50 → 2,81 ved 12 mnd; 6 mnd +0,58 → +0,75). 6-mnd-serien (SETB6MBENCH) oppdateres daglig og er ikke frosset, men er tynt handlet; det er ikke rettet på.
+
+- [ ] **Tekstfeil i idéene.**
+  *Løsning:* ✅ *(PR «gjennomgang-2»)* `context()` skiller `bp` (selve møtet, futures/OIS) fra `bp_3m`: «Kurven priser +0,07 pp innen 3 mnd (neste møte 5. nov)». «Heving levert» krever `tone` og `path12_change_bp`; uten måling rundt vedtaket hoppes idéen over.
+
+- [ ] **COT JPY: «spekulanter» var legacy ikke-kommersielle.**
+  *Løsning:* ✅ *(PR «gjennomgang-2»)* Kortet viser TFF hedgefond (`lev_net`, ny `lev_pct_oi`) som «Spekulanter (hedgefond)» og legacy som «ikke-kommersielle»; idéen «Alle på samme side», motpost-teksten og «kontrær»-taggen sier ikke-kommersielle.
+
+- [ ] **CHF ubekreftet / JPY policy_date.**
+  *Løsning:* ✅ *(PR «gjennomgang-2»)* SNB 24. sep (0 %) lagt inn i `policy_overrides.json`. Ved manuelt registrert vedtak vises vedtaksdatoen som `policy_date` (JPY 18. sep), ikke seriens siste observasjon.
 
 ## Avhengigheter
 

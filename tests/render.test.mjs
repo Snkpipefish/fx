@@ -138,6 +138,42 @@ for (const [name, make] of Object.entries(variants)) {
   });
 }
 
+test("lav sikkerhet holdes ute av hero og «størst sprik»; bp_3m omtales som 3-mnd-prising", () => {
+  const d = variants.normal();
+  const low = d.countries.filter((c) => c.curve && overview.confidence(c) === "lav").map((c) => c.bank);
+  assert.ok(low.length >= 2, "fixture: JPY, CHF og NZD har syntetisk nåpunkt");
+  renderAll(d, history);
+  const stats = [...document.querySelectorAll("#heroStats .stat")].map((el) => el.textContent);
+  for (const bank of low) {
+    assert.ok(!stats[1].includes(bank), `«mest priset» nevner ikke ${bank}`);
+    assert.ok(!stats[2].includes(bank), `«størst uenighet» nevner ikke ${bank}`);
+  }
+  const sprik = [...document.querySelectorAll("#ideas .idea")].find((el) => el.querySelector(".tag").textContent === "Størst sprik");
+  assert.ok(sprik);
+  for (const bank of low) assert.ok(!sprik.textContent.includes(bank), `«størst sprik» bygger ikke på ${bank}`);
+  assert.match(sprik.textContent, /Kurven priser bare \+0,07 pp innen 3 mnd \(neste møte 5\. nov\)/);
+  assert.doesNotMatch(sprik.textContent, /\+0,07 pp er priset for møtet/);
+  assert.match(document.getElementById("rates").textContent, /syntetisk nåpunkt, lav sikkerhet/);
+});
+
+test("heving levert: idéen hoppes over uten måling av forwardene rundt vedtaket", () => {
+  const d = variants.normal();
+  const no = d.countries.find((c) => c.id === "no");
+  delete no.policy_change.tone; delete no.policy_change.path12_change_bp;  // som NZD i fixturen
+  renderAll(d, history);
+  const text = document.getElementById("ideas").textContent;
+  assert.doesNotMatch(text, /Norges Bank hevet til 4,50 %/, "NOK uten tone hoppes over");
+  assert.doesNotMatch(text, /Reserve Bank of New Zealand hevet til/, "NZD uten tone hoppes over");
+  assert.doesNotMatch(text, /flyttet seg lite/);
+});
+
+test("kort: hedgefond (TFF) vises som spekulanter, legacy som ikke-kommersielle", () => {
+  renderAll(variants.normal(), history);
+  const jp = document.getElementById("card-jp").textContent.replace(/\s+/g, " ");
+  assert.match(jp, /Spekulanter \(hedgefond\): \+23,2k/);
+  assert.match(jp, /ikke-kommersielle \+120,4k netto \(\+22,2 % av åpen interesse\)/);
+});
+
 test("vedtaksdag: kalendervakt og vedtakstone vises", () => {
   const body = renderAll(variants.vedtaksdag(), history);
   assert.match(body.textContent, /ubekreftet etter møtet/);

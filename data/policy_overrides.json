@@ -9,5 +9,10 @@
     "date": "2026-09-18",
     "rate": 1.25,
     "note": "Bank of Japan hevet fra 1,00 til 1,25 % 18. september 2026"
+  },
+  "ch": {
+    "date": "2026-09-24",
+    "rate": 0.0,
+    "note": "SNB holdt styringsrenten uendret på 0 % 24. september 2026"
   }
 }

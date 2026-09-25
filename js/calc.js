@@ -179,7 +179,7 @@ export function pairCandidates({ countries, info, chosen, isLong, volOf }) {
     // Energinøytral: lik eksponering mot både olje og gass (gass teller bare der vi har korrelasjonen)
     if (dOil != null && Math.abs(dOil) < 0.25 && (dGas == null || Math.abs(dGas) < 0.25)) tags.push(["energinøytral", dGas == null ? "Lik oljeeksponering på begge sider" : "Lik eksponering mot olje og gass på begge sider"]);
     if (mom != null && mom > 1) tags.push(["momentum", `Paret har gått ${mom.toFixed(1).replace(".", ",")} % din vei siste 3 mnd`]);
-    if (crowded != null) tags.push(["kontrær", `Spekulanter er +${crowded} % av OI long ${S.currency} – short-beinet er fullt`]);
+    if (crowded != null) tags.push(["kontrær", `Ikke-kommersielle er +${crowded} % av OI long ${S.currency} – short-beinet er fullt`]);
     if (gap != null && gap >= 25) tags.push(["allerede priset", `Markedet priser ${bp(gap)} mer for ${L.currency} enn ${S.currency} – du trenger mer enn det som ligger i kurven`]);
     if (gap != null && gap <= -25) tags.push(["mot strømmen", `Markedet priser ${bp(-gap)} mer for ${S.currency}; du satser på at det reverseres`]);
     return { L, S, other, carry, gap, mom, dRisk, dOil, dGas, vol, crowded, tags };
