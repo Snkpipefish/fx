@@ -43,13 +43,14 @@ function renderAll(dashboard, history) {
   overview.renderHero(countries, market, dashboard.updated);
   overview.renderRates(countries);
   chartsMod.setupPathChart(countries);
-  overview.renderKrone(countries, market);
+  overview.renderStrength(countries, market);
   overview.renderIdeas(countries, market);
   cards.renderCards(countries, market);
   cards.setupCardMode();
   overview.renderSources(dashboard.sources, dashboard.updated);
   cards.fillSparklines(countries, history);
   chartsMod.drawComparison(countries, history);
+  overview.renderCross(countries, history);
   chartsMod.drawPathChart(countries);
   pairs.renderPairs(dashboard, history);
   return document.body;
@@ -126,6 +127,14 @@ for (const [name, make] of Object.entries(variants)) {
     assert.match(document.getElementById("sources").textContent, /gyldig til 25\. nov/);
     assert.equal(charts.length, 2, "sammenligningsgraf og rentebane tegnet");
     assert.ok(body.querySelector("#pairResult .pair-card"), "motpost-modulen gir minst ett forslag");
+
+    // Ingen hjemmevaluta: ti søyler mot kurven, krysstabell 10×10, ingen kroner-formuleringer
+    assert.equal(body.querySelectorAll("#strengthBars .bl-row").length, dashboard.countries.length, "alle ti valutaer i søylelisten");
+    assert.equal(body.querySelectorAll("#crossTable tbody tr").length, dashboard.countries.length, "krysstabell: én rad per valuta");
+    assert.equal(body.querySelectorAll("#crossTable tbody td").length, dashboard.countries.length ** 2, "krysstabell: én celle per par");
+    assert.equal(body.querySelectorAll("#crossTable td.diag").length, dashboard.countries.length, "diagonalen er tom");
+    assert.doesNotMatch(text, /mot kronen|i kroner|= .* kr\b|I-44|kroneindeks/, "ingen krone-perspektiv i teksten");
+    assert.equal(charts[0].data.datasets.length, dashboard.countries.length, "sammenligningsgrafen har alle ti valutaer");
   });
 
   test(`idéer ${name}: tekst-snapshot`, () => {
@@ -165,6 +174,34 @@ test("heving levert: idéen hoppes over uten måling av forwardene rundt vedtake
   assert.doesNotMatch(text, /Norges Bank hevet til 4,50 %/, "NOK uten tone hoppes over");
   assert.doesNotMatch(text, /Reserve Bank of New Zealand hevet til/, "NZD uten tone hoppes over");
   assert.doesNotMatch(text, /flyttet seg lite/);
+});
+
+test("krysstabellen følger horisont-chipsene og er antisymmetrisk", () => {
+  renderAll(variants.normal(), history);
+  const cell = (x, y) => [...document.querySelectorAll("#crossTable tbody tr")].find((tr) => tr.querySelector("th").textContent.includes(x))
+    .querySelectorAll("td")[["USD", "EUR", "JPY", "GBP", "CHF", "CAD", "AUD", "NZD", "SEK", "NOK"].indexOf(y)];
+  const usdJpy = parseFloat(cell("USD", "JPY").textContent.replace(",", ".").replace("−", "-"));
+  const jpyUsd = parseFloat(cell("JPY", "USD").textContent.replace(",", ".").replace("−", "-"));
+  assert.ok(Math.abs(usdJpy + jpyUsd) < 0.3, `USD mot JPY (${usdJpy}) ≈ −(JPY mot USD) (${jpyUsd})`);
+  assert.match(document.getElementById("crossTable").textContent, /siste uke/);
+  document.querySelector('#strengthChips button[data-h="m3"]').click();
+  assert.match(document.getElementById("crossTable").textContent, /siste 3 mnd/);
+  assert.ok(document.querySelector('#strengthChips button[data-h="m3"]').classList.contains("on"));
+});
+
+test("kort: konvensjonelt kryss og tall mot kurven", () => {
+  renderAll(variants.normal(), history);
+  const no = document.getElementById("card-no").textContent.replace(/\s+/g, " ");
+  assert.match(no, /USD\/NOK \d+,\d+/);
+  assert.match(no, /mot G10-kurven/);
+  assert.match(no, /Renteforskjell 1 år [+−-]\d+,\d+ pp mot kurven, [+−-]\d+,\d+ pp mot USD/);
+  const us = document.getElementById("card-us").textContent.replace(/\s+/g, " ");
+  assert.match(us, /EUR\/USD \d,\d+/);
+  assert.doesNotMatch(us, /mot USD/, "USD har ingen renteforskjell mot seg selv");
+  const ea = document.getElementById("card-ea").textContent.replace(/\s+/g, " ");
+  assert.match(ea, /EUR\/USD/);
+  const jp = document.getElementById("card-jp").textContent.replace(/\s+/g, " ");
+  assert.match(jp, /USD\/JPY 1\d\d,\d+/);
 });
 
 test("kort: hedgefond (TFF) vises som spekulanter, legacy som ikke-kommersielle", () => {

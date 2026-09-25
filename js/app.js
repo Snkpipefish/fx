@@ -1,5 +1,5 @@
 /* Inngangspunkt: dashboard.json først (alt som ikke trenger historikk), deretter history.json. */
-import { renderHero, renderRates, renderKrone, renderIdeas, renderSources } from "./overview.js";
+import { renderHero, renderRates, renderStrength, renderCross, renderIdeas, renderSources } from "./overview.js";
 import { drawComparison, setupPathChart } from "./charts.js";
 import { renderCards, fillSparklines, setupCardMode } from "./cards.js";
 import { renderPairs } from "./pairs.js";
@@ -16,7 +16,7 @@ async function init() {
   renderHero(countries, market, dashboard.updated);
   renderRates(countries);
   setupPathChart(countries);
-  renderKrone(countries, market);
+  renderStrength(countries, market);
   renderIdeas(countries, market);
   renderCards(countries, market);
   setupCardMode();
@@ -25,6 +25,7 @@ async function init() {
   const history = await historyPromise;
   fillSparklines(countries, history);
   drawComparison(countries, history);
+  renderCross(countries, history);
   renderPairs(dashboard, history);
 }
 

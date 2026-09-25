@@ -176,7 +176,16 @@ details.inline summary { display: inline; cursor: pointer; color: var(--accent);
 .bl-bar.pos { background: var(--up); }
 .bl-bar.neg { background: var(--down); }
 .bl-value { text-align: right; font-weight: 600; }
-#kroneChips { margin-top: 0.4rem; }
+#strengthChips { margin-top: 0.4rem; }
+
+/* ---------- Krysstabell ---------- */
+.cross { font-size: 0.8rem; text-align: right; }
+.cross th, .cross td { padding: 0.3rem 0.45rem; text-align: right; }
+.cross thead th { text-align: right; }
+.cross th[scope="row"], .cross thead th:first-child { text-align: left; font-weight: 600; color: var(--text); text-transform: none; letter-spacing: 0; font-size: 0.8rem; }
+.cross td.pos { background: color-mix(in srgb, var(--up) calc(var(--k, 0) * 38%), transparent); }
+.cross td.neg { background: color-mix(in srgb, var(--down) calc(var(--k, 0) * 38%), transparent); }
+.cross td.diag { background: var(--chip); }
 
 .chart-box { height: 320px; margin-top: 1rem; }
 .chart-box.tall { height: 340px; margin-top: 1.8rem; }
@@ -219,6 +228,7 @@ details.inline summary { display: inline; cursor: pointer; color: var(--accent);
 .chips-row { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 .chip { font-size: 0.76rem; background: var(--chip); border-radius: 99px; padding: 0.15rem 0.6rem; color: var(--muted); }
 .chip b { font-weight: 600; }
+.chip.lbl { background: transparent; padding-left: 0; font-style: italic; }
 .expect { font-size: 0.9rem; line-height: 1.5; }
 .signal { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.82rem; }
 .signal .pill { align-self: flex-start; font-size: 0.74rem; font-weight: 600; padding: 0.15rem 0.6rem; border-radius: 99px; background: var(--chip); }

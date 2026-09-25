@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { correlation, realizedVol, rate1y, directionSignal, pairCandidates, dailyReturns, totalReturn } from "../js/calc.js";
+import { correlation, realizedVol, rate1y, directionSignal, pairCandidates, dailyReturns, totalReturn, basketRates, pctChange, crossMatrix, pairSeries, legInfo } from "../js/calc.js";
 
 const series = (vals) => Object.fromEntries(vals.map((v, i) => [`2026-01-${String(i + 1).padStart(2, "0")}`, v]));
 
@@ -47,10 +47,46 @@ test("directionSignal teller drivere: minst to må peke samme vei", () => {
   const split = directionSignal({ curve: { implied: { "6m": 60 } }, fx: { changes: { m3: -3 } }, rates: { policy: 4 }, cpi: { value: 4 } });
   assert.equal(split.dir, "flat");
   assert.equal(split.word, "Delt bilde");
-  // I-44 inverteres: fallende indeks = sterkere krone
-  const nok = directionSignal({ fx: { index: true, changes: { m3: -3 } }, curve: { implied: { "6m": 30 } }, rates: { policy: 4.5 }, cpi: { value: 3 } });
-  assert.equal(nok.drivers.find((d) => d.key === "momentum").dir, "up");
+  // Momentum er kursen mot G10-kurven, samme fortegn for alle valutaer (ingen hjemmevaluta å invertere for)
+  const nok = directionSignal({ fx: { changes: { m3: -3 } }, curve: { implied: { "6m": 30 } }, rates: { policy: 4.5 }, cpi: { value: 3 } });
+  assert.equal(nok.drivers.find((d) => d.key === "momentum").dir, "down");
+  assert.match(nok.drivers.find((d) => d.key === "momentum").text, /mot kurven/);
   assert.equal(directionSignal({}).word, "For lite data");
+});
+
+test("basketRates: snitt av de andres 3-mnd-renter per måned", () => {
+  const ir3 = { USD: { "2026-01": 4.0, "2026-02": 4.0 }, EUR: { "2026-01": 2.0 }, JPY: { "2026-01": 0.5, "2026-02": 1.0 } };
+  assert.deepEqual(basketRates(ir3, "USD"), { "2026-01": 1.25, "2026-02": 1.0 });
+  assert.deepEqual(basketRates(ir3, "EUR"), { "2026-01": 2.25, "2026-02": 2.5 });
+  assert.equal(basketRates({ USD: { "2026-01": 4 } }, "USD"), null);
+  assert.equal(basketRates(null, "USD"), null);
+});
+
+test("pctChange og crossMatrix: kryss = fx[L] ÷ fx[S], antisymmetrisk i logaritmen", () => {
+  const fx = { USD: { "2026-01-01": 1, "2026-01-08": 1 }, JPY: { "2026-01-01": 1 / 150, "2026-01-08": 1 / 160 }, EUR: { "2026-01-01": 1.1, "2026-01-08": 1.1 } };
+  assert.ok(Math.abs(pctChange(fx.JPY, 7) - (150 / 160 - 1) * 100) < 1e-9);
+  assert.equal(pctChange(fx.JPY, 30), null, "ingen verdi 30 dager tilbake");
+  assert.equal(pctChange({}, 7), null);
+  const m = crossMatrix({ fx }, ["USD", "JPY", "EUR"], 7);
+  assert.ok(Math.abs(m.USD.JPY - (160 / 150 - 1) * 100) < 1e-9, "USD/JPY 150 → 160: USD +6,67 % mot JPY");
+  assert.ok(Math.abs(m.JPY.USD - (150 / 160 - 1) * 100) < 1e-9);
+  assert.ok(Math.abs((1 + m.USD.JPY / 100) * (1 + m.JPY.USD / 100) - 1) < 1e-9, "antisymmetrisk");
+  assert.equal(m.USD.EUR, 0);
+  assert.equal(m.USD.USD, null);
+  const s = pairSeries({ fx }, { currency: "USD" }, { currency: "JPY" });
+  assert.equal(s["2026-01-08"], 160);
+});
+
+test("legInfo måler hver valuta mot kurven og tar 3-mnd-endringen fra dashboardet", () => {
+  const days = Array.from({ length: 40 }, (_, i) => `2026-01-${String(i + 1).padStart(2, "0")}`);
+  const up = Object.fromEntries(days.map((d, i) => [d, 100 * Math.exp(0.01 * Math.sin(i))]));
+  const history = { basket: { AUD: up, JPY: Object.fromEntries(days.map((d) => [d, 100 * 100 / up[d]])) }, market: { audjpy: up, brent: {}, ttf: {} } };
+  const info = legInfo([{ id: "au", currency: "AUD", fx: { changes: { m3: 2.5 } } }, { id: "jp", currency: "JPY", fx: { changes: { m3: -1 } } }], history);
+  assert.ok(info.au.riskCorr > 0.99);
+  assert.ok(info.jp.riskCorr < -0.99);
+  assert.equal(info.au.m3, 2.5);
+  assert.equal(info.jp.m3, -1);
+  assert.equal(info.au.oilCorr, null);
 });
 
 test("pairCandidates rangerer etter treff og setter riktige merkelapper", () => {

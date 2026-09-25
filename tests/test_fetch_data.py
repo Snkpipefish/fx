@@ -745,18 +745,21 @@ class SnapshotTest(unittest.TestCase):
         govt = {"0.25": 4.05, "0.5": 4.1, "1": 4.2, "2": 4.4, "5": 4.5}
         series = {str(d(2026, 9, 1) + __import__("datetime").timedelta(days=i)): dict(govt) for i in range(0, 25)}
         policy = {"2026-01-01": 4.0}
-        history = {"fx": {"NOK": {}, "USD": {"2026-09-24": 9.5, "2026-06-25": 9.7}, "I44": {"2026-09-24": 118.0, "2026-06-25": 120.0}},
+        history = {"fx": {"USD": {"2026-09-24": 1.0, "2026-06-25": 1.0}},
+                   "basket": {"USD": {"2026-09-24": 104.2, "2026-06-25": 101.0}},
                    "policy": {"US": policy}, "cot": {"USD": {"2026-09-22": {"net": 10000, "oi": 40000}}},
                    "market": {"brent": {"2026-09-24": 100.0}, "vix": {}, "brent_fut": {}, "ttf": {}, "audjpy": {}}}
         curve = fd.build_curve("us", series, policy)
-        countries = [{"id": "us", "currency": "USD", "curve": curve, "fx": {"value": 9.5, "changes": {"m3": -2.1}},
+        countries = [{"id": "us", "currency": "USD", "curve": curve, "fx": {"usd": 1.0, "changes": {"m3": -2.1}},
                       "rates": {"policy": 4.0}, "cpi": {"value": 3.4}, "cpi_core": {"value": 3.3, "is_target": True},
                       "cot": {"net": 10000, "pct_oi": 25.0}, "vol30": 6.4, "next_meeting": {"bp": 17}, "cb_path": {"level": 4.1}}]
         rec = fd.snapshot_record(countries, {"brent": {"value": 100.0}}, "2026-09-25", history)
         us = rec["countries"]["us"]
-        self.assertEqual((rec["date"], rec["backfilled"], rec["market"]["brent"], rec["market"]["i44"]), ("2026-09-25", False, 100.0, 118.0))
-        self.assertEqual((us["fx"], us["policy"], us["cpi_target"], us["cb_level"], us["next_meeting_bp"]), (9.5, 4.0, 3.3, 4.1, 17))
-        self.assertAlmostEqual(us["fx_world"], 9.5 / 118.0, places=5)
+        self.assertEqual((rec["date"], rec["backfilled"], rec["market"]["brent"]), ("2026-09-25", False, 100.0))
+        self.assertNotIn("i44", rec["market"])
+        self.assertEqual((us["fx"], us["policy"], us["cpi_target"], us["cb_level"], us["next_meeting_bp"]), (1.0, 4.0, 3.3, 4.1, 17))
+        self.assertEqual(us["fx_world"], 104.2)  # kursen mot G10-kurven, ikke mot noen hjemmevaluta
+        self.assertEqual(us["fx_m3"], -2.1)
         self.assertEqual(len(us["path"]), 5)
         self.assertEqual(us["path"][3], curve["path"][12])
         with tempfile.TemporaryDirectory() as tmp:
@@ -766,7 +769,8 @@ class SnapshotTest(unittest.TestCase):
             back = json.loads((sd / "2026-09-24.json").read_text())
             self.assertTrue(back["backfilled"])
             self.assertEqual(back["countries"]["us"]["path"][3], curve["path"][12])  # samme kurve og basis → samme nivå
-            self.assertAlmostEqual(back["countries"]["us"]["fx_m3"], round((9.5 / 9.7 - 1) * 100, 2))
+            self.assertEqual(back["countries"]["us"]["fx_world"], 104.2)
+            self.assertAlmostEqual(back["countries"]["us"]["fx_m3"], round((104.2 / 101.0 - 1) * 100, 2))  # 3 mnd mot kurven
             self.assertEqual(back["countries"]["us"]["cot_pct_oi"], 25.0)
             self.assertEqual(fd.backfill_snapshots(sd, countries, {"USD": series}, {}, history, days=10, today=d(2026, 9, 25)), 0)  # finnes alt
             (sd / "2026-09-25.json").write_text(json.dumps(rec))
@@ -799,14 +803,83 @@ class FillIr3Test(unittest.TestCase):
         self.assertEqual(fd.fill_ir3_from_curves({}, curves)["GBP"], {"2026-02": 3.7, "2026-03": 3.85})
 
 
-class EnergyDriverTest(unittest.TestCase):
-    def test_energy_driver(self):
-        self.assertEqual(fd.energy_driver(0.35, 0.10), "olje")
-        self.assertEqual(fd.energy_driver(-0.05, -0.30), "gass")   # fortegn spiller ingen rolle
-        self.assertEqual(fd.energy_driver(0.25, 0.20), "begge")
-        self.assertEqual(fd.energy_driver(0.25, None), "olje")
-        self.assertEqual(fd.energy_driver(None, 0.2), "gass")
-        self.assertIsNone(fd.energy_driver(None, None))
+class BasketTest(unittest.TestCase):
+    """Ingen hjemmevaluta: kurser i USD-termer, G10-kurven som målestokk, konvensjonelle kryss."""
+    RAW = {"rates": {"2026-09-24": {"EUR": 0.92, "JPY": 148.0, "NOK": 9.5}, "2026-09-25": {"EUR": 0.90, "JPY": 150.0, "NOK": 9.6}}}
+
+    def test_parse_fx_usd_adds_usd_itself(self):
+        fx = fd.parse_fx_usd(self.RAW)
+        self.assertEqual(fx["USD"], {"2026-09-24": 1.0, "2026-09-25": 1.0})
+        self.assertAlmostEqual(fx["EUR"]["2026-09-25"], 1 / 0.90, places=8)
+        self.assertAlmostEqual(fx["JPY"]["2026-09-24"], 1 / 148.0, places=8)
+
+    def test_basket_is_symmetric_and_numeraire_free(self):
+        fx = fd.parse_fx_usd(self.RAW)
+        b = fd.basket_index(fx, ["USD", "EUR", "JPY", "NOK"])
+        for cur in ("USD", "EUR", "JPY", "NOK"):
+            self.assertEqual(b[cur]["2026-09-24"], 100.0)  # rebasert på første felles dag
+        # Likevektet geometrisk snitt: logendringene summerer til null over de fire
+        import math
+        total = sum(math.log(b[c]["2026-09-25"] / 100) for c in b)
+        self.assertAlmostEqual(total, 0.0, places=4)  # indeksene er avrundet til 3 desimaler
+        # EUR styrket seg mot alle (0,92 → 0,90 per USD), JPY og NOK svekket seg: EUR opp, JPY ned
+        self.assertGreater(b["EUR"]["2026-09-25"], 100)
+        self.assertLess(b["JPY"]["2026-09-25"], 100)
+        # Numerairen spiller ingen rolle: samme kurv om alt måles i EUR i stedet for USD
+        in_eur = {c: {d: v / fx["EUR"][d] for d, v in s.items()} for c, s in fx.items()}
+        b2 = fd.basket_index(in_eur, ["USD", "EUR", "JPY", "NOK"])
+        for c in b:
+            self.assertAlmostEqual(b[c]["2026-09-25"], b2[c]["2026-09-25"], places=2)
+        self.assertEqual(fd.basket_index({"USD": {"d": 1.0}}, ["USD"]), {})
+
+    def test_convention_quote(self):
+        fx = fd.parse_fx_usd(self.RAW)
+        self.assertEqual(fd.convention_quote("EUR", fx), {"pair": "EUR/USD", "value": round(1 / 0.90, 4)})
+        self.assertEqual(fd.convention_quote("JPY", fx), {"pair": "USD/JPY", "value": 150.0})
+        self.assertEqual(fd.convention_quote("NOK", fx), {"pair": "USD/NOK", "value": 9.6})
+        self.assertEqual(fd.convention_quote("USD", fx)["pair"], "EUR/USD")
+        self.assertIsNone(fd.convention_quote("SEK", fx))
+
+    def test_fx_summary_measures_changes_against_basket(self):
+        fx = fd.parse_fx_usd(self.RAW)
+        b = fd.basket_index(fx, ["USD", "EUR", "JPY", "NOK"])
+        s = fd.fx_summary("NOK", fx, b)
+        self.assertEqual((s["date"], s["quote"]["pair"], s["basket"]), ("2026-09-25", "USD/NOK", b["NOK"]["2026-09-25"]))
+        self.assertAlmostEqual(s["usd"], 1 / 9.6, places=8)
+        self.assertEqual(s["changes"]["d1"], round((b["NOK"]["2026-09-25"] / 100 - 1) * 100, 2))
+        self.assertIsNone(s["changes"]["y1"])
+        self.assertIsNone(fd.fx_summary("SEK", fx, b))
+
+    def test_forward_1y_uses_convention_pair_and_basket_differential(self):
+        fx = fd.parse_fx_usd(self.RAW)
+        b = fd.basket_index(fx, ["USD", "EUR", "JPY", "NOK"])
+        countries = [{"id": "us", "currency": "USD", "fx": fd.fx_summary("USD", fx, b), "curve": {"points": {"1": 4.0}}, "rates": {"m3": 4.1}},
+                     {"id": "jp", "currency": "JPY", "fx": fd.fx_summary("JPY", fx, b), "curve": None, "rates": {"m3": 0.5}},
+                     {"id": "ea", "currency": "EUR", "fx": fd.fx_summary("EUR", fx, b), "curve": {"points": {"1": 2.0}}, "rates": {}},
+                     {"id": "no", "currency": "NOK", "fx": fd.fx_summary("NOK", fx, b), "curve": {"points": {"1": 4.5}}, "rates": {}}]
+        fd.forward_1y(countries, fx)
+        jp = countries[1]["fwd_fx_1y"]
+        self.assertEqual(jp["pair"], "USD/JPY")
+        self.assertAlmostEqual(jp["rate"], countries[1]["fx"]["quote"]["value"] * 1.005 / 1.04, places=2)  # dekket renteparitet, JPY per USD
+        self.assertEqual(jp["diff_usd"], -3.5)
+        self.assertEqual(jp["diff_basket"], round(0.5 - (4.0 + 2.0 + 4.5) / 3, 2))
+        self.assertFalse(jp["from_curve"])  # 3-mnd-renten som reserve
+        us = countries[0]["fwd_fx_1y"]
+        self.assertEqual((us["pair"], us["diff_usd"]), ("EUR/USD", None))
+        self.assertTrue(us["from_curve"])
+        self.assertAlmostEqual(us["rate"], round(1 / 0.90, 4) * 1.04 / 1.02, places=3)
+        no = countries[3]["fwd_fx_1y"]
+        self.assertEqual(no["diff_basket"], round(4.5 - (4.0 + 0.5 + 2.0) / 3, 2))
+
+    def test_market_correlations_per_currency(self):
+        days = [f"2026-01-{i:02d}" for i in range(1, 32)]
+        idx = {d: 100 + i for i, d in enumerate(days)}
+        brent = {d: 50 + i for i, d in enumerate(days)}       # samme retning som indeksen
+        ttf = {d: 1e4 / v for d, v in idx.items()}            # invers: motsatt avkastning dag for dag
+        out = fd.market_correlations({"NOK": idx}, brent, ttf, {})
+        self.assertGreater(out["NOK"]["oil"], 0.9)
+        self.assertLess(out["NOK"]["gas"], -0.9)
+        self.assertIsNone(out["NOK"]["risk"])
 
 
 class ManualFilesStatusTest(unittest.TestCase):

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>G10 Valutabrief</title>
-  <meta name="description" content="Hva rentemarkedet venter av sentralbankene, og hva det betyr for kronen og de andre G10-valutaene. Oppdateres hver ukedag.">
+  <title>G10 Valutabrief – uten hjemmevaluta</title>
+  <meta name="description" content="Hva rentemarkedet venter av sentralbankene i G10, og hvordan de ti valutaene har gått mot hverandre. Ingen hjemmevaluta – alle måles mot en likevektet kurv av de andre. Oppdateres hver ukedag.">
   <link rel="preload" href="css/fonts/inter-latin-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="css/fonts/fraunces-latin-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/style.css">
@@ -14,7 +14,7 @@
   <nav class="nav" aria-label="Seksjoner">
     <a class="brand" href="#top">💱 Valutabrief</a>
     <a href="#renter">Renter</a>
-    <a href="#kronen">Kronen</a>
+    <a href="#styrke">Sterkt og svakt</a>
     <a href="#tre-ting">Merk deg</a>
     <a href="#handel">Finn motpart</a>
     <a href="#land">Land</a>
@@ -49,13 +49,15 @@
         Sveits, som mangler korte punkter, er 3-måneders renten satt lik styringsrenten.</p></details>
     </section>
 
-    <section class="chapter" id="kronen">
+    <section class="chapter" id="styrke">
       <div class="chapter-head"><span class="num">2</span>
-        <div><h2>Kronen</h2><p>Hvem har gått mest mot kronen, og hva som driver risikoappetitten akkurat nå.</p></div></div>
-      <div id="krone"></div>
-      <div class="chart-box tall"><canvas id="comparisonChart" role="img" aria-label="Alle G10-valutaer mot kronen siste år, rebasert til 100"></canvas></div>
-      <p class="note"><label class="toggle"><input type="checkbox" id="comparisonCarry"> med carry (totalavkastning)</label> · Alle valutaer mot kronen siste år,
-        100 = ett år siden. Med carry legges renteforskjellen mot kronen til dag for dag (3-måneders renter, OECD), altså det en posisjon faktisk
+        <div><h2>Sterkt og svakt</h2><p>Hvem har gått mest mot de ni andre, hva som driver risikoappetitten akkurat nå, og hvordan alle kryssene ligger.
+          Ingen valuta er hjemmevaluta: alt måles mot G10-kurven.</p></div></div>
+      <div id="strength"></div>
+      <details class="more" id="crossDetails"><summary>Vis krysstabellen (alle par)</summary><div id="crossTable"><p class="note">Laster historikk …</p></div></details>
+      <div class="chart-box tall"><canvas id="comparisonChart" role="img" aria-label="Alle G10-valutaer mot G10-kurven siste år, rebasert til 100"></canvas></div>
+      <p class="note"><label class="toggle"><input type="checkbox" id="comparisonCarry"> med carry (totalavkastning)</label> · Alle valutaer mot G10-kurven siste år,
+        100 = ett år siden. Med carry legges renteforskjellen mot kurven (snittet av de andres 3-måneders renter, OECD) til dag for dag, altså det en posisjon faktisk
         har gitt. Klikk i tegnforklaringen for å slå av og på.</p>
     </section>
 
@@ -68,7 +70,7 @@
     <section class="chapter" id="handel">
       <div class="chapter-head"><span class="num">4</span>
         <div><h2>Finn motparten til en handel</h2>
-          <p>En valuta kjøpes alltid mot en annen – kroner om du ikke velger noe. Hvilken du selger, avgjør hva du egentlig satser på.
+          <p>En valuta kjøpes alltid mot en annen. Hvilken du selger, avgjør hva du egentlig satser på.
           <details class="inline"><summary>Hvorfor?</summary> Én posisjon er alltid to: det du kjøpte og det du betalte med. Er du long én ting,
           er du samtidig short alt du ikke kjøpte. Velger du motparten bevisst, samler du risikoen du vil ha og nøytraliserer den du ikke har et syn på.</details></p></div></div>
       <div class="pair-controls">
@@ -80,7 +82,7 @@
 
     <section class="chapter" id="land">
       <div class="chapter-head"><span class="num">5</span>
-        <div><h2>Land for land</h2><p>Kurs, utvikling og hva markedet venter av hver sentralbank.</p></div>
+        <div><h2>Land for land</h2><p>Kryss mot USD, utvikling mot G10-kurven og hva markedet venter av hver sentralbank.</p></div>
         <button type="button" id="cardMode" class="btn" aria-pressed="false">Vis detaljer</button></div>
       <div id="grid" class="grid compact"><p class="note">Laster data …</p></div>
     </section>
@@ -94,9 +96,10 @@
         <dt>Rentekurve</dt><dd>Renten markedet betaler for ulike løpetider. Stiger den bratt, venter markedet høyere renter.</dd>
         <dt>Renteforskjell / carry</dt><dd>Det du tjener (eller betaler) per år på å eie én valuta mot en annen. Terminkursen er der forskjellen «spises opp».</dd>
         <dt>Terminkurs</dt><dd>Kursen du kan avtale i dag for et bytte om ett år. Følger av renteforskjellen og er ikke en spådom.</dd>
-        <dt>Risikoappetitt</dt><dd>Om investorer vil ta risiko. Måles med VIX (frykt) og AUD/JPY (stiger når appetitten er høy). Høy appetitt støtter normalt kronen.</dd>
+        <dt>Risikoappetitt</dt><dd>Om investorer vil ta risiko. Måles med VIX (frykt) og AUD/JPY (stiger når appetitten er høy). Høy appetitt løfter normalt råvare- og høyrentevalutaer (AUD, NZD, NOK, CAD) og tynger JPY og CHF.</dd>
         <dt>Spekulanter / åpen interesse</dt><dd>Ukentlige tall fra CFTC over hvor mye spekulanter er long eller short i valutafutures. Sitter alle likt, blir reverseringene brå.</dd>
-        <dt>I-44</dt><dd>Norges Banks importveide kroneindeks. Lavere tall = sterkere krone.</dd>
+        <dt>G10-kurven</dt><dd>Målestokken på siden: hver valuta mot et likevektet geometrisk snitt av de ni andre G10-valutaene, satt til 100 for ett år siden. Ingen valuta er hjemmevaluta, og hvilken valuta tallene regnes i spiller ingen rolle.</dd>
+        <dt>Kryss</dt><dd>Kursen mellom to valutaer, notert slik markedet gjør det: EUR/USD er dollar per euro, USD/JPY er yen per dollar. Krysstabellen viser alle 90 parene.</dd>
         <dt>Kjøpekraft (PPP)</dt><dd>Hva kursen «burde» være om varer kostet det samme i begge land. Sier lite om neste måned, mer om neste tiår.</dd>
       </dl>
     </details>

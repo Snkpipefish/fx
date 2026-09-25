@@ -1,12 +1,9 @@
-/* Land for land: rolige kort med kurs, sparkline og én setning om hva markedet venter. */
-import { nb, nb1, nb2, pct, pct1, rate, signed, thousands, pp, moves, cls, shortDate, cssVar } from "./format.js";
+/* Land for land: rolige kort med konvensjonelt kryss, utvikling mot G10-kurven, sparkline og én setning om hva markedet venter. */
+import { nb, nb1, nb2, pct, pct1, rate, signed, thousands, pp, moves, corr, cls, shortDate, cssVar } from "./format.js";
 import { directionSignal, extremeText } from "./calc.js";
 import { sparkline } from "./charts.js";
 
-const chip = (label, value, invert) => {
-  const v = value == null ? null : invert ? -value : value;
-  return `<span class="chip">${label} <b class="${cls(v)}">${pct1(v)}</b></span>`;
-};
+const chip = (label, value) => `<span class="chip">${label} <b class="${cls(value)}">${pct1(value)}</b></span>`;
 
 function expectLine(c) {
   const imp = c.curve?.implied;
@@ -44,17 +41,20 @@ function cotCheck(cot) {
   return ` <small class="${cot.confirmed === true ? "muted" : "neg"}">· uvanlig stort sving (${size}), ${verdict}${cot.roll_week ? ", rulleuke" : ""}</small>`;
 }
 
+/** Konvensjonelt kryss som «USD/NOK 9,5066» – slik markedet noterer det. */
+const quoteText = (c) => (c.fx?.quote ? `${c.fx.quote.pair} ${nb.format(c.fx.quote.value)}` : "–");
+
 export function card(c, market) {
   const sig = directionSignal(c);
-  const inv = c.fx?.index, ch = c.fx?.changes || {};
-  const fx = !c.fx ? "–" : c.fx.index ? `I-44 ${nb.format(c.fx.value)}` : `${c.fx.per} ${c.currency} = ${nb.format(c.fx.value)} kr`;
+  const ch = c.fx?.changes || {};
   const f = c.fwd_fx_1y, imp = c.curve?.implied;
+  const k = market?.corr?.[c.currency];
   const row = (a, b) => `<div class="row"><span>${a}</span><span>${b}</span></div>`;
   return `
   <article class="card" id="card-${c.id}">
-    <header><span class="flag">${c.flag}</span><div><h3>${c.name}</h3><span class="ccy">${c.currency}${c.fx?.index ? " · importveid indeks, lavere = sterkere krone" : ""}</span></div></header>
-    <div class="fx">${fx}</div>
-    <div class="chips-row">${chip("uke", ch.w1, inv)}${chip("måned", ch.m1, inv)}${chip("år", ch.y1, inv)}</div>
+    <header><span class="flag">${c.flag}</span><div><h3>${c.name}</h3><span class="ccy">${c.currency}${c.fx?.basket != null ? ` · mot G10-kurven ${nb1.format(c.fx.basket)} <small>(100 = ett år siden)</small>` : ""}</span></div></header>
+    <div class="fx">${quoteText(c)}</div>
+    <div class="chips-row"><span class="chip lbl">mot kurven</span>${chip("uke", ch.w1)}${chip("måned", ch.m1)}${chip("år", ch.y1)}</div>
     <div class="spark-wrap" id="spark-${c.id}"></div>
     ${expectLine(c)}
     <div class="signal ${sig.dir}"><span class="pill">${sig.arrow} ${sig.word}</span><span class="muted">${sig.text}</span></div>
@@ -66,15 +66,17 @@ export function card(c, market) {
         <div title="${c.cpi_core?.label ?? ""}"><span>Inflasjon${c.cpi_core ? " / kjerne" : ""}</span><b>${c.cpi ? nb1.format(Math.round(c.cpi.value * 10) / 10) : "–"}${c.cpi_core ? ` / ${nb1.format(c.cpi_core.value)}` : ""} %</b></div>
       </div>
       ${c.policy_change ? row(`${c.policy_change.to > c.policy_change.from ? "Hevet" : "Kuttet"} ${shortDate(c.policy_change.date)}: <b>${rate(c.policy_change.from)} → ${rate(c.policy_change.to)}</b>`,
-        c.policy_change.fx_since != null ? `<span title="Målt mot handelspartnerne (I-44-justert)">${c.currency} siden: <b class="${cls(c.policy_change.fx_since)}">${pct1(c.policy_change.fx_since)}</b></span>` : "") : ""}
+        c.policy_change.fx_since != null ? `<span title="Målt mot G10-kurven">${c.currency} siden: <b class="${cls(c.policy_change.fx_since)}">${pct1(c.policy_change.fx_since)}</b></span>` : "") : ""}
       <div class="spark-wrap sm" id="policy-${c.id}"></div>
       <div class="spark-legend" id="policy-legend-${c.id}"></div>
       ${imp ? row("Priset inn", `<b class="${cls(imp["6m"], 9)}">6 mnd ${pp(imp["6m"])}</b> · <b class="${cls(imp["12m"], 9)}">12 mnd ${pp(imp["12m"])}</b> · <b class="${cls(imp["24m"], 9)}">2 år ${pp(imp["24m"])}</b>`) : ""}
       ${row(`Ledighet <b>${c.unemployment ? rate(c.unemployment.value) : "–"}</b>`, `${c.bank}: <b>${shortDate(c.meeting)}</b>`)}
-      ${row(pppLine(c), c.vol30 != null ? `Svingninger <b>${nb1.format(c.vol30)} %</b>` : "")}
-      ${f ? row(`1 års termin <b>${nb.format(f.rate)}</b> <small>(${pct(f.pct)} vs. spot)</small>`, `Renteforskjell 1 år <b>${signed(f.diff, nb2)} pp</b>`) : ""}
+      ${row(pppLine(c), c.vol30 != null ? `Svingninger mot kurven <b>${nb1.format(c.vol30)} %</b>` : "")}
+      ${f ? row(`1 års termin ${f.pair} <b>${nb.format(f.rate)}</b> <small>(${pct(f.pct)} vs. spot)</small>`,
+        `Renteforskjell 1 år <b>${signed(f.diff_basket, nb2)} pp</b> <small>mot kurven${f.diff_usd != null ? `, ${signed(f.diff_usd, nb2)} pp mot USD` : ""}</small>`) : ""}
       ${c.cot || c.currency === "NOK" || c.currency === "SEK" ? row(cotLine(c), "") : ""}
-      ${c.id === "no" && market?.brent ? row(`Brent <b>${nb2.format(market.brent.value)} USD</b> <small>(${pct1(market.brent.changes?.m1)} 1m)</small>`, `Olje↔krone 90 d: <b>${market.brent_nok_corr != null ? nb2.format(market.brent_nok_corr) : "–"}</b>${market.ttf_nok_corr != null ? ` · gass <b>${nb2.format(market.ttf_nok_corr)}</b>` : ""}`) : ""}
+      ${k ? row(`<span title="90-dagers korrelasjon mellom daglige avkastninger, kurvindeks mot Brent og TTF">Olje↔${c.currency} 90 d: <b>${corr(k.oil)}</b>${k.gas != null ? ` · gass <b>${corr(k.gas)}</b>` : ""}</span>`,
+        `<span title="Korrelasjon mot AUD/JPY: positiv = risk-on-valuta, negativ = trygg havn">Risikoappetitt <b>${corr(k.risk)}</b></span>`) : ""}
     </div>
   </article>`;
 }
@@ -86,9 +88,9 @@ export function renderCards(countries, market) {
 export function fillSparklines(countries, history) {
   const bis = { us: "US", ea: "XM", jp: "JP", gb: "GB", ch: "CH", ca: "CA", au: "AU", nz: "NZ", se: "SE", no: "NO" };
   for (const c of countries) {
-    const fx = history.fx?.[c.fx?.index ? "I44" : c.currency];
-    if (fx) document.getElementById(`spark-${c.id}`).innerHTML = sparkline(fx, { stroke: cssVar("--accent"), scale: c.fx?.per ?? 1,
-      label: c.fx?.index ? "I-44 siste år" : `${c.fx.per} ${c.currency} i kroner siste år` });
+    const idx = history.basket?.[c.currency];
+    if (idx) document.getElementById(`spark-${c.id}`).innerHTML = sparkline(idx, { stroke: cssVar("--accent"), fmt: (v) => nb1.format(v),
+      label: `${c.currency} mot G10-kurven siste år (100 = start)` });
     // Styringsrenten (trapp) med renten markedet ventet om 12 mnd (stiplet) fra snapshots – reprisingen over tid
     const policy = history.policy?.[bis[c.id]];
     const path12 = history.path12?.[c.currency];

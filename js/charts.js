@@ -1,6 +1,6 @@
 /* Grafer: SVG-sparklines for kortene (ingen bibliotek) og Chart.js for oversikten. */
 import { nb, nb1, nb2, bp, rate, cssVar, color, name, shortDate, sortedEntries } from "./format.js";
-import { totalReturn } from "./calc.js";
+import { totalReturn, basketRates } from "./calc.js";
 
 /**
  * Liten SVG-linjegraf med tekstalternativ. `fmt` formaterer verdier til aria-tekst.
@@ -61,21 +61,20 @@ function baseLineOptions(tooltipLabel) {
 const legend = () => ({ display: true, position: "bottom", labels: { color: cssVar("--text"), boxWidth: 18, boxHeight: 3 } });
 
 /**
- * Alle valutaer mot kronen, rebasert til 100. Bryteren «med carry» bytter til totalavkastning:
- * kurs pluss renteforskjellen mot kronen dag for dag (totalReturn i calc.js, OECD 3-mnd-renter).
+ * Alle valutaer mot G10-kurven (likevektet kurv av de ni andre), rebasert til 100. Bryteren
+ * «med carry» bytter til totalavkastning: kurs pluss renteforskjellen mot kurven (snittet av de
+ * andres 3-mnd-renter) dag for dag (totalReturn og basketRates i calc.js, OECD 3-mnd-renter).
  */
 export function drawComparison(countries, history) {
   const datasets = [];
   let labels = null;
-  const nokRates = history.ir3?.NOK;
   for (const c of countries) {
-    if (!c.fx || c.fx.index) continue;
-    const series = history.fx?.[c.currency];
+    const series = history.basket?.[c.currency];
     if (!series) continue;
     const entries = sortedEntries(series);
     if (!labels || entries.length > labels.length) labels = entries.map(([d]) => d);
     const base = entries[0][1];
-    const tr = totalReturn(series, history.ir3?.[c.currency], nokRates);
+    const tr = totalReturn(series, history.ir3?.[c.currency], basketRates(history.ir3, c.currency));
     datasets.push({
       label: name(c), borderColor: color(c), borderWidth: 1.6, pointRadius: 0, tension: 0.2,
       price: Object.fromEntries(entries.map(([d, v]) => [d, +(v / base * 100).toFixed(2)])),
@@ -101,8 +100,8 @@ export function drawComparison(countries, history) {
       const hidden = chart.data.datasets.map((_, i) => !chart.isDatasetVisible(i));
       chart.data.datasets = pick(toggle.checked);
       hidden.forEach((h, i) => chart.setDatasetVisibility(i, !h));
-      canvas.setAttribute("aria-label", toggle.checked ? "Totalavkastning av alle G10-valutaer mot kronen siste år, kurs pluss renteforskjell, rebasert til 100"
-        : "Alle G10-valutaer mot kronen siste år, rebasert til 100");
+      canvas.setAttribute("aria-label", toggle.checked ? "Totalavkastning av alle G10-valutaer mot G10-kurven siste år, kurs pluss renteforskjell, rebasert til 100"
+        : "Alle G10-valutaer mot G10-kurven siste år, rebasert til 100");
       chart.update();
     });
   }
@@ -123,7 +122,7 @@ export function drawPathChart(countries) {
   const labels = rows[0].curve.path.map((_, m) => m);
   const now = rows.map((c) => ({
     label: name(c), data: c.curve.path, borderColor: color(c),
-    borderWidth: c.id === "no" ? 2.6 : 1.6, pointRadius: 0, tension: 0.25, week: false,
+    borderWidth: 1.6, pointRadius: 0, tension: 0.25, week: false,
   }));
   const week = rows.filter((c) => c.curve.path_w1).map((c) => ({
     label: `${name(c)} for 1 uke siden`, data: c.curve.path_w1, borderColor: color(c),

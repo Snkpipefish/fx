@@ -2,9 +2,12 @@
 """Henter markedsdata for G10-landene og skriver data/dashboard.json, data/history.json
 og data/curves.json (kurvehistorikk, brukes bare av dette scriptet).
 
+Siden har ingen hjemmevaluta: kursene lagres i USD-termer (1 enhet av hver valuta i USD),
+og hver valuta måles mot en likevektet kurv av de ni andre G10-valutaene (G10-kurven,
+geometrisk snitt). Kortene viser i tillegg markedskonvensjonelt kryss (EUR/USD, USD/JPY …).
+
 Kilder (alle gratis, uten API-nøkkel):
   - Valutakurser:      Frankfurter (ECB-referansekurser)
-  - I-44 kroneindeks:  Norges Bank
   - Styringsrenter:    BIS (WS_CBPOL)
   - 10-års og 3-mnd:   OECD (DSD_STES@DF_FINMARK)
   - KPI å/å:           OECD (DSD_PRICES@DF_PRICES_ALL, Japan via DF_G20_PRICES)
@@ -99,35 +102,130 @@ def to_float(value):
     return f if math.isfinite(f) else None
 
 
-def fetch_fx_history():
-    """1 års daglig historikk: verdien av 1 enhet av hver valuta i NOK."""
-    end = date.today()
-    start = end - timedelta(days=370)
-    symbols = ",".join(c["currency"] for c in COUNTRIES if c["currency"] != "NOK")
-    url = f"https://api.frankfurter.dev/v1/{start}..{end}?base=NOK&symbols={symbols}"
-    raw = json.loads(fetch(url))
+CURRENCIES = [c["currency"] for c in COUNTRIES]
+
+
+def parse_fx_usd(raw):
+    """{valuta: {dag: 1 enhet i USD}} fra Frankfurters svar med base=USD; USD selv = 1.0."""
     series = {}
     for day, rates in sorted(raw["rates"].items()):
         for cur, val in rates.items():
             if val:
-                series.setdefault(cur, {})[day] = round(1.0 / val, 5)
+                series.setdefault(cur, {})[day] = round(1.0 / val, 8)
+        series.setdefault("USD", {})[day] = 1.0
     return series
 
 
-def fetch_i44_history():
-    """Norges Banks importveide kroneindeks (I-44). Lavere = sterkere krone."""
-    start = date.today() - timedelta(days=370)
-    url = (
-        "https://data.norges-bank.no/api/data/EXR/B.I44.NOK.SP"
-        f"?startPeriod={start}&format=csv"
-    )
-    raw = fetch(url)
-    series = {}
-    for row in csv.DictReader(io.StringIO(raw), delimiter=";"):
-        value = to_float(row.get("OBS_VALUE"))
-        if value is not None:
-            series[row["TIME_PERIOD"]] = value
-    return series
+def fetch_fx_history():
+    """1 års daglig historikk: verdien av 1 enhet av hver valuta i USD (ECB-referansekurser)."""
+    end = date.today()
+    start = end - timedelta(days=370)
+    symbols = ",".join(c for c in CURRENCIES if c != "USD")
+    url = f"https://api.frankfurter.dev/v1/{start}..{end}?base=USD&symbols={symbols}"
+    return parse_fx_usd(json.loads(fetch(url)))
+
+
+def basket_index(fx_all, currencies=None, base=100.0):
+    """G10-kurven: hver valuta mot et likevektet geometrisk snitt av de andre, rebasert til
+    `base` på første dag der alle valutaene har kurs. Numerairen (USD) faller bort:
+    log I_X = log(X/USD) − snitt over Y≠X av log(Y/USD)."""
+    currencies = currencies or [c for c in CURRENCIES if fx_all.get(c)]
+    if len(currencies) < 2:
+        return {}
+    days = sorted(set.intersection(*(set(fx_all[c]) for c in currencies)))
+    if not days:
+        return {}
+    logs = {c: {d: math.log(fx_all[c][d]) for d in days} for c in currencies}
+    out = {}
+    for c in currencies:
+        others = [o for o in currencies if o != c]
+        raw = {d: logs[c][d] - sum(logs[o][d] for o in others) / len(others) for d in days}
+        first = raw[days[0]]
+        out[c] = {d: round(base * math.exp(v - first), 3) for d, v in raw.items()}
+    return out
+
+
+# Markedskonvensjon for kryss mot USD: disse noteres som X/USD (USD per 1 X), resten USD/X
+QUOTE_BASE = {"EUR", "GBP", "AUD", "NZD"}
+
+
+def convention_quote(cur, fx_all, day=None):
+    """Krysset slik markedet noterer det: («EUR/USD», 1.0842) eller («USD/JPY», 148.2).
+    USD selv vises som EUR/USD. Returnerer None uten kurs."""
+    def at(c):
+        s = fx_all.get(c) or {}
+        return (value_at_or_before(s, day) if day else latest(s)[1]) if s else None
+    if cur == "USD":
+        v = at("EUR")
+        return {"pair": "EUR/USD", "value": round(v, 4)} if v else None
+    v = at(cur)
+    if not v:
+        return None
+    if cur in QUOTE_BASE:
+        return {"pair": f"{cur}/USD", "value": round(v, 4)}
+    return {"pair": f"USD/{cur}", "value": round(1 / v, 4 if 1 / v < 50 else 2)}
+
+
+def fx_summary(cur, fx_all, basket):
+    """Kursblokken per land: siste dag, verdi i USD, konvensjonelt kryss, kurvindeks og
+    endringer mot kurven (%). None uten kurs."""
+    series, idx = fx_all.get(cur) or {}, basket.get(cur) or {}
+    day, value = latest(series)
+    if not day:
+        return None
+    return {
+        "date": day,
+        "usd": round(value, 8),
+        "quote": convention_quote(cur, fx_all),
+        "basket": latest(idx)[1],
+        "changes": {"d1": pct_change(idx, 1), "w1": pct_change(idx, 7), "m1": pct_change(idx, 30),
+                    "m3": pct_change(idx, 91), "y1": pct_change(idx, 365)},
+    }
+
+
+def rate_1y(c):
+    """(1-års rente, fra_kurve) for et land: kurvens 1-årspunkt, ellers 3-mnd-renten."""
+    r = rate_at_tenor((c.get("curve") or {}).get("points"), 1)
+    if r is not None:
+        return r, True
+    return (c.get("rates") or {}).get("m3"), False
+
+
+def forward_1y(countries, fx_all):
+    """1-års terminkurs for det konvensjonelle krysset (dekket renteparitet) og renteforskjellen
+    1 år mot USD og mot kurven (snitt av de andre). Terminen er breakeven for en carry-handel,
+    ikke en prognose. Skriver `fwd_fx_1y` på hvert land som har kurs og rente."""
+    rates = {c["currency"]: rate_1y(c) for c in countries}
+    for c in countries:
+        cur, fx = c["currency"], c.get("fx")
+        r, from_curve = rates[cur]
+        if not fx or not fx.get("quote") or r is None:
+            continue
+        others = [v for k, (v, _) in rates.items() if k != cur and v is not None]
+        base, quote = fx["quote"]["pair"].split("/")
+        r_base, r_quote = rates.get(base, (None, False)), rates.get(quote, (None, False))
+        if r_base[0] is None or r_quote[0] is None:
+            continue
+        spot = fx["quote"]["value"]
+        fwd = spot * (1 + r_quote[0] / 100) / (1 + r_base[0] / 100)
+        r_usd = rates.get("USD", (None, False))[0]
+        c["fwd_fx_1y"] = {
+            "pair": fx["quote"]["pair"],
+            "rate": round(fwd, 4 if fwd < 50 else 2),
+            "pct": round((fwd / spot - 1) * 100, 2),
+            "diff_usd": None if cur == "USD" or r_usd is None else round(r - r_usd, 2),
+            "diff_basket": round(r - sum(others) / len(others), 2) if others else None,
+            "from_curve": from_curve and r_base[1] and r_quote[1],
+        }
+
+
+def market_correlations(basket, brent, ttf, audjpy):
+    """{valuta: {oil, gas, risk}}: 90-dagers korrelasjon mellom daglige avkastninger i kurvindeksen
+    og Brent, TTF-gass og AUD/JPY (risikoappetitt). Ingen valuta er referanse."""
+    out = {}
+    for cur, idx in basket.items():
+        out[cur] = {"oil": correlation(brent, idx), "gas": correlation(ttf, idx), "risk": correlation(audjpy, idx)}
+    return out
 
 
 def fetch_policy_rates():
@@ -2045,31 +2143,19 @@ SNAPSHOT_DIR = DATA_DIR / "snapshots"
 SNAPSHOT_BACKFILL_DAYS = 400
 
 
-def world_fx(fx_series, i44, day, is_nok=False):
-    """Kursen mot handelspartnerne: X/NOK ÷ I-44 (NOK selv = 1/I-44), på eller like før dagen."""
-    b = value_at_or_before(i44, day)
-    if not b:
-        return None
-    if is_nok:
-        return round(1 / b, 6)
-    x = value_at_or_before(fx_series, day)
-    return round(x / b, 6) if x else None
-
-
 def snapshot_record(countries, market, day, history):
-    """Ett snapshot: det som trengs for å kalibrere retningssignalet og følge reprisingen."""
-    i44 = history.get("fx", {}).get("I44", {})
+    """Ett snapshot: det som trengs for å kalibrere retningssignalet og følge reprisingen.
+    `fx` er verdien i USD, `fx_world` kursen mot G10-kurven (indeks)."""
     out = {"date": day, "backfilled": False, "market": {}, "countries": {}}
     for key in ("brent", "brent_fut", "ttf", "vix", "audjpy"):
         m = market.get(key)
         out["market"][key] = m["value"] if m else None
-    out["market"]["i44"] = value_at_or_before(i44, day)
     for c in countries:
         cv = c.get("curve") or {}
         fx = c.get("fx") or {}
         rec = {
-            "fx": fx.get("value"),
-            "fx_world": world_fx(history.get("fx", {}).get(c["currency"], {}), i44, day, c["id"] == "no"),
+            "fx": fx.get("usd"),
+            "fx_world": value_at_or_before(history.get("basket", {}).get(c["currency"], {}), day),
             "fx_m3": (fx.get("changes") or {}).get("m3"),
             "policy": (c.get("rates") or {}).get("policy"),
             "path": [cv["path"][m] for m in (0, 3, 6, 12, 24)] if cv.get("path") else None,
@@ -2094,7 +2180,6 @@ def backfill_snapshots(snapshot_dir, countries, curves, futures, history, days=S
     snapshotet er merket backfilled. Returnerer antall skrevne filer."""
     today = today or date.today()
     snapshot_dir.mkdir(parents=True, exist_ok=True)
-    i44 = history.get("fx", {}).get("I44", {})
     written = 0
     for n in range(1, days + 1):
         d = today - timedelta(days=n)
@@ -2106,7 +2191,6 @@ def backfill_snapshots(snapshot_dir, countries, curves, futures, history, days=S
             continue
         rec = {"date": day, "backfilled": True, "market": {k: value_at_or_before(history.get("market", {}).get(k, {}), day)
                                                           for k in ("brent", "brent_fut", "ttf", "vix", "audjpy")}, "countries": {}}
-        rec["market"]["i44"] = value_at_or_before(i44, day)
         any_data = False
         for c in countries:
             cv = c.get("curve") or {}
@@ -2115,14 +2199,14 @@ def backfill_snapshots(snapshot_dir, countries, curves, futures, history, days=S
             policy_series = history.get("policy", {}).get(bis, {})
             series, fut = curves.get(cur, {}), (futures or {}).get(cur)
             path12 = path12_at(cv, series, fut, policy_series, day) if cv else None
-            fx_series = history.get("fx", {}).get(cur, {})
-            fx = value_at_or_before(fx_series, day) if c["id"] != "no" else value_at_or_before(i44, day)
+            fx_series, idx = history.get("fx", {}).get(cur, {}), history.get("basket", {}).get(cur, {})
+            fx = value_at_or_before(fx_series, day)
             cot = value_at_or_before(history.get("cot", {}).get(cur, {}), day) if history.get("cot", {}).get(cur) else None
-            past_fx = value_at_or_before(fx_series, str(d - timedelta(days=91))) if c["id"] != "no" else None
+            world, past_world = value_at_or_before(idx, day), value_at_or_before(idx, str(d - timedelta(days=91)))
             rec["countries"][c["id"]] = {
                 "fx": fx,
-                "fx_world": world_fx(fx_series, i44, day, c["id"] == "no"),
-                "fx_m3": round((fx / past_fx - 1) * 100, 2) if fx and past_fx else None,
+                "fx_world": world,
+                "fx_m3": round((world / past_world - 1) * 100, 2) if world and past_world else None,
                 "policy": value_at_or_before(policy_series, day) if policy_series else None,
                 "path": [None, None, None, path12, None] if path12 is not None else None,
                 "implied": None,
@@ -2191,18 +2275,6 @@ def fill_ir3_from_curves(ir3, curves, currencies=CURVE_IR3_FILL):
             if month not in target:
                 target[month] = round(sum(vals) / len(vals), 3)
     return out
-
-
-def energy_driver(oil_corr, gas_corr, margin=0.1):
-    """Hvilken av olje og gass som har forklart kronen best siste 90 dager: den med størst
-    |korrelasjon|, «begge» når de ligger innenfor `margin` av hverandre, None uten tall."""
-    if oil_corr is None and gas_corr is None:
-        return None
-    if gas_corr is None or (oil_corr is not None and abs(oil_corr) - abs(gas_corr) > margin):
-        return "olje"
-    if oil_corr is None or abs(gas_corr) - abs(oil_corr) > margin:
-        return "gass"
-    return "begge"
 
 
 # ---------------------------------------------------------------------------
@@ -2520,7 +2592,6 @@ def main():
     print("Henter kilder parallelt ...")
     jobs = {
         "fx": fetch_fx_history,
-        "i44": fetch_i44_history,
         "policy": fetch_policy_rates,
         "irlt": lambda: fetch_oecd_rates("IRLT"),
         "ir3": lambda: fetch_oecd_rates("IR3TIB"),
@@ -2595,41 +2666,24 @@ def main():
     if sources.get("ons_cpi") and sources.get("cpi") is not None:
         sources["cpi"].setdefault("GBR", {}).update(sources["ons_cpi"])
 
-    # USD-kryss trengs for PPP-verdivurdering (lokal valuta per USD)
-    usd_nok = (sources["fx"] or {}).get("USD") or old_history.get("fx", {}).get("USD", {})
-    _, usd_nok_last = latest(usd_nok)
+    # Kurser i USD-termer for alle ti (USD = 1), og G10-kurven regnet av dem. Feiler
+    # Frankfurter, brukes forrige historikk – kurven regnes alltid på nytt av kursene.
+    fx_all = sources["fx"] or old_history.get("fx", {})
+    basket = basket_index(fx_all)
 
     countries = []
-    history = {"fx": {}, "policy": {}, "cot": {}, "market": {}}
+    history = {"fx": {}, "basket": {}, "policy": {}, "cot": {}, "market": {}}
     curve_history, futures_history = {}, {}
     for c in COUNTRIES:
-        cur, per = c["currency"], c.get("per", 1)
+        cur = c["currency"]
         old = old_dashboard.get(c["id"], {})
 
-        # Valutakurs: NOK-verdi per enhet (Norge bruker I-44-indeksen)
-        if cur == "NOK":
-            fx_series = sources["i44"] or old_history.get("fx", {}).get("I44", {})
-            fx_key, invert = "I44", True
-        else:
-            fx_series = (sources["fx"] or {}).get(cur) or old_history.get("fx", {}).get(cur, {})
-            fx_key, invert = cur, False
-        fx_day, fx_value = latest(fx_series)
-        fx = old.get("fx")
-        if fx_day:
-            fx = {
-                "value": round(fx_value * per, 4),
-                "per": per,
-                "date": fx_day,
-                "index": invert,  # I-44: lavere indeks = sterkere valuta
-                "changes": {
-                    "d1": pct_change(fx_series, 1),
-                    "w1": pct_change(fx_series, 7),
-                    "m1": pct_change(fx_series, 30),
-                    "m3": pct_change(fx_series, 91),
-                    "y1": pct_change(fx_series, 365),
-                },
-            }
-        history["fx"][fx_key] = fx_series
+        # Valutakurs: 1 enhet i USD, konvensjonelt kryss og endringer mot G10-kurven
+        fx_series, basket_series = fx_all.get(cur) or {}, basket.get(cur) or {}
+        fx = fx_summary(cur, fx_all, basket) or old.get("fx")
+        fx_day = fx["date"] if fx else None
+        history["fx"][cur] = fx_series
+        history["basket"][cur] = basket_series
 
         # Renter
         policy_series = dict((sources["policy"] or {}).get(c["bis"]) or old_history.get("policy", {}).get(c["bis"], {}))
@@ -2720,13 +2774,9 @@ def main():
         # PPP-verdivurdering: + = valutaen er dyr mot USD ift. kjøpekraft, − = billig
         ppp = old.get("ppp")
         ppp_entry = (sources["ppp"] or {}).get(PPP_ISO[c["id"]])
-        if ppp_entry and usd_nok_last and (fx or cur == "NOK"):
+        if ppp_entry and fx and fx.get("usd"):
             year, ppp_rate = ppp_entry
-            if cur == "NOK":
-                market_vs_usd = usd_nok_last
-            else:
-                cur_nok = fx["value"] / per if fx else None
-                market_vs_usd = usd_nok_last / cur_nok if cur_nok else None
+            market_vs_usd = 1 / fx["usd"]  # lokal valuta per USD
             if market_vs_usd:
                 ppp = {
                     "rate": ppp_rate,
@@ -2786,17 +2836,10 @@ def main():
                 rates["y10"], rates["y10_source"] = curve["points"]["10"], "statsobligasjon"
             if curve["kind"] not in ("ois", "futures"):
                 curve["source"] += " – inkl. terminpremie"
-        # Kursutvikling siden vedtaket, målt mot handelspartnerne (X/NOK ÷ I-44; NOK = 1/I-44),
-        # så kronens egne bevegelser ikke farger bildet
-        if policy_change and fx_series:
-            i44 = sources["i44"] or old_history.get("fx", {}).get("I44", {})
-            def world(day):
-                if cur == "NOK":
-                    v = value_at_or_before(fx_series, day)
-                    return 1 / v if v else None
-                x, b = value_at_or_before(fx_series, day), value_at_or_before(i44, day)
-                return x / b if x and b else None
-            base, now = world(policy_change["date"]), world(fx_day)
+        # Kursutvikling siden vedtaket, målt mot G10-kurven, så ingen enkeltvalutas
+        # egne bevegelser farger bildet
+        if policy_change and basket_series and fx_day:
+            base, now = value_at_or_before(basket_series, policy_change["date"]), value_at_or_before(basket_series, fx_day)
             if base and now:
                 policy_change["fx_since"] = round((now / base - 1) * 100, 2)
         # Hva sa banken? Lest ut av markedet: forwardene før og etter vedtaket
@@ -2860,38 +2903,15 @@ def main():
             "ppp": ppp,
             "cot": cot,
             "curve": curve,
-            "vol30": realized_vol(fx_series) if fx_series else None,
+            "vol30": realized_vol(basket_series) if basket_series else None,
             "meeting": min(upcoming) if upcoming else None,
             "next_meeting": next_meeting,
         })
 
-    # 1-års terminkurs mot NOK fra rentedifferansen (dekket renteparitet). Terminen
-    # er breakeven for en carry-handel – ikke en prognose for kursen.
-    norway = next(c for c in countries if c["id"] == "no")
-    nok_1y = rate_at_tenor((norway.get("curve") or {}).get("points"), 1)
-    nok_from_curve = nok_1y is not None
-    if nok_1y is None:
-        nok_1y = norway["rates"].get("m3")
-    for c in countries:
-        if c["id"] == "no" or not c.get("fx") or nok_1y is None:
-            continue
-        for_1y = rate_at_tenor((c.get("curve") or {}).get("points"), 1)
-        from_curve = nok_from_curve and for_1y is not None
-        if for_1y is None:
-            for_1y = c["rates"].get("m3")
-        if for_1y is None:
-            continue
-        spot = c["fx"]["value"]
-        fwd = spot * (1 + nok_1y / 100) / (1 + for_1y / 100)
-        c["fwd_fx_1y"] = {
-            "rate": round(fwd, 4),
-            "pct": round((fwd / spot - 1) * 100, 2),
-            "diff": round(for_1y - nok_1y, 2),
-            "from_curve": from_curve,
-        }
+    # 1-års terminkurs for det konvensjonelle krysset og renteforskjell mot USD og mot kurven
+    forward_1y(countries, fx_all)
 
     # Markedsindikatorer på tvers av landene
-    fx_all = sources["fx"] or old_history.get("fx", {})
     brent = sources["brent"] or old_history.get("market", {}).get("brent", {})
     old_market = load_existing(dashboard_path).get("market", {}) if old_dashboard else {}
     if sources["brent_fut"]:
@@ -2924,19 +2944,15 @@ def main():
                         "m1": pct_change(series, 30), "y1": pct_change(series, 365)},
         }
 
-    # Oljekorrelasjon for NOK: daglige avkastninger Brent vs. kronestyrke (invertert I-44)
-    i44 = history["fx"].get("I44", {})
-    nok_strength = {d: 1 / v for d, v in i44.items() if v}
     market = {
         "brent": snapshot(brent),          # Dated Brent (fysisk spot, FRED)
         "brent_fut": snapshot(brent_fut),  # ICE Brent front-kontrakt (Yahoo, kontrakt for kontrakt)
         "ttf": snapshot(ttf),              # TTF-gass front-måned, EUR/MWh (Yahoo TTF=F)
         "vix": snapshot(vix),
         "audjpy": snapshot(audjpy, 3),
-        "brent_nok_corr": correlation(brent, nok_strength),
-        "ttf_nok_corr": correlation(ttf, nok_strength),
+        # Per valuta: hvor tett kurvindeksen har fulgt olje, gass og risikoappetitt siste 90 dager
+        "corr": market_correlations(basket, brent, ttf, audjpy),
     }
-    market["energy_driver"] = energy_driver(market["brent_nok_corr"], market["ttf_nok_corr"])
     if market["ttf"]:
         market["ttf"]["contract"] = ttf_label
     if market["brent_fut"]:

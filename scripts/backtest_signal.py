@@ -2,7 +2,7 @@
 """Kalibrerer vektene i retningssignalet mot det som faktisk skjedde.
 
 Leser data/snapshots/ÅÅÅÅ-MM-DD.json og regresserer 4-ukers avkastning mot
-handelspartnerne (kurs ÷ I-44, NOK = 1/I-44) på de tre faktorene i calc.js,
+G10-kurven (fx_world: likevektet kurv av de ni andre valutaene) på de tre faktorene i calc.js,
 skalert som der: rente = clamp(priset 6 mnd / 40 bp), momentum = clamp(kurs 3 mnd / 4 %),
 realrente = clamp((styringsrente − målinflasjon) / 2 pp). Koeffisientene er da direkte
 sammenlignbare med dagens faste vekter 0,45 / 0,35 / 0,20.

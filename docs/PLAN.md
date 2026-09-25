@@ -1,5 +1,7 @@
 # Plan: det som står igjen
 
+> **Nøytral variant (25. september 2026).** Dette repoet er avleggeren av `valuta` uten hjemmevaluta: kurser i USD-termer, G10-kurven (likevektet geometrisk snitt av de ni andre) som målestokk, konvensjonelle kryss på kortene, krysstabell i kapittel 2. Punktene under er arvet fra originalen og gjelder fortsatt der de ikke handler om kronen; «I-44-justert» skal leses som «mot kurven».
+
 Status per 25. september 2026. Hvert punkt har **problemet** (fra gjennomgangen samme dag) og **løsningen** vi har blitt enige om. Arbeidsform: én PR per punkt, med fixture-test i `tests/` før frontend-endring. Punktene er sortert etter hvor mye de påvirker tallene.
 
 Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.

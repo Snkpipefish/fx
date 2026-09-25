@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(join(here, "fixtures", name), "utf8");
-const SECTIONS = ["top", "renter", "kronen", "tre-ting", "handel", "land"];
+const SECTIONS = ["top", "renter", "styrke", "tre-ting", "handel", "land"];
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-09-25T12:00:00+02:00"));

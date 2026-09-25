@@ -1,4 +1,7 @@
-/* Ren beregningslogikk uten DOM – testes med node --test (tests/calc.test.mjs). */
+/* Ren beregningslogikk uten DOM – testes med node --test (tests/calc.test.mjs).
+ * Målestokken på siden er G10-kurven: hver valuta mot et likevektet geometrisk snitt av de ni
+ * andre (history.basket, regnet i scripts/fetch_data.py). Kursene i history.fx er i USD-termer
+ * (1 enhet i USD, USD selv = 1), så ethvert kryss er fx[L] ÷ fx[S]. */
 import { bp, rate, moves, sortedEntries } from "./format.js";
 
 export function dailyReturns(series) {
@@ -64,14 +67,13 @@ export function targetInflation(c) {
 /**
  * Datadrevet retningssignal for valutaen (heuristikk, ikke prognose), vist som «2 av 3 drivere»:
  *  - rente:      hva rentekurven priser av endringer neste 6 mnd (fallback: 3 mnd-rente minus styringsrente)
- *  - momentum:   kursutvikling mot NOK siste 3 mnd
+ *  - momentum:   kursutvikling mot G10-kurven siste 3 mnd
  *  - realrente:  styringsrente minus inflasjonen banken styrer etter
  * Hver driver får en pil (▲ ▼ ▶); samlet retning krever at minst to peker samme vei. Den gamle
  * vektede summen (0,45/0,35/0,20) beholdes som `score` til scripts/backtest_signal.py har
  * kalibrert vektene mot ekte avkastning; da kan den tas i bruk igjen.
  */
 export function directionSignal(c) {
-  const invert = c.fx?.index; // I-44: lavere indeks = sterkere krone
   const drivers = [];
   let score = 0;
   const clamp = (v) => Math.max(-1, Math.min(1, v));
@@ -90,12 +92,11 @@ export function directionSignal(c) {
     drivers.push({ key: "rente", dir, text: `pengemarkedet venter <b>${dir === "up" ? "renteheving" : dir === "down" ? "rentekutt" : "uendret rente"}</b>` });
   }
 
-  let mom = c.fx?.changes?.m3;
+  const mom = c.fx?.changes?.m3;
   if (mom != null) {
-    if (invert) mom = -mom;
     score += clamp(mom / 4) * 0.35;
     const dir = mom > 0.5 ? "up" : mom < -0.5 ? "down" : "flat";
-    drivers.push({ key: "momentum", dir, text: dir === "up" ? "valutaen har <b>styrket seg</b> siste 3 mnd" : dir === "down" ? "valutaen har <b>svekket seg</b> siste 3 mnd" : "kursen har ligget <b>stille</b> siste 3 mnd" });
+    drivers.push({ key: "momentum", dir, text: dir === "up" ? "valutaen har <b>styrket seg</b> mot kurven siste 3 mnd" : dir === "down" ? "valutaen har <b>svekket seg</b> mot kurven siste 3 mnd" : "kursen har ligget <b>stille</b> mot kurven siste 3 mnd" });
   }
 
   // Realrente mot det banken faktisk styrer etter: målvariabelen der vi har den, ellers samlet KPI
@@ -119,41 +120,31 @@ export function directionSignal(c) {
 }
 
 /**
- * Egenskaper per valuta til motpost-modulen. Hver valuta måles mot Norges Banks
- * handelsvektede kurv (I-44), så NOK-støy ikke farger korrelasjonene:
- * X/NOK ÷ I-44 ≈ X mot kurven; NOK selv = 1/I-44.
+ * Egenskaper per valuta til motpost-modulen. Hver valuta måles mot G10-kurven
+ * (history.basket), så ingen enkeltvalutas støy farger korrelasjonene.
  */
 export function legInfo(countries, history) {
-  const i44 = history.fx?.I44 || {};
   const riskRet = dailyReturns(history.market?.audjpy || {});
   const oilRet = dailyReturns(history.market?.brent || {});
   const gasRet = dailyReturns(history.market?.ttf || {});
-  const worldSeries = (c) => {
-    if (c.id === "no") return Object.fromEntries(Object.entries(i44).map(([d, v]) => [d, 1 / v]));
-    const s = history.fx?.[c.currency] || {};
-    return Object.fromEntries(Object.entries(s).filter(([d]) => i44[d]).map(([d, v]) => [d, v / i44[d]]));
-  };
   const info = {};
   for (const c of countries) {
-    const wr = dailyReturns(worldSeries(c));
+    const wr = dailyReturns(history.basket?.[c.currency] || {});
     info[c.id] = {
       riskCorr: correlation(wr, riskRet),
       oilCorr: correlation(wr, oilRet),
       gasCorr: correlation(wr, gasRet),
       r1y: rate1y(c),
       imp12: c.curve?.implied?.["12m"] ?? null,
-      m3: c.id === "no" ? 0 : c.fx?.changes?.m3 ?? null, // endring mot NOK siste 3 mnd
+      m3: c.fx?.changes?.m3 ?? null, // endring mot G10-kurven siste 3 mnd
     };
   }
   return info;
 }
 
-/** Kursserie for paret long/short (NOK per enhet av long-beinet målt i short-beinet). */
+/** Kursserie for paret long/short: enheter av short-beinet per enhet av long-beinet (fx[L] ÷ fx[S]). */
 export function pairSeries(history, L, S) {
-  const l = L.id === "no" ? null : history.fx?.[L.currency] || {};
-  const s = S.id === "no" ? null : history.fx?.[S.currency] || {};
-  if (!l) return Object.fromEntries(Object.entries(s).map(([d, v]) => [d, 1 / v]));
-  if (!s) return l;
+  const l = history.fx?.[L.currency] || {}, s = history.fx?.[S.currency] || {};
   return Object.fromEntries(Object.entries(l).filter(([d]) => s[d]).map(([d, v]) => [d, v / s[d]]));
 }
 
@@ -189,18 +180,17 @@ export function pairCandidates({ countries, info, chosen, isLong, volOf }) {
   return rows;
 }
 
-
 /**
- * Totalavkastning av å eie valuta X finansiert i kroner: kursendring pluss renteforskjellen
- * dag for dag, TR_t = TR_{t−1} · S_t/S_{t−1} · (1 + (r_X − r_NOK)/100/360 · dager).
+ * Totalavkastning av å eie valuta X finansiert i referansen: kursendring pluss renteforskjellen
+ * dag for dag, TR_t = TR_{t−1} · S_t/S_{t−1} · (1 + (r_X − r_ref)/100/360 · dager).
  * Rentene er månedlige 3-mnd-renter ({«ÅÅÅÅ-MM»: %}); siste kjente måned brukes fremover.
  * Returnerer {dato: indeks} rebasert til 100 på første dato, eller null uten renter.
  */
-export function totalReturn(fxSeries, ratesX, ratesNok) {
+export function totalReturn(fxSeries, ratesX, ratesRef) {
   const e = sortedEntries(fxSeries);
-  if (e.length < 2 || !ratesX || !ratesNok) return null;
+  if (e.length < 2 || !ratesX || !ratesRef) return null;
   const monthly = (rates) => { const m = Object.keys(rates).sort(); return (day) => { let v = null; for (const k of m) { if (k <= day.slice(0, 7)) v = rates[k]; else break; } return v; }; };
-  const rx = monthly(ratesX), rn = monthly(ratesNok);
+  const rx = monthly(ratesX), rn = monthly(ratesRef);
   const out = { [e[0][0]]: 100 };
   let tr = 100;
   for (let i = 1; i < e.length; i++) {
@@ -209,6 +199,52 @@ export function totalReturn(fxSeries, ratesX, ratesNok) {
     const carry = rx(d0) != null && rn(d0) != null ? (rx(d0) - rn(d0)) / 100 / 360 * days : 0;
     tr = tr * (s1 / s0) * (1 + carry);
     out[d1] = +tr.toFixed(3);
+  }
+  return out;
+}
+
+/**
+ * Kurvens rente: månedlig snitt av 3-mnd-rentene til alle andre valutaer enn `currency`
+ * ({«ÅÅÅÅ-MM»: %}), til totalavkastning mot G10-kurven. Måneder der ingen andre har tall utelates.
+ */
+export function basketRates(ir3, currency) {
+  const others = Object.entries(ir3 || {}).filter(([k, v]) => k !== currency && v);
+  if (!others.length) return null;
+  const months = new Set(others.flatMap(([, v]) => Object.keys(v)));
+  const out = {};
+  for (const m of months) {
+    const vals = others.map(([, v]) => v[m]).filter((x) => x != null);
+    if (vals.length) out[m] = vals.reduce((s, x) => s + x, 0) / vals.length;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** Prosentendring fra verdien på eller før (siste dato − `days` dager) til siste dato, som i fetch_data.py. */
+export function pctChange(series, days) {
+  const e = sortedEntries(series);
+  if (!e.length) return null;
+  const [lastDay, last] = e[e.length - 1];
+  const target = new Date(new Date(lastDay).getTime() - days * 86400000).toISOString().slice(0, 10);
+  let past = null;
+  for (const [d, v] of e) { if (d <= target) past = v; else break; }
+  return past ? (last / past - 1) * 100 : null;
+}
+
+/**
+ * Krysstabell: {X: {Y: %}} = hvor mye X har gått mot Y siste `days` dager, for alle par.
+ * Antisymmetrisk i logaritmen (X mot Y ≈ −(Y mot X)); diagonalen er null.
+ */
+export function crossMatrix(history, currencies, days) {
+  const fx = history.fx || {};
+  const out = {};
+  for (const x of currencies) {
+    out[x] = {};
+    for (const y of currencies) {
+      if (x === y) { out[x][y] = null; continue; }
+      const sx = fx[x] || {}, sy = fx[y] || {};
+      const pair = Object.fromEntries(Object.entries(sx).filter(([d]) => sy[d]).map(([d, v]) => [d, v / sy[d]]));
+      out[x][y] = pctChange(pair, days);
+    }
   }
   return out;
 }
