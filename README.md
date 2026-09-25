@@ -16,6 +16,7 @@ Dashboard over G10-valutaene (USD, EUR, JPY, GBP, CHF, CAD, AUD, NZD, SEK, NOK) 
 - **Toppmovers**: sterkeste og svakeste valuta mot NOK siste uke
 - **Hva er priset inn?**: tabell per sentralbank med priset endring i den korte renten ved 3/6/12/24 mnd (i basispunkter og «≈ antall kutt/hevinger»), ytterpunktet i banen og reprising siste uke – sortert fra mest kutt til mest heving
 - **Implisert rentebane**: graf over styringsrenten markedet priser 0–24 måneder frem, per land
+- **Motposten – ingen posisjon står alene**: velg en valuta du vil være long eller short i, og siden viser hva du egentlig eier (priset rentebane, 1-års rente, risiko- og oljekorrelasjon, momentum, posisjonering, PPP) og rangerer kandidater til den andre siden av paret etter carry, priset rentegap, momentum, om paret nøytraliserer risikoappetitt/olje, volatilitet og posisjonering. Bygger på ideen om at én posisjon alltid er to (posisjonen + cash) og at long i én ting er implisitt short i alt du ikke kjøpte, så motposten bør velges bevisst som en pakke
 - **Idéer fra dataene**: automatisk genererte observasjoner (sprik i renteforventninger, reprising, kutt tross høy inflasjon, carry mot NOK, ensidig posisjonering) – inspirasjon til videre graving, ikke anbefalinger
 - **Sammenligningsgraf**: alle valutaene mot NOK, rebasert til 100 for ett år siden
 - **Risikobarometer**: AUD/JPY, VIX og Brent-olje (med 90-dagers korrelasjon olje↔krone)

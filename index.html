@@ -31,6 +31,20 @@
       <h3>Idéer fra dataene <small>· automatisk genererte observasjoner til videre graving – ikke anbefalinger</small></h3>
       <div class="ideas" id="ideas"></div>
     </div>
+    <div class="panel" id="pairPanel">
+      <h3>Motposten – ingen posisjon står alene <small>· velg hva du vil eie, og se hva den andre siden av handelen bør være</small></h3>
+      <p class="pair-intro">Én posisjon er alltid to: det du kjøpte og cashen du betalte med. Og er du long én ting, er du
+        implisitt short alt du ikke kjøpte – det er alternativkostnaden din. Posisjoner bør derfor settes sammen som en
+        <b>pakke</b>, der motposten velges bevisst for å samle risikoen du vil ha og nøytralisere den du ikke har et syn på.
+        I valuta er dette bokstavelig: du kan ikke eie USD uten å selge noe annet. Spørsmålet er aldri «skal jeg kjøpe X?»,
+        men «X mot hva?».</p>
+      <div class="pair-controls">
+        <label>Jeg vil være
+          <select id="pairDir"><option value="long">long</option><option value="short">short</option></select></label>
+        <label><select id="pairLeg"></select></label>
+      </div>
+      <div id="pairResult"></div>
+    </div>
     <div class="panel">
       <h3>Relativ utvikling mot NOK <small>· rebasert til 100 for ett år siden · klikk i tegnforklaringen for å slå av/på</small></h3>
       <div class="chart-wrap-lg"><canvas id="comparisonChart"></canvas></div>

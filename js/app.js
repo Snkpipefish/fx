@@ -538,6 +538,7 @@ async function init() {
   renderPriced(dashboard.countries);
   renderPathChart(dashboard.countries);
   renderIdeas(dashboard.countries, market);
+  renderPairs(dashboard, history);
   renderRisk(market);
   renderDiffs(dashboard.countries);
 
@@ -551,3 +552,170 @@ init().catch((err) => {
   document.getElementById("grid").innerHTML =
     `<p class="loading">Kunne ikke laste data: ${err.message}</p>`;
 });
+
+/* ---------------------------------------------------------------------------
+ * Motposten – ingen posisjon står alene.
+ * Idé: én posisjon er alltid to (posisjonen + cash), og long i én ting er
+ * implisitt short i alt du ikke kjøpte. I valuta er motposten bokstavelig:
+ * du må selge noe for å kjøpe noe. Modulen viser hva du egentlig eier når du
+ * velger én valuta, og rangerer kandidater til den andre siden av paret.
+ * ------------------------------------------------------------------------- */
+
+const sortedEntries = (series) => Object.entries(series || {}).sort(([a], [b]) => a.localeCompare(b));
+
+function dailyReturns(series) {
+  const e = sortedEntries(series);
+  const out = {};
+  for (let i = 1; i < e.length; i++) {
+    if (e[i - 1][1] > 0 && e[i][1] > 0) out[e[i][0]] = Math.log(e[i][1] / e[i - 1][1]);
+  }
+  return out;
+}
+
+function correlation(ra, rb, window = 90) {
+  const days = Object.keys(ra).filter((d) => d in rb).sort().slice(-window);
+  if (days.length < 20) return null;
+  const a = days.map((d) => ra[d]), b = days.map((d) => rb[d]);
+  const ma = a.reduce((s, v) => s + v, 0) / a.length, mb = b.reduce((s, v) => s + v, 0) / b.length;
+  let cov = 0, va = 0, vb = 0;
+  for (let i = 0; i < a.length; i++) { cov += (a[i] - ma) * (b[i] - mb); va += (a[i] - ma) ** 2; vb += (b[i] - mb) ** 2; }
+  return va && vb ? cov / Math.sqrt(va * vb) : null;
+}
+
+function realizedVol(series, window = 30) {
+  const r = Object.values(dailyReturns(series)).slice(-window);
+  if (r.length < 10) return null;
+  const m = r.reduce((s, v) => s + v, 0) / r.length;
+  const v = r.reduce((s, x) => s + (x - m) ** 2, 0) / (r.length - 1);
+  return Math.sqrt(v) * Math.sqrt(252) * 100;
+}
+
+/** Spotrente ved 1 år fra kurven (lineært interpolert), ellers 3 mnd-renten. */
+function rate1y(c) {
+  const pts = Object.entries(c.curve?.points || {}).map(([t, v]) => [+t, v]).sort((a, b) => a[0] - b[0]);
+  if (!pts.length) return c.rates?.m3 ?? null;
+  if (1 <= pts[0][0]) return pts[0][1];
+  for (let i = 1; i < pts.length; i++) {
+    if (1 <= pts[i][0]) { const [t0, r0] = pts[i - 1], [t1, r1] = pts[i]; return r0 + (r1 - r0) * (1 - t0) / (t1 - t0); }
+  }
+  return pts[pts.length - 1][1];
+}
+
+function renderPairs(dashboard, history) {
+  const countries = dashboard.countries;
+  const i44 = history.fx?.I44 || {};
+  const riskRet = dailyReturns(history.market?.audjpy || {});
+  const oilRet = dailyReturns(history.market?.brent || {});
+
+  // Hver valuta målt mot Norges Banks handelsvektede kurv (I-44), så NOK-støy
+  // ikke farger korrelasjonene: X/NOK ÷ I-44 ≈ X mot kurven; NOK selv = 1/I-44.
+  const worldSeries = (c) => {
+    if (c.id === "no") return Object.fromEntries(Object.entries(i44).map(([d, v]) => [d, 1 / v]));
+    const s = history.fx?.[c.currency] || {};
+    return Object.fromEntries(Object.entries(s).filter(([d]) => i44[d]).map(([d, v]) => [d, v / i44[d]]));
+  };
+  const nokSeries = (c) => (c.id === "no" ? null : history.fx?.[c.currency] || {});
+  const info = {};
+  for (const c of countries) {
+    const wr = dailyReturns(worldSeries(c));
+    info[c.id] = {
+      riskCorr: correlation(wr, riskRet),
+      oilCorr: correlation(wr, oilRet),
+      r1y: rate1y(c),
+      imp12: c.curve?.implied?.["12m"] ?? null,
+      m3: c.id === "no" ? 0 : c.fx?.changes?.m3 ?? null, // endring mot NOK siste 3 mnd
+    };
+  }
+  const pairSeries = (L, S) => {
+    const l = nokSeries(L), s = nokSeries(S);
+    if (!l) return Object.fromEntries(Object.entries(s).map(([d, v]) => [d, 1 / v]));
+    if (!s) return l;
+    return Object.fromEntries(Object.entries(l).filter(([d]) => s[d]).map(([d, v]) => [d, v / s[d]]));
+  };
+
+  const legSel = document.getElementById("pairLeg");
+  const dirSel = document.getElementById("pairDir");
+  legSel.innerHTML = countries.map((c) => `<option value="${c.id}">${c.flag} ${c.currency} – ${c.name}</option>`).join("");
+  legSel.value = "us";
+
+  const corrWord = (v) => (v == null ? "–" : nb2.format(v));
+  const riskLabel = (v) => (v == null ? "" : v > 0.3 ? "risk-on-valuta" : v < -0.3 ? "trygg havn" : "risikonøytral");
+  const describeLeg = (c) => {
+    const i = info[c.id];
+    const bits = [];
+    if (i.imp12 != null) bits.push(`${c.bank}s prisede bane (<b>${bp(i.imp12)}</b> innen 12 mnd)`);
+    if (i.r1y != null) bits.push(`1-års rente <b>${rate(i.r1y)}</b>`);
+    if (i.riskCorr != null) bits.push(`risikokorrelasjon <b>${corrWord(i.riskCorr)}</b> (${riskLabel(i.riskCorr)})`);
+    if (i.oilCorr != null) bits.push(`oljekorrelasjon <b>${corrWord(i.oilCorr)}</b>`);
+    if (c.id !== "no" && i.m3 != null) bits.push(`3 mnd-momentum mot NOK <b>${pct(i.m3)}</b>`);
+    if (c.cot?.pct_oi != null) bits.push(`spekulanter <b>${signed(c.cot.pct_oi)} % av OI</b>`);
+    if (c.ppp?.valuation != null) bits.push(`PPP <b>${nb1.format(Math.abs(c.ppp.valuation))} % ${c.ppp.valuation > 0 ? "dyr" : "billig"}</b> mot USD`);
+    return bits.join(" · ");
+  };
+
+  const render = () => {
+    const chosen = countries.find((c) => c.id === legSel.value);
+    const isLong = dirSel.value === "long";
+    const norway = countries.find((c) => c.id === "no");
+    const rows = countries.filter((c) => c.id !== chosen.id).map((other) => {
+      const L = isLong ? chosen : other, S = isLong ? other : chosen;
+      const iL = info[L.id], iS = info[S.id];
+      const carry = iL.r1y != null && iS.r1y != null ? iL.r1y - iS.r1y : null;
+      const gap = iL.imp12 != null && iS.imp12 != null ? iL.imp12 - iS.imp12 : null;
+      const mom = iL.m3 != null && iS.m3 != null ? ((1 + iL.m3 / 100) / (1 + iS.m3 / 100) - 1) * 100 : null;
+      const dRisk = iL.riskCorr != null && iS.riskCorr != null ? iL.riskCorr - iS.riskCorr : null;
+      const dOil = iL.oilCorr != null && iS.oilCorr != null ? iL.oilCorr - iS.oilCorr : null;
+      const vol = realizedVol(pairSeries(L, S));
+      const crowded = S.cot?.pct_oi != null && S.cot.pct_oi >= 20 ? S.cot.pct_oi : null;
+      const tags = [];
+      if (carry != null && carry > 0.5) tags.push(["carry", `Du får betalt ${nb2.format(carry)} pp i året for å vente`]);
+      if (dRisk != null && Math.abs(dRisk) < 0.25) tags.push(["risikonøytral", "Begge beina reagerer likt på risikoappetitt – paret isolerer rente-/makrosynet"]);
+      if (dOil != null && Math.abs(dOil) < 0.25) tags.push(["oljenøytral", "Lik oljeeksponering på begge sider"]);
+      if (mom != null && mom > 1) tags.push(["momentum", `Paret har gått ${pct1(mom)} din vei siste 3 mnd`]);
+      if (crowded != null) tags.push(["kontrær", `Spekulanter er ${signed(crowded)} % av OI long ${S.currency} – short-beinet er fullt`]);
+      if (gap != null && gap >= 25) tags.push(["allerede priset", `Markedet priser ${bp(gap)} mer for ${L.currency} enn ${S.currency} – du trenger mer enn det som ligger i kurven`]);
+      if (gap != null && gap <= -25) tags.push(["mot strømmen", `Markedet priser ${bp(-gap)} mer for ${S.currency}; du satser på at det reverseres`]);
+      return { L, S, other, carry, gap, mom, dRisk, dOil, vol, crowded, tags };
+    });
+    // Rangering: flest treff først, deretter carry – enkelt og forklarbart
+    const positive = (r) => r.tags.filter(([t]) => t !== "allerede priset").length;
+    rows.sort((a, b) => positive(b) - positive(a) || (b.carry ?? -99) - (a.carry ?? -99));
+
+    const pairName = (r) => `<b>${r.L.flag} ${r.L.currency}</b>/<b>${r.S.flag} ${r.S.currency}</b>`;
+    const riskCell = (d) => d == null ? "–" : Math.abs(d) < 0.25 ? `<span class="pos">nøytraliserer</span>` : `<span class="neg">bærer risikosyn (Δ ${signed(d, nb2)})</span>`;
+    const body = rows.map((r) => `
+      <tr>
+        <td>${pairName(r)}${r.other.id === "no" ? ` <small>(= «bare cash»)</small>` : ""}</td>
+        <td class="${cls(r.carry, 0.05)}">${r.carry == null ? "–" : `${signed(r.carry, nb2)} pp`}</td>
+        <td class="${r.gap != null && r.gap >= 25 ? "neg" : ""}" title="Positivt = markedet priser allerede mer for long-beinet">${bp(r.gap)}</td>
+        <td class="${cls(r.mom, 0.05)}">${r.mom == null ? "–" : pct1(r.mom)}</td>
+        <td>${riskCell(r.dRisk)}</td>
+        <td>${r.dOil == null ? "–" : Math.abs(r.dOil) < 0.25 ? `<span class="pos">lik</span>` : `Δ ${signed(r.dOil, nb2)}`}</td>
+        <td>${r.vol == null ? "–" : `${nb1.format(r.vol)} %`}</td>
+        <td class="tags">${r.tags.map(([t, why]) => `<span class="tag-chip ${t === "allerede priset" ? "warn" : ""}" title="${why}">${t}</span>`).join("")}</td>
+      </tr>`).join("");
+
+    const legWord = isLong ? "Long" : "Short";
+    const cashNote = chosen.id === "no"
+      ? `Å sitte i NOK er også en posisjon: lang olje (korrelasjon ${corrWord(info.no.oilCorr)}), ${riskLabel(info.no.riskCorr)} og Norges Banks bane.`
+      : `Selger du bare NOK for å kjøpe ${chosen.currency}, er motposten «cash» – men NOK er selv en posisjon: lang olje (korrelasjon ${corrWord(info.no.oilCorr)}), ${riskLabel(info.no.riskCorr)} og Norges Banks prisede bane (${bp(info.no.imp12)} innen 12 mnd).`;
+    document.getElementById("pairResult").innerHTML = `
+      <p class="pair-own"><b>${legWord} ${chosen.flag} ${chosen.currency}</b> betyr at du eier: ${describeLeg(chosen)}.
+        ${isLong ? "Og du er implisitt short alt du ikke kjøpte." : "Og du er implisitt long alt annet."} ${cashNote}</p>
+      <div class="table-scroll"><table class="diff-table pair-table">
+        <thead><tr>
+          <th>Paret (long/short)</th><th>Carry 1 år</th><th>Priset rentegap 12 mnd</th><th>Momentum 3 mnd</th>
+          <th>Risikoappetitt</th><th>Olje</th><th>Vol 30 d</th><th>Passer til</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+      </table></div>
+      <p class="risk-note">Carry = 1-års rente i long-beinet minus short-beinet (fra rentekurvene, ellers 3 mnd-renter). Priset rentegap = hvor mye mer
+        heving/mindre kutt markedet priser for long-beinet enn short-beinet – positivt betyr at synet ditt delvis allerede ligger i kursen.
+        Risikoappetitt/olje = om begge beina har lik 90-dagers korrelasjon med AUD/JPY og Brent (målt mot I-44-kurven); «nøytraliserer» betyr
+        at paret ikke er et skjult veddemål på risiko eller olje. Vol = realisert volatilitet i paret. Rangert etter antall treff, deretter carry.
+        Hold musen over merkelappene for begrunnelse. Observasjoner, ikke anbefalinger.</p>`;
+  };
+  legSel.addEventListener("change", render);
+  dirSel.addEventListener("change", render);
+  render();
+}

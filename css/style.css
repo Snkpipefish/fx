@@ -255,3 +255,23 @@ body {
   font-size: 0.78rem;
   text-align: center;
 }
+
+.pair-intro { margin: 0 0 0.7rem; font-size: 0.84rem; color: var(--muted); max-width: 900px; }
+.pair-intro b { color: var(--text); }
+.pair-controls { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.7rem; font-size: 0.9rem; }
+.pair-controls select {
+  font: inherit; font-size: 0.9rem; padding: 0.3rem 0.5rem; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--chip-bg); color: var(--text);
+}
+.pair-own { margin: 0 0 0.7rem; font-size: 0.84rem; color: var(--muted); line-height: 1.5; }
+.pair-own b { color: var(--text); }
+.pair-table { white-space: nowrap; }
+.pair-table td.tags { white-space: normal; min-width: 180px; }
+.pair-table .pos { color: var(--up); font-weight: 600; }
+.pair-table .neg { color: var(--down); font-weight: 600; }
+.tag-chip {
+  display: inline-block; font-size: 0.66rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+  background: var(--chip-bg); color: var(--accent); border-radius: 99px; padding: 0.1rem 0.5rem; margin: 0.1rem 0.15rem 0.1rem 0;
+  cursor: help;
+}
+.tag-chip.warn { color: var(--down); }
