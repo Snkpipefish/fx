@@ -70,10 +70,11 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 - [ ] **Vektene i retningssignalet.**
   *Problem:* Fast vekting (0,45/0,35/0,20) uten empirisk grunnlag.
   *Løsning:* Start med daglige snapshots i repoet (`data/snapshots/YYYY-MM-DD.json` fra Actions), uten historikk kan ingenting kalibreres. `scripts/backtest_signal.py`: regress 4-ukers I-44-justert avkastning på de tre faktorene. Inntil da: vis tre piler, komposittsignal som «2 av 3 drivere».
+  ✅ *Snapshots (PR «snapshots», 25. sep 2026):* `snapshot_record` skriver ett kompakt snapshot per kjøring (ca. 3 KB: per land kurs, kurs mot I-44, 3-mnd kursendring, styringsrente, bane ved 0/3/6/12/24 mnd, priset, bankens anslag, reprising, målinflasjon, COT, volatilitet, neste-møte-bp; marked: Brent, TTF, VIX, AUD/JPY, I-44). `backfill_snapshots` fyller ut bakover (400 dager, bare virkedager) fra kurve-/futures-/kurs-/COT-historikken med **dagens basis**, så `path[12]`-serien er et rent forventningsskift; felt uten historikk er `None` og filen er merket `backfilled`. Første kjøring gir ~286 filer (750 KB) med path[12] fra aug. 2025 for EUR/JPY/GBP/CHF/SEK/NOK og sep. 2025 for USD; AUD/CAD/NZD (futures uten historikk) starter 25. sep 2026. `history.path12` aggregerer serien per valuta til frontenden. Backtest-script og «2 av 3 drivere» gjenstår.
 
 - [ ] **Reprisingshistorikk.**
   *Problem:* Bare endring siste uke og måned vises, ikke utviklingen over tid.
-  *Løsning:* Fra snapshots: linje per bank av `path[12]` over tid, som ny sparkline under rentekortet. Avhenger av snapshots-punktet over.
+  *Løsning:* Fra snapshots: linje per bank av `path[12]` over tid, som ny sparkline under rentekortet. Avhenger av snapshots-punktet over. *(Datagrunnlaget `history.path12` finnes fra PR «snapshots»; frontend gjenstår.)*
 
 - [ ] **Totalavkastning i sammenligningsgrafen.**
   *Problem:* Grafen viser kurs mot NOK, ikke totalavkastning med carry.
