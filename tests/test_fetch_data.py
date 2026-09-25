@@ -35,6 +35,21 @@ class CurveMetricsTest(unittest.TestCase):
         self.assertTrue(m["synthetic_anchor"])
         self.assertGreater(m["implied"]["12m"], 0)
 
+    def test_pchip_gives_monotone_front_where_linear_kinks(self):
+        """SEK 24. sep 2026: 6-mnd-vekselen ligger høyt mot 3 mnd og 2 år. Lineær spot ga 3 mnd-terminen
+        om 3 mnd (2,37) over den om 6 mnd (2,32); glatt spot gir stigende bane i front."""
+        pts = {"0.25": 1.908, "0.5": 2.234, "2": 2.79, "5": 3.088, "10": 3.252}
+        m = fd.curve_metrics(pts, 1.75, 0.188)
+        front = m["path"][:9]
+        self.assertTrue(all(b >= a for a, b in zip(front, front[1:])), front)
+        self.assertAlmostEqual(m["path"][3], 2.372, places=3)  # knutepunktene er uendret
+        # Interpolanten går gjennom punktene og er monoton mellom dem
+        sorted_pts = sorted((float(t), v) for t, v in pts.items())
+        for t, v in sorted_pts:
+            self.assertAlmostEqual(fd.spot_rate(sorted_pts, t), v)
+        self.assertTrue(2.234 < fd.spot_rate(sorted_pts, 1.0) < 2.79)
+        self.assertEqual(fd.spot_rate([(0.25, 4.0), (2, 5.0)], 1.0), 4.0 + (1.0 - 0.25) / 1.75)  # to punkter: lineært
+
     def test_rejects_too_sparse_curves(self):
         self.assertIsNone(fd.curve_metrics({"2": 4.0, "10": 4.5}, 4.0))
         self.assertIsNone(fd.curve_metrics({"0.25": 4.0, "0.5": 4.0, "1": 4.0}, 4.0))
@@ -128,6 +143,29 @@ class MarketAnchorTest(unittest.TestCase):
         self.assertAlmostEqual(fd.curve_basis(series, {"2025-12-01": 4.0}, "2026-01-02"), 0.11)
         self.assertIsNone(fd.curve_basis(series, {}, "2026-01-05"))
         self.assertIsNone(fd.curve_basis({}, {"2025-12-01": 4.0}, "2026-01-05"))
+
+    def test_basis_uses_realized_policy_when_history_is_long_enough(self):
+        """Hevingssyklus: vekselen priser hevingen som kommer, så «veksel − styringsrente samme dag» er
+        positiv selv om vekselen ligger under den renten som faktisk gjelder i vinduet."""
+        from datetime import date as d, timedelta as td
+        series, policy = {}, {"2025-01-01": 4.0}
+        day = d(2025, 6, 2)
+        for n in range(200):  # 200 handledager, heving 1. sep, ny heving 1. des
+            day += td(days=1 if day.weekday() < 4 else 3)
+            iso = str(day)
+            # 3-mnd-veksel = snitt av kommende styringsrente − 0,10 (knapphet)
+            nxt = 4.0 if iso < "2025-06-15" else 4.25 if iso < "2025-09-15" else 4.5
+            cur = 4.0 if iso < "2025-09-01" else 4.25 if iso < "2025-12-01" else 4.5
+            series[iso] = {"0.25": round((cur + nxt) / 2 - 0.10, 4), "1": 4.6, "2": 4.7}
+        policy.update({"2025-09-01": 4.25, "2025-12-01": 4.5, str(day): 4.5})
+        realized = fd.curve_basis(series, policy, str(day))
+        naive = fd.curve_basis(series, policy, str(day), min_realized=10 ** 6)
+        self.assertLess(realized, naive)          # ventede hevinger leses ikke som basis
+        self.assertLess(abs(realized + 0.10), 0.05)  # nær den ekte knappheten
+        self.assertGreater(naive, -0.05)
+        # Kort historikk (færre enn 40 dager med kjent utfall): styringsrenten samme dag
+        short = {k: v for k, v in list(sorted(series.items()))[-30:]}
+        self.assertAlmostEqual(fd.curve_basis(short, policy, str(day)), fd.curve_basis(short, policy, str(day), min_realized=10 ** 6))
 
     def test_without_history_path_starts_at_policy(self):
         m = fd.curve_metrics({"0.25": 4.4, "1": 4.4, "2": 4.4}, 4.0)
