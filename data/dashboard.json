@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-25T09:23:34+00:00",
+ "updated": "2026-09-25T09:33:18+00:00",
  "countries": [
   {
    "id": "us",
@@ -1274,37 +1274,19 @@
   "brent_nok_corr": 0.25
  },
  "sources": {
-  "brent": {
-   "ok": false,
-   "error": "FRED hoppet over lokalt (DCOILBRENTEU)",
-   "latest": null,
-   "fetched": null
-  },
-  "vix": {
-   "ok": false,
-   "error": "FRED hoppet over lokalt (VIXCLS)",
-   "latest": null,
-   "fetched": null
-  },
-  "ir3": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "irlt": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "curve_us": {
-   "ok": false,
-   "error": "FRED hoppet over lokalt (DGS1MO)",
-   "latest": null,
-   "fetched": null
-  },
   "i44": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "brent": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-22",
+   "fetched": "2026-09-25"
+  },
+  "fx": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
@@ -1316,34 +1298,10 @@
    "latest": "2025",
    "fetched": "2026-09-25"
   },
-  "fx": {
+  "vix": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "curve_gb": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "curve_ca": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-23",
-   "fetched": "2026-09-25"
-  },
-  "curve_ea": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-23",
-   "fetched": "2026-09-25"
-  },
-  "curve_no": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
+   "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
   "cot": {
@@ -1358,16 +1316,58 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
+  "irlt": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
   "policy": {
    "ok": true,
    "error": null,
    "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
+  "curve_ca": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-23",
+   "fetched": "2026-09-25"
+  },
+  "curve_gb": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "curve_us": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-23",
+   "fetched": "2026-09-25"
+  },
+  "curve_no": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
   "curve_au": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "curve_ea": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-23",
+   "fetched": "2026-09-25"
+  },
+  "ir3": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
    "fetched": "2026-09-25"
   },
   "unemployment": {
