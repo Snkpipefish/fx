@@ -99,6 +99,11 @@ class MarketAnchorTest(unittest.TestCase):
         curve = fd.build_curve("no", series, policy)
         self.assertEqual(curve["date"], "2026-09-15")
         self.assertEqual(curve["repricing"]["w1"], 0)
+        # Dekomponert: nivået om 12 mnd uendret, 25 bp levert, så 25 bp mindre gjenstår å prise
+        self.assertEqual(curve["repricing_detail"]["w1"], {"level": 0, "delivered": 25, "remaining": -25})
+        self.assertEqual(fd.repricing_breakdown(73, {"2026-08-01": 3.625, "2026-09-17": 3.875}, "2026-08-25", "2026-09-25"),
+                         {"level": 73, "delivered": 25, "remaining": 48})
+        self.assertEqual(fd.repricing_breakdown(12, {}, "2026-09-18", "2026-09-25"), {"level": 12, "delivered": 0, "remaining": 12})
         # Nivået om 12 mnd er det samme før og etter vedtaket
         self.assertAlmostEqual(curve["path"][12], curve["path_w1"][12], places=6)
 

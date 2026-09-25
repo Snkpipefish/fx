@@ -58,6 +58,18 @@ export function renderHero(countries, market, updated) {
     `<div class="stat"><div class="big">${big}</div><div class="lbl">${lbl}</div></div>`).join("");
 }
 
+/**
+ * «+73 bp siste måned, hvorav 25 levert»: endringen i renten markedet priser om 12 mnd er et
+ * rent forventningsskift (markedsanker); det banken har levert i vinduet vises ved siden av,
+ * så leseren ser hvor mye av veien som er gått og hvor mye som gjenstår å prise.
+ */
+export function repricingNote(c, window = "m1") {
+  const d = c.curve?.repricing_detail?.[window];
+  if (!d || d.delivered === 0 || Math.abs(d.level) < 5) return "";
+  const span = window === "m1" ? "siste måned" : "siste uke";
+  return ` <span class="muted">(${pp(d.level)} ${span}, hvorav ${pp(d.delivered)} levert – ${d.remaining > 0 ? `${pp(d.remaining)} mer` : d.remaining < 0 ? `${pp(-d.remaining)} mindre` : "like mye"} gjenstår å prise)</span>`;
+}
+
 /** Seksjon 1: rente nå og ventet om 12 mnd, som hantelgraf, pluss tekstliste. */
 export function renderRates(countries) {
   const rows = countries.filter((c) => c.curve && c.rates.policy != null).sort((a, b) => i12(a) - i12(b));
@@ -81,7 +93,7 @@ export function renderRates(countries) {
     Der har kursen mest å tape hvis banken får rett.</p>` : "";
   const list = rows.map((c) => {
     const r = c.curve.repricing?.w1;
-    const week = r == null || Math.abs(r) < 5 ? "" : ` <span class="${cls(r)}">${r > 0 ? "↑" : "↓"} ${r > 0 ? "høyere" : "lavere"} enn for en uke siden</span>`;
+    const week = r == null || Math.abs(r) < 5 ? "" : ` <span class="${cls(r)}">${r > 0 ? "↑" : "↓"} ${r > 0 ? "høyere" : "lavere"} enn for en uke siden</span>${repricingNote(c, "m1")}`;
     const src = c.rates.policy_unconfirmed ? ` <small class="neg" title="${c.rates.policy_source}">⚠ ubekreftet etter møtet ${shortDate(c.rates.policy_unconfirmed)}</small>`
       : c.rates.policy_source?.startsWith("vedtak") ? ` <small>(manuelt registrert)</small>` : "";
     const bank = c.cb_path ? ` · banken selv: ${rate(c.cb_path.level)} ${c.cb_path.horizon}${c.cb_path.stale ? " ⚠ utdatert anslag" : ""}` : "";
@@ -179,8 +191,10 @@ export function renderIdeas(countries, market) {
     const rep = withCurve.filter((c) => c.curve.repricing?.w1 != null).sort((a, b) => Math.abs(b.curve.repricing.w1) - Math.abs(a.curve.repricing.w1));
     if (rep.length && Math.abs(rep[0].curve.repricing.w1) >= 8) {
       const r = rep[0].curve.repricing.w1;
+      const m = rep[0].curve.repricing_detail?.m1;
+      const month = m && m.delivered !== 0 ? ` Siste måned er renten ventet om 12 mnd ${pp(m.level)}, hvorav ${pp(m.delivered)} allerede er levert av banken.` : "";
       ideas.push({ tag: "I bevegelse", text: `Forventningene til <b>${rep[0].bank}</b> har flyttet seg mest siste uke: ${r > 0 ? "høyere" : "lavere"} rente
-        ventet (${pp(r)}). Slike skift smitter ofte over på valutaen – sjekk om ${rep[0].currency} har hengt med.` });
+        ventet (${pp(r)}).${month} Slike skift smitter ofte over på valutaen – sjekk om ${rep[0].currency} har hengt med.` });
     }
     for (const c of withCurve) {
       // Det banken styrer etter: målvariabelen der vi har den (kjerne-PCE, trimmet gjennomsnitt, KPIF …), ellers samlet KPI

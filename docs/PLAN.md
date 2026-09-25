@@ -61,7 +61,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **Reprising.**
   *Problem:* Skiller ikke «vedtak levert» fra «forventninger flyttet» (se første punkt).
-  *Løsning:* Med markedsanker blir `repricing = path[12] − path_w1[12]` rent forventningsskift. Vis dekomponert: «+35 bp, hvorav 25 levert».
+  *Løsning:* ✅ *(PR «reprising», 25. sep 2026)* Med markedsanker (1.1) er `repricing = path[12] − path_w1[12]` rent forventningsskift. Nytt: `repricing_detail[w1|m1] = {level, delivered, remaining}` der `delivered` = endring i styringsrenten i vinduet og `remaining = level − delivered` (endringen i det som gjenstår å prise). Vises i lista under hantelgrafen («+73 bp siste måned, hvorav +25 bp levert – +48 bp mer gjenstår å prise») og i idéen «I bevegelse». USD i dag: +73 bp på måneden, 25 levert 16. sep.
 
 - [ ] **«Heving levert, kurs ikke fulgt».**
   *Problem:* Treffer NZD, der årsaken var signal om pause, ikke «selg på nyheten». Regelen kjenner ikke bankens kommunikasjon.

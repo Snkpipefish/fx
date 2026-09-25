@@ -1787,6 +1787,16 @@ def meeting_implied_curve(points, policy, basis, meetings, today=None, window=90
             "source": f"rentekurven ({'1 og 3' if r1 is not None else '3'} mnd), fordelt på møtet"}
 
 
+def repricing_breakdown(level_bp, policy_series, past_day, day):
+    """Dekomponerer endringen i renten markedet priser om 12 mnd (bp, rent forventningsskift
+    med markedsanker) mot det banken har levert i samme vindu: «+73 bp, hvorav 25 levert».
+    remaining = endring i det som fortsatt gjenstår å prise (implied), dvs. level − delivered."""
+    now = value_at_or_before(policy_series, day) if policy_series else None
+    then = value_at_or_before(policy_series, past_day) if policy_series else None
+    delivered = round((now - then) * 100) if now is not None and then is not None else 0
+    return {"level": level_bp, "delivered": delivered, "remaining": level_bp - delivered}
+
+
 def curve_at(series, target_day):
     """Kurvepunktene på eller like før en dato."""
     days = [d for d in series if d <= target_day]
@@ -1816,7 +1826,7 @@ def build_curve(cid, series, policy_series, futures_series=None):
     else:
         day = str(date.today())  # bare futures: «kurvedato» settes av futures-dagen under
     kind, source = CURVE_SOURCES.get(cid, ("futures", "futures"))
-    repricing, y2_change, path_w1 = {}, {}, None
+    repricing, repricing_detail, y2_change, path_w1 = {}, {}, {}, None
     for label, days in (("w1", 7), ("m1", 30)) if metrics else ():
         past_day = str(date.fromisoformat(day) - timedelta(days=days))
         past = curve_at(series, past_day)
@@ -1828,6 +1838,7 @@ def build_curve(cid, series, policy_series, futures_series=None):
             # Nivåbasert med felles basis: renten markedet priser om 12 mnd nå minus det samme
             # for en uke/måned siden – uavhengig av om styringsrenten ble endret i mellomtiden.
             repricing[label] = round((metrics["path"][12] - past_metrics["path"][12]) * 100)
+            repricing_detail[label] = repricing_breakdown(repricing[label], policy_series, past_day, day)
             if label == "w1":
                 path_w1 = past_metrics["path"]
         if series[day].get("2") is not None and past.get("2") is not None:
@@ -1838,6 +1849,7 @@ def build_curve(cid, series, policy_series, futures_series=None):
         "source": source,
         "points": {k: round(v, 3) for k, v in sorted(series[day].items(), key=lambda kv: float(kv[0]))} if metrics else {},
         "repricing": repricing,
+        "repricing_detail": repricing_detail,
         "y2_change": y2_change,
         "path_w1": path_w1,
         **(metrics or {}),
@@ -1849,7 +1861,7 @@ def build_curve(cid, series, policy_series, futures_series=None):
         fut_basis = futures_basis(futures_series, policy_series, fut_day)
         fut = futures_metrics(futures_series[fut_day], policy, fut_basis, date.fromisoformat(fut_day), metrics["path"] if metrics else None, policy_series)
         if fut:
-            fut_rep, fut_w1 = {}, None
+            fut_rep, fut_detail, fut_w1 = {}, {}, None
             for label, days in (("w1", 7), ("m1", 30)):
                 past_day = str(date.fromisoformat(fut_day) - timedelta(days=days))
                 past_key = max((d for d in futures_series if d <= past_day), default=None)
@@ -1861,6 +1873,7 @@ def build_curve(cid, series, policy_series, futures_series=None):
                                            date.fromisoformat(past_key), past_govt_metrics["path"] if past_govt_metrics else None, policy_series)
                 if past_fut:
                     fut_rep[label] = round((fut["path"][12] - past_fut["path"][12]) * 100)
+                    fut_detail[label] = repricing_breakdown(fut_rep[label], policy_series, past_key, fut_day)
                     if label == "w1":
                         fut_w1 = past_fut["path"]
             horizon = fut.pop("horizon_months")
@@ -1873,6 +1886,7 @@ def build_curve(cid, series, policy_series, futures_series=None):
                 "futures_date": fut_day,
                 "futures": futures_series[fut_day],
                 "repricing": fut_rep,
+                "repricing_detail": fut_detail,
                 "path_w1": fut_w1,
                 **fut,
             })
