@@ -217,7 +217,7 @@ export function renderIdeas(countries, market) {
     const carry = c.fwd_fx_1y && c.fwd_fx_1y.diff > 0 ? ` Renteforskjellen mot kronen er likevel ${signed(c.fwd_fx_1y.diff, nb2)} pp i ${c.currency}s favør.` : "";
     const head = `${c.bank} hevet til <b>${rate(pc.to)}</b> ${shortDate(pc.date)}, men ${c.currency} er <b>${pct1(pc.fx_since)}</b> mot handelspartnerne siden.`;
     if (pc.tone === "duete") ideas.push({ tag: "Duete heving", text: `${head} Markedet leste vedtaket som duete: renten ventet om 12 mnd falt
-      ${pp(Math.abs(pc.path12_change_bp))} gjennom vedtaket. Kursen fulgte signalet om pause, ikke hevingen.${carry}` });
+      ${nb2.format(Math.abs(pc.path12_change_bp) / 100)} pp gjennom vedtaket. Kursen fulgte signalet om pause, ikke hevingen.${carry}` });
     else if (pc.tone === "haukete") ideas.push({ tag: "Haukete heving, kurs ikke fulgt", text: `${head} Forwardene steg ${pp(pc.path12_change_bp)} gjennom vedtaket,
       så signalet var haukete – kursfallet handler om noe annet enn renten.${carry}` });
     else ideas.push({ tag: "Heving levert, kurs ikke fulgt", text: `${head} Forwardene flyttet seg ${pc.path12_change_bp != null ? `bare ${pp(pc.path12_change_bp)}` : "lite"}

@@ -1,0 +1,14 @@
+{
+  "name": "valutabrief",
+  "version": "1.0.0",
+  "description": "G10 valutabrief – frontend-tester (node --test + jsdom)",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  },
+  "private": true,
+  "type": "module"
+}
