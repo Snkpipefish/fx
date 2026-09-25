@@ -1,7 +1,7 @@
 /* Inngangspunkt: laster dashboard.json først og rendrer alt som ikke trenger historikk,
  * deretter history.json for sparklines, sammenligningsgraf og motpost-modulen. */
-import { renderToday, renderPriced, renderIdeas, renderRisk, renderDiffs, renderSources } from "./overview.js";
-import { drawComparison, drawPathChart } from "./charts.js";
+import { renderToday, renderPriced, renderIdeas, renderRisk, renderSources } from "./overview.js";
+import { drawComparison, setupPathChart } from "./charts.js";
 import { renderCards, fillSparklines, setupCardMode } from "./cards.js";
 import { renderPairs } from "./pairs.js";
 
@@ -19,10 +19,9 @@ async function init() {
 
   renderToday(countries, market);
   renderPriced(countries);
-  drawPathChart(countries);
+  setupPathChart(countries);
   renderIdeas(countries, market);
   renderRisk(market);
-  renderDiffs(countries);
   renderCards(countries, market);
   setupCardMode();
   renderSources(dashboard.sources, dashboard.updated);

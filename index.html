@@ -11,37 +11,45 @@
 <body>
   <header class="topbar">
     <h1>💱 G10 Valutadashboard</h1>
-    <p class="subtitle">Kurser mot norske kroner · hva rentemarkedet har priset inn · inflasjon · datadrevet retningssignal</p>
+    <p class="subtitle">Hva rentemarkedet venter av sentralbankene – og hva det betyr for kronen og de ni andre G10-valutaene.</p>
     <p class="updated" id="updated"></p>
   </header>
 
+  <nav class="nav" aria-label="Seksjoner">
+    <a href="#oversikt">Oversikt</a>
+    <a href="#renter">Renteforventninger</a>
+    <a href="#handel">Finn en handel</a>
+    <a href="#land">Land for land</a>
+    <a href="#ordliste">Ordliste</a>
+  </nav>
+
   <section class="overview">
+    <div id="oversikt" class="anchor"></div>
     <div id="today" class="today" aria-label="Dagens bilde"></div>
 
-    <div class="panel-row priced-row">
-      <div class="panel" id="pricedPanel">
-        <h3>Hva er priset inn? <small>· renteendringer markedet har priset, og hvor langt frem</small></h3>
-        <div id="pricedTable"></div>
-      </div>
-      <div class="panel" id="pathPanel">
-        <h3>Implisert rentebane <small>· styringsrenten markedet priser, måneder frem</small>
-          <label class="toggle"><input type="checkbox" id="pathWeek"> vis for én uke siden</label></h3>
-        <div class="chart-wrap-md"><canvas id="pathChart" role="img" aria-label="Implisert styringsrente per land, 0 til 24 måneder frem"></canvas></div>
-      </div>
+    <div id="renter" class="anchor"></div>
+    <div class="panel" id="pricedPanel">
+      <h3>Hva venter markedet av sentralbankene? <small>· lest ut av rentekurvene, oppdatert hver ukedag</small></h3>
+      <div id="pricedTable"></div>
+      <details class="method" id="pathDetails">
+        <summary>Vis rentebanen markedet priser, 24 måneder frem <label class="toggle"><input type="checkbox" id="pathWeek"> med én uke siden (stiplet)</label></summary>
+        <div class="chart-wrap-md"><canvas id="pathChart" role="img" aria-label="Styringsrente markedet priser per land, 0 til 24 måneder frem"></canvas></div>
+      </details>
     </div>
 
     <div class="panel" id="ideasPanel">
-      <h3>Idéer fra dataene <small>· automatisk genererte observasjoner til videre graving – ikke anbefalinger</small></h3>
+      <h3>Tre ting å legge merke til <small>· lest ut av dataene – ikke anbefalinger</small></h3>
       <div class="ideas" id="ideas"></div>
     </div>
 
+    <div id="handel" class="anchor"></div>
     <div class="panel" id="pairPanel">
-      <h3>Motposten – ingen posisjon står alene <small>· velg hva du vil eie, og se hva den andre siden av handelen bør være</small></h3>
-      <p class="pair-intro">Én posisjon er alltid to: det du kjøpte og cashen du betalte med. Og er du long én ting, er du
-        implisitt short alt du ikke kjøpte – det er alternativkostnaden din. Posisjoner bør derfor settes sammen som en
-        <b>pakke</b>, der motposten velges bevisst for å samle risikoen du vil ha og nøytralisere den du ikke har et syn på.
-        I valuta er dette bokstavelig: du kan ikke eie USD uten å selge noe annet. Spørsmålet er aldri «skal jeg kjøpe X?»,
-        men «X mot hva?».</p>
+      <h3>Finn motparten til en handel <small>· en valuta kjøpes alltid mot en annen</small></h3>
+      <p class="pair-intro">Vil du eie en valuta, må du selge en annen – kroner om du ikke velger noe. Hvilken du selger avgjør
+        hva du egentlig satser på. Velg valuta og retning, så viser tabellen hvilke motparter som passer.
+        <details class="inline"><summary>Hvorfor?</summary>Én posisjon er alltid to: det du kjøpte og det du betalte med. Er du long én ting,
+        er du samtidig short alt du ikke kjøpte. Velger du motparten bevisst, samler du risikoen du vil ha og nøytraliserer den
+        du ikke har et syn på.</details></p>
       <div class="pair-controls">
         <label>Jeg vil være
           <select id="pairDir"><option value="long">long</option><option value="short">short</option></select></label>
@@ -50,23 +58,19 @@
       <div id="pairResult"><p class="loading">Laster historikk …</p></div>
     </div>
 
-    <div class="panel">
-      <h3>Relativ utvikling mot NOK <small>· rebasert til 100 for ett år siden · klikk i tegnforklaringen for å slå av/på</small></h3>
-      <div class="chart-wrap-lg"><canvas id="comparisonChart" role="img" aria-label="Alle G10-valutaer mot NOK siste år, rebasert til 100"></canvas></div>
-    </div>
-
     <div class="panel-row">
+      <div class="panel">
+        <h3>Alle valutaer mot kronen siste år <small>· 100 = kursen for ett år siden · klikk i tegnforklaringen for å slå av/på</small></h3>
+        <div class="chart-wrap-lg"><canvas id="comparisonChart" role="img" aria-label="Alle G10-valutaer mot NOK siste år, rebasert til 100"></canvas></div>
+      </div>
       <div class="panel" id="riskPanel">
         <h3>Risikobarometer</h3>
         <div class="risk-tiles" id="riskTiles"></div>
       </div>
-      <div class="panel" id="diffPanel">
-        <h3>Rentedifferanse mot Norge <small>· prosentpoeng</small></h3>
-        <div id="diffTable"></div>
-      </div>
     </div>
   </section>
 
+  <div id="land" class="anchor"></div>
   <div class="grid-head">
     <h2>Land for land</h2>
     <button type="button" id="cardMode" class="btn" aria-pressed="false">Vis detaljer</button>
@@ -76,13 +80,24 @@
   </main>
 
   <footer class="footer">
-    <p><strong>Retningssignalet er en enkel heuristikk</strong> basert på priset rentebane, kursmomentum og realrente
-      – ikke en prognose og ikke investeringsråd. «Priset inn» er regnet fra terminrenter i OIS- og statskurver; terminrenter
-      inneholder terminpremie og viser retning og størrelse på markedets prising, ikke sannsynligheter. Idéene og motpost-rangeringen
-      er automatisk genererte observasjoner.</p>
-    <p>Kilder: ECB/Frankfurter (valutakurser), Norges Bank (I-44, nullkupongkurve), BIS (styringsrenter), OECD/Eurostat (renter, KPI, ledighet),
-      FRED, ECB, Japans finansdepartement, Bank of England, Bank of Canada, RBA og Riksbanken (rentekurver), CFTC (posisjonering),
-      World Bank (PPP). Data oppdateres automatisk hver ukedag via GitHub Actions.</p>
+    <div id="ordliste" class="anchor"></div>
+    <details class="method glossary"><summary>Ordliste</summary>
+      <dl>
+        <dt>Heving / kutt</dt><dd>Én endring i styringsrenten på 0,25 prosentpoeng. «≈ 3 hevinger» betyr at rentekurven priser om lag 0,75 pp høyere rente.</dd>
+        <dt>Prosentpoeng (pp)</dt><dd>Forskjell mellom to renter. 4,25 % → 4,50 % er +0,25 pp.</dd>
+        <dt>Rentekurve</dt><dd>Renten markedet betaler for ulike løpetider (3 mnd, 1 år, 10 år …). Stiger den bratt, venter markedet høyere renter.</dd>
+        <dt>Carry</dt><dd>Renteforskjellen du tjener (eller betaler) på å eie én valuta mot en annen, per år. Terminkursen er der carryen «spises opp».</dd>
+        <dt>Terminkurs</dt><dd>Kursen du kan avtale i dag for et bytte om ett år. Følger av renteforskjellen, og er ikke en spådom.</dd>
+        <dt>Risikoappetitt</dt><dd>Om investorer vil ta risiko. Måles her med VIX (frykt) og AUD/JPY (stiger når appetitten er høy). Høy appetitt støtter normalt kronen.</dd>
+        <dt>Spekulanter / åpen interesse</dt><dd>Ukentlige tall fra CFTC over hvor mye spekulanter er long eller short i valutafutures. Er «alle» på samme side, øker faren for brå reversering.</dd>
+        <dt>I-44</dt><dd>Norges Banks importveide kroneindeks. Lavere tall = sterkere krone.</dd>
+        <dt>Kjøpekraftsparitet (PPP)</dt><dd>Hva kursen «burde» være om varer kostet det samme i begge land. Sier lite om neste måned, mer om neste tiår.</dd>
+      </dl>
+    </details>
+    <p><strong>Alt på siden er observasjoner, ikke råd.</strong> Retningssignalet er en enkel regel av renteforventninger, kursutvikling og
+      realrente. Tallene for hva markedet venter kommer fra terminrenter, som også inneholder en risikopremie.</p>
+    <p>Kilder: ECB, Norges Bank, BIS, OECD, Eurostat, FRED, Japans finansdepartement, Bank of England, Bank of Canada, RBA, Riksbanken,
+      CFTC og World Bank. Oppdateres automatisk hver ukedag.</p>
     <div id="sources"></div>
   </footer>
 

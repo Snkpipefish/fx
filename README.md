@@ -11,16 +11,14 @@ Dashboard over G10-valutaene (USD, EUR, JPY, GBP, CHF, CAD, AUD, NZD, SEK, NOK) 
 - **Priset inn**: hva rentekurven priser av endringer i den korte renten om 6/12/24 mnd, ytterpunktet i banen («bunn 3,10 % om 14 mnd») og 1-års terminkurs mot NOK (breakeven for carry)
 - **Retningssignal**: en enkel heuristikk basert på rentedifferanse (3 mnd minus styringsrente), kursmomentum og realrente – *ikke* en prognose eller investeringsråd
 
-Øverst på siden ligger en oversiktsseksjon med:
+Siden er delt i fire seksjoner (Oversikt, Renteforventninger, Finn en handel, Land for land) pluss en ordliste, og bruker vanlig norsk («≈ 3 hevinger») med basispunkter og fagtall bak «Vis mer»/«Slik regnes det». Øverst ligger:
 
 - **Toppmovers**: sterkeste og svakeste valuta mot NOK siste uke
-- **Hva er priset inn?**: tabell per sentralbank med priset endring i den korte renten ved 3/6/12/24 mnd (i basispunkter og «≈ antall kutt/hevinger»), ytterpunktet i banen og reprising siste uke – sortert fra mest kutt til mest heving
-- **Implisert rentebane**: graf over styringsrenten markedet priser 0–24 måneder frem, per land
-- **Motposten – ingen posisjon står alene**: velg en valuta du vil være long eller short i, og siden viser hva du egentlig eier (priset rentebane, 1-års rente, risiko- og oljekorrelasjon, momentum, posisjonering, PPP) og rangerer kandidater til den andre siden av paret etter carry, priset rentegap, momentum, om paret nøytraliserer risikoappetitt/olje, volatilitet og posisjonering. Bygger på ideen om at én posisjon alltid er to (posisjonen + cash) og at long i én ting er implisitt short i alt du ikke kjøpte, så motposten bør velges bevisst som en pakke
-- **Idéer fra dataene**: automatisk genererte observasjoner (sprik i renteforventninger, reprising, kutt tross høy inflasjon, carry mot NOK, ensidig posisjonering) – inspirasjon til videre graving, ikke anbefalinger
+- **Hva venter markedet av sentralbankene?**: én oppsummerende setning og en tabell per sentralbank med ventet endring neste 6 og 12 mnd («≈ 3 hevinger», +0,75 pp), når toppen/bunnen nås og hvordan forventningene har endret seg siste uke. Rentebanen 24 mnd frem ligger bak «Vis rentebanen»
+- **Finn motparten til en handel**: velg en valuta du vil være long eller short i, og siden viser hva du egentlig eier (priset rentebane, 1-års rente, risiko- og oljekorrelasjon, momentum, posisjonering, PPP) og rangerer kandidater til den andre siden av paret etter carry, priset rentegap, momentum, om paret nøytraliserer risikoappetitt/olje, volatilitet og posisjonering. Bygger på ideen om at én posisjon alltid er to (posisjonen + cash) og at long i én ting er implisitt short i alt du ikke kjøpte, så motposten bør velges bevisst som en pakke
+- **Tre ting å legge merke til**: automatisk genererte observasjoner (sprik i renteforventninger, reprising, kutt tross høy inflasjon, carry mot NOK, ensidig posisjonering) – inspirasjon til videre graving, ikke anbefalinger
 - **Sammenligningsgraf**: alle valutaene mot NOK, rebasert til 100 for ett år siden
 - **Risikobarometer**: AUD/JPY, VIX og Brent-olje (med 90-dagers korrelasjon olje↔krone)
-- **Rentedifferanse-tabell**: hvert lands renter minus de norske, pluss 1-års terminkurs relativt til spot
 
 ## Slik regnes «priset inn»
 

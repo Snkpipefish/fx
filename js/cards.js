@@ -1,5 +1,5 @@
 /* Landskortene: kompakt som standard, «Vis detaljer» viser renter, KPI, posisjonering m.m. */
-import { nb, nb1, nb2, pct, pct1, rate, signed, thousands, bp, cls, shortDate, cssVar } from "./format.js";
+import { nb, nb1, nb2, pct, pct1, rate, signed, thousands, bp, pp, moves, cls, shortDate, cssVar } from "./format.js";
 import { directionSignal, extremeText } from "./calc.js";
 import { sparkline } from "./charts.js";
 
@@ -26,13 +26,21 @@ function cotLine(c) {
   return `<span>Spek. netto (CFTC): <b class="${cls(c.cot.net)}">${thousands(c.cot.net)}</b>${oi}${wk}</span>`;
 }
 
+/** Én setning i vanlig norsk om hva markedet venter av sentralbanken. */
+function expectLine(c) {
+  const imp = c.curve?.implied;
+  if (!imp) return `<div class="expect"><span>Ingen rentekurve for ${c.currency} – markedets forventninger vises ikke.</span></div>`;
+  const v = imp["12m"];
+  const what = Math.abs(v) < 13 ? "om lag <b>uendret rente</b>" : `<b>${moves(v)}</b>`;
+  return `<div class="expect"><span>Markedet venter ${what} fra ${c.bank} neste 12 mnd <small>(${pp(v)} · ${extremeText(c.curve)})</small></span></div>`;
+}
+
 function pricedRow(c) {
   const imp = c.curve?.implied;
   if (!imp) return "";
-  return `<div class="meta-row">
-    <span title="${c.curve.source}">Priset inn${c.curve.synthetic_anchor ? "*" : ""}: <b class="${cls(imp["6m"], 9)}">6m ${bp(imp["6m"])}</b> ·
-      <b class="${cls(imp["12m"], 9)}">12m ${bp(imp["12m"])}</b> · <b class="${cls(imp["24m"], 9)}">2å ${bp(imp["24m"])}</b></span>
-    <span>${extremeText(c.curve)}</span></div>`;
+  return `<div class="meta-row"><span title="${c.curve.source}">Priset inn${c.curve.synthetic_anchor ? "*" : ""}:
+      <b class="${cls(imp["6m"], 9)}">6 mnd ${pp(imp["6m"])}</b> · <b class="${cls(imp["12m"], 9)}">12 mnd ${pp(imp["12m"])}</b> ·
+      <b class="${cls(imp["24m"], 9)}">2 år ${pp(imp["24m"])}</b></span></div>`;
 }
 
 export function card(c, market) {
@@ -49,8 +57,9 @@ export function card(c, market) {
       ${c.vol30 != null ? `<span class="chip">vol <b>${nb1.format(c.vol30)} %</b></span>` : ""}
     </div>
     <div class="spark-wrap" id="spark-${c.id}"></div>
-    ${pricedRow(c)}
+    ${expectLine(c)}
     <div class="details">
+      ${pricedRow(c)}
       <div class="rates">
         <div class="rate-box"><div class="label">Styring</div><div class="val">${rate(c.rates.policy)}</div></div>
         <div class="rate-box"><div class="label">3 mnd</div><div class="val">${rate(c.rates.m3)}</div></div>

@@ -72,6 +72,14 @@ export function drawComparison(countries, history) {
 }
 
 /** Implisert rentebane 0–24 mnd frem, med valgfritt lag for én uke siden (stiplet). */
+/** Tegner rentebanen første gang <details> åpnes (skjult canvas får ellers null størrelse). */
+export function setupPathChart(countries) {
+  const det = document.getElementById("pathDetails");
+  if (!det) return;
+  let drawn = false;
+  det.addEventListener("toggle", () => { if (det.open && !drawn) { drawn = true; drawPathChart(countries); } });
+}
+
 export function drawPathChart(countries) {
   const rows = countries.filter((c) => c.curve?.path);
   if (!rows.length) return;

@@ -349,3 +349,43 @@ details.method p { margin: 0.4rem 0 0; }
   .pair-intro { font-size: 0.84rem; }
   .diff-table th.wide { display: none; }
 }
+
+/* ---------- Enklere design ---------- */
+.nav {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; gap: 0.2rem; justify-content: center; flex-wrap: wrap;
+  padding: 0.4rem 0.8rem; margin-bottom: 0.4rem;
+  background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--border);
+}
+.nav a { color: var(--muted); text-decoration: none; font-size: 0.84rem; padding: 0.25rem 0.7rem; border-radius: 99px; }
+.nav a:hover { color: var(--text); background: var(--chip-bg); }
+.anchor { position: relative; top: -3.2rem; height: 0; }
+.subtitle { max-width: 640px; margin-left: auto; margin-right: auto; }
+.lead { margin: 0 0 0.7rem; font-size: 0.95rem; line-height: 1.5; }
+.lead b { color: var(--text); }
+.muted { color: var(--muted); }
+.priced-table th { white-space: normal; max-width: 120px; }
+.priced-table td small { display: block; font-size: 0.7rem; font-weight: 400; color: var(--muted); }
+.pair-table .extra { display: none; }
+.pair-table.more .extra { display: table-cell; }
+.pair-table td.tags { min-width: 220px; }
+details.inline { display: inline; }
+details.inline summary { display: inline; cursor: pointer; color: var(--accent); }
+details.inline[open] summary::after { content: " "; }
+.expect { font-size: 0.9rem; color: var(--muted); line-height: 1.45; }
+.expect b { color: var(--text); }
+.expect small { color: var(--muted); }
+details#pathDetails { margin-top: 0.6rem; }
+details#pathDetails summary { font-size: 0.86rem; }
+details#pathDetails .chart-wrap-md { margin-top: 0.6rem; }
+.glossary { text-align: left; max-width: 800px; margin: 0 auto 1rem; }
+.glossary summary { font-size: 0.95rem; font-weight: 600; text-align: center; }
+.glossary dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; margin: 0.6rem 0 0; }
+.glossary dt { font-weight: 600; color: var(--text); }
+.glossary dd { margin: 0; }
+@media (max-width: 600px) {
+  .glossary dl { grid-template-columns: 1fr; gap: 0.15rem; }
+  .glossary dd { margin-bottom: 0.5rem; }
+  .nav a { font-size: 0.78rem; padding: 0.2rem 0.5rem; }
+}

@@ -33,3 +33,13 @@ export function cssVar(name) {
 export const color = (c) => COLORS[c.id] ?? cssVar("--text");
 export const name = (c) => `${c.flag} ${c.currency}`;
 export const sortedEntries = (series) => Object.entries(series || {}).sort(([a], [b]) => a.localeCompare(b));
+
+/** Basispunkter som «≈ 3 hevinger» / «≈ 2 kutt» / «uendret» (25 bp per møte). */
+export function moves(v) {
+  if (v == null) return "–";
+  const n = Math.round(Math.abs(v) / 25);
+  if (n === 0) return "uendret";
+  return `≈ ${n} ${v < 0 ? "kutt" : n === 1 ? "heving" : "hevinger"}`;
+}
+/** Basispunkter som prosentpoeng: «+0,75 pp». */
+export const pp = (v) => (v == null ? "–" : `${v > 0 ? "+" : ""}${nb2.format(v / 100)} pp`);

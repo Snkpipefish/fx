@@ -1,43 +1,31 @@
 /* Oversiktsseksjonen: dagens bilde, priset inn, idéer, risikobarometer, rentedifferanser, kildestatus. */
-import { nb, nb0, nb1, nb2, pct, pct1, rate, signed, bp, cls, shortDate, daysUntil, color, name } from "./format.js";
+import { nb, nb0, nb1, nb2, pct, pct1, rate, signed, bp, pp, moves, cls, shortDate, daysUntil, color, name } from "./format.js";
 import { extremeText } from "./calc.js";
 import { barCell } from "./charts.js";
 
 const tile = (label, val, sub, extra = "") =>
   `<div class="risk-tile ${extra}"><div class="label">${label}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
 
-/** Fire–seks tall som gir leseren et sted å starte. */
+/** Fire tall som gir leseren et sted å starte. */
 export function renderToday(countries, market) {
   const tiles = [];
   const movers = countries.filter((c) => c.fx && !c.fx.index && c.fx.changes?.w1 != null).sort((a, b) => b.fx.changes.w1 - a.fx.changes.w1);
   if (movers.length >= 2) {
     const b = movers[0], w = movers[movers.length - 1];
-    tiles.push(tile("Uken mot NOK", `<span class="pos">▲ ${b.currency} ${pct1(b.fx.changes.w1)}</span>`,
+    tiles.push(tile("Denne uken mot kronen", `<span class="pos">▲ ${b.currency} ${pct1(b.fx.changes.w1)}</span>`,
       `<span class="neg">▼ ${w.currency} ${pct1(w.fx.changes.w1)}</span>`));
   }
   const rep = countries.filter((c) => c.curve?.repricing?.w1 != null).sort((a, b) => Math.abs(b.curve.repricing.w1) - Math.abs(a.curve.repricing.w1));
   if (rep.length) {
     const r = rep[0].curve.repricing.w1;
-    tiles.push(tile("Størst reprising siste uke", `${name(rep[0])} <span class="${cls(r)}">${bp(r)}</span>`, r > 0 ? "12-mnd-prising, mer haukete" : "12-mnd-prising, mer duete"));
-  }
-  const withCurve = countries.filter((c) => c.curve).sort((a, b) => a.curve.implied["12m"] - b.curve.implied["12m"]);
-  if (withCurve.length >= 2) {
-    const d = withCurve[0], h = withCurve[withCurve.length - 1];
-    tiles.push(tile("Priset innen 12 mnd", `${h.flag} ${h.currency} <span class="${cls(h.curve.implied["12m"])}">${bp(h.curve.implied["12m"])}</span>`,
-      `minst: ${d.flag} ${d.currency} ${bp(d.curve.implied["12m"])}`));
-  }
-  const carry = countries.filter((c) => c.fwd_fx_1y).sort((a, b) => b.fwd_fx_1y.diff - a.fwd_fx_1y.diff);
-  if (carry.length) {
-    const c = carry[0];
-    tiles.push(tile("Høyest 1-års rente vs. NOK", `${name(c)} <span class="${cls(c.fwd_fx_1y.diff)}">${signed(c.fwd_fx_1y.diff, nb2)} pp</span>`,
-      `lavest: ${carry[carry.length - 1].currency} ${signed(carry[carry.length - 1].fwd_fx_1y.diff, nb2)} pp`));
+    tiles.push(tile("Renteforventninger endret mest", `${name(rep[0])}`, `${r > 0 ? "↑ høyere" : "↓ lavere"} rente ventet enn for en uke siden (${pp(r)})`));
   }
   if (market.vix) {
     const v = market.vix.value, aj = market.audjpy?.changes?.m1;
     // Enkel poengsum: lav VIX og stigende AUD/JPY = på, høy VIX og fallende AUD/JPY = av
     const score = (v < 18 ? 1 : v > 25 ? -1 : 0) + (aj == null ? 0 : aj > 1 ? 1 : aj < -2 ? -1 : 0);
-    const mode = score > 0 ? ["på", "pos"] : score < 0 ? ["av", "neg"] : ["nøytral", ""];
-    tiles.push(tile("Risikoappetitt", `<span class="${mode[1]}">${mode[0]}</span>`, `VIX ${nb1.format(v)} · AUD/JPY 1m ${pct1(aj)}`));
+    const mode = score > 0 ? ["på", "pos", "støtter normalt kronen"] : score < 0 ? ["av", "neg", "svekker normalt kronen"] : ["nøytral", "", "ingen klar retning"];
+    tiles.push(tile("Risikoappetitt", `<span class="${mode[1]}">${mode[0]}</span>`, `${mode[2]} · VIX ${nb1.format(v)}`));
   }
   const next = countries.filter((c) => c.meeting).sort((a, b) => a.meeting.localeCompare(b.meeting))[0];
   if (next) {
@@ -47,41 +35,53 @@ export function renderToday(countries, market) {
   document.getElementById("today").innerHTML = tiles.join("");
 }
 
-/** Tabell: priset endring i den korte renten per sentralbank ved 3/6/12/24 mnd. */
+/** Én setning som oppsummerer hva markedet venter av sentralbankene. */
+function pricedSummary(rows) {
+  const up = rows.filter((c) => c.curve.implied["12m"] >= 13), down = rows.filter((c) => c.curve.implied["12m"] <= -13);
+  const most = [...rows].sort((a, b) => Math.abs(b.curve.implied["12m"]) - Math.abs(a.curve.implied["12m"]))[0];
+  const least = [...rows].sort((a, b) => Math.abs(a.curve.implied["12m"]) - Math.abs(b.curve.implied["12m"]))[0];
+  let head;
+  if (up.length && !down.length) head = `Markedet venter <b>høyere renter</b> fra ${up.length === rows.length ? "alle sentralbankene" : `${up.length} av ${rows.length} sentralbanker`} det neste året`;
+  else if (down.length && !up.length) head = `Markedet venter <b>lavere renter</b> fra ${down.length === rows.length ? "alle sentralbankene" : `${down.length} av ${rows.length} sentralbanker`} det neste året`;
+  else if (up.length && down.length) head = `Markedet venter <b>hevinger</b> fra ${up.map((c) => c.currency).join(", ")} og <b>kutt</b> fra ${down.map((c) => c.currency).join(", ")} det neste året`;
+  else head = `Markedet venter <b>om lag uendrede renter</b> det neste året`;
+  return `${head}. Mest fra ${most.bank} (${moves(most.curve.implied["12m"])}), minst fra ${least.bank} (${moves(least.curve.implied["12m"])}).`;
+}
+
+/** Tabell: hva markedet venter av hver sentralbank, i antall hevinger/kutt. */
 export function renderPriced(countries) {
   const rows = countries.filter((c) => c.curve);
   const missing = countries.filter((c) => !c.curve).map((c) => c.currency);
   const panel = document.getElementById("pricedTable");
   if (!rows.length) { panel.innerHTML = `<p class="risk-note">Ingen rentekurver tilgjengelig ennå.</p>`; return; }
   const sorted = [...rows].sort((a, b) => a.curve.implied["12m"] - b.curve.implied["12m"]);
-  const maxAbs = Math.max(25, ...rows.flatMap((c) => Object.values(c.curve.implied).map(Math.abs)));
-  const cell = (v) => {
-    const moves = v == null ? 0 : Math.round(Math.abs(v) / 25);
-    const sub = v == null ? "" : `<small>${moves ? `≈ ${moves} ${v < 0 ? "kutt" : "hev."}` : "uendret"}</small>`;
-    return barCell(v, maxAbs, bp(v), cls(v, 9), sub);
+  const maxAbs = Math.max(25, ...rows.flatMap((c) => [Math.abs(c.curve.implied["6m"]), Math.abs(c.curve.implied["12m"])]));
+  const cell = (v) => barCell(v, maxAbs, `<b>${moves(v)}</b>`, cls(v, 9), `<small>${pp(v)}</small>`);
+  const week = (c) => {
+    const r = c.curve.repricing?.w1;
+    if (r == null) return "–";
+    if (Math.abs(r) < 5) return `<span class="muted">uendret</span>`;
+    return `<span class="${cls(r)}">${r > 0 ? "↑ høyere rente ventet" : "↓ lavere rente ventet"}</span> <small>${pp(r)}</small>`;
   };
-  const body = sorted.map((c) => {
-    const i = c.curve.implied, rep = c.curve.repricing?.w1;
-    return `<tr>
-      <td title="${c.curve.source} · ${c.curve.date}"><span class="dot" style="background:${color(c)}"></span>${c.flag} <span class="long">${c.bank}</span><span class="short">${c.currency}</span>${c.curve.synthetic_anchor ? "<sup>*</sup>" : ""}</td>
+  const body = sorted.map((c) => `<tr>
+      <td title="${c.curve.source} · ${c.curve.date}"><span class="dot" style="background:${color(c)}"></span>${c.flag} <span class="long">${c.bank}</span><span class="short">${c.currency}</span></td>
       <td>${rate(c.rates.policy)}</td>
-      ${cell(i["3m"])}${cell(i["6m"])}${cell(i["12m"])}${cell(i["24m"])}
+      ${cell(c.curve.implied["6m"])}${cell(c.curve.implied["12m"])}
       <td class="extreme">${extremeText(c.curve)}</td>
-      <td class="${cls(rep, 4)}">${bp(rep)}</td>
-    </tr>`;
-  }).join("");
-  const stars = rows.some((c) => c.curve.synthetic_anchor) ? ` <sup>*</sup>Kurven mangler punkter under 6 mnd; 3-mnd-renten er satt lik styringsrenten.` : "";
+      <td>${week(c)}</td>
+    </tr>`).join("");
   panel.innerHTML = `
+    <p class="lead">${pricedSummary(rows)}</p>
     <div class="table-scroll"><table class="diff-table priced-table">
-      <thead><tr><th>Sentralbank</th><th>Nå</th><th>3 mnd</th><th>6 mnd</th><th>12 mnd</th><th>24 mnd</th><th>Ytterpunkt</th><th>Repris. 1 u</th></tr></thead>
+      <thead><tr><th>Sentralbank</th><th>Rente nå</th><th>Neste 6 mnd</th><th>Neste 12 mnd</th><th>Toppen/bunnen nås</th><th>Endret siste uke</th></tr></thead>
       <tbody>${body}</tbody>
     </table></div>
-    <p class="risk-note">Sortert fra mest kutt til mest heving. «Repris. 1 u» = endring i 12-mnd-prisingen siste uke (positivt = mer haukete).
-      ${missing.length ? `Ingen daglig kurve for ${missing.join(", ")}.` : ""}${stars}</p>
+    <p class="risk-note">Én heving eller ett kutt = 0,25 prosentpoeng. Sortert fra mest kutt til mest heving.
+      ${missing.length ? `Ingen rentekurve tilgjengelig for ${missing.join(", ")}.` : ""}</p>
     <details class="method"><summary>Slik regnes det</summary>
-      <p>Priset endring i den korte renten = 3-mnd terminrente ved horisonten minus dagens 3-mnd-rente, regnet fra OIS- eller
-      statskurven (kilde i tooltip på banknavnet). Terminrenter inneholder terminpremie, så tallene viser retning og størrelse på
-      det som er priset – ikke sannsynligheter. Søylene er skalert mot største utslag i tabellen.</p></details>`;
+      <p>Tallene leses ut av rentekurven (OIS eller statspapirer, kilde i tooltip på banknavnet): forskjellen mellom hva markedet betaler for
+      renter som starter om 6 eller 12 måneder og dagens 3-måneders rente. Terminrenter inneholder også en risikopremie, så tallene viser
+      retning og størrelse på det som er priset, ikke sannsynligheter. «Toppen/bunnen nås» er ytterpunktet i banen de neste to årene.</p></details>`;
 }
 
 /** Automatisk genererte observasjoner – inspirasjon til videre graving, ikke anbefalinger. */
@@ -132,7 +132,7 @@ export function renderIdeas(countries, market) {
     ideas.push({ tag: "Norges Bank", text: `Markedet priser <b>${bp(i12(no))} innen 12 mnd</b> for Norges Bank (${extremeText(no.curve)}). Neste møte
       ${shortDate(no.meeting)}.${market?.brent ? ` Brent ${nb0.format(market.brent.value)} USD${corr != null ? `, 90-dagers korrelasjon olje↔krone ${nb2.format(corr)}` : ""}.` : ""}` });
   }
-  document.getElementById("ideas").innerHTML = ideas.slice(0, 6).map((i) => `<div class="idea"><div class="tag">${i.tag}</div><div>${i.text}</div></div>`).join("")
+  document.getElementById("ideas").innerHTML = ideas.slice(0, 3).map((i) => `<div class="idea"><div class="tag">${i.tag}</div><div>${i.text}</div></div>`).join("")
     || `<p class="risk-note">For lite kurvedata til å generere observasjoner ennå.</p>`;
 }
 
