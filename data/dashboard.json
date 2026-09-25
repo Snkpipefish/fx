@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-25T08:42:46+00:00",
+ "updated": "2026-09-25T09:00:48+00:00",
  "countries": [
   {
    "id": "us",
@@ -33,7 +33,7 @@
    },
    "unemployment": {
     "value": 4.1,
-    "period": "2026-07"
+    "period": "2026-08"
    },
    "ppp": {
     "rate": 1.0,
@@ -47,14 +47,75 @@
     "pct_oi": 24.2,
     "date": "2026-09-15"
    },
-   "curve": null,
+   "curve": {
+    "date": "2026-09-23",
+    "kind": "govt",
+    "source": "amerikanske statspapirer (FRED)",
+    "points": {
+     "0.083": 3.99,
+     "0.25": 4.19,
+     "0.5": 4.31,
+     "1": 4.49,
+     "2": 4.85,
+     "3": 4.97,
+     "5": 4.99,
+     "10": 5.11
+    },
+    "repricing": {
+     "w1": 8,
+     "m1": 33
+    },
+    "y2_change": {
+     "w1": 11,
+     "m1": 61
+    },
+    "implied": {
+     "3m": 24,
+     "6m": 39,
+     "12m": 75,
+     "24m": 93
+    },
+    "path": [
+     3.875,
+     3.995,
+     4.075,
+     4.115,
+     4.172,
+     4.222,
+     4.265,
+     4.325,
+     4.385,
+     4.445,
+     4.505,
+     4.565,
+     4.625,
+     4.685,
+     4.745,
+     4.805,
+     4.865,
+     4.925,
+     4.985,
+     5.045,
+     5.105,
+     5.165,
+     5.058,
+     4.938,
+     4.805
+    ],
+    "extreme": {
+     "months": 21,
+     "level": 5.165,
+     "bp": 129
+    },
+    "synthetic_anchor": false
+   },
    "vol30": 6.4,
    "meeting": "2026-10-28",
    "fwd_fx_1y": {
-    "rate": 9.571,
-    "pct": 0.83,
-    "diff": -0.86,
-    "from_curve": false
+    "rate": 9.5096,
+    "pct": 0.18,
+    "diff": -0.19,
+    "from_curve": true
    }
   },
   {
@@ -431,8 +492,8 @@
     "policy_6m_change": 0.0
    },
    "cpi": {
-    "value": 0.3542338,
-    "period": "2026-07"
+    "value": 0.807246,
+    "period": "2026-08"
    },
    "unemployment": {
     "value": 5.032409,
@@ -487,12 +548,12 @@
     "policy_6m_change": 0.0
    },
    "cpi": {
-    "value": 3.032141,
-    "period": "2026-07"
+    "value": 3.033981,
+    "period": "2026-08"
    },
    "unemployment": {
     "value": 6.4,
-    "period": "2026-07"
+    "period": "2026-08"
    },
    "ppp": {
     "rate": 1.166683,
@@ -625,7 +686,7 @@
    "curve": {
     "date": "2026-09-23",
     "kind": "govt",
-    "source": "australske statspapirer (RBA)",
+    "source": "bankveksler + statsobligasjoner (RBA)",
     "points": {
      "0.083": 4.46,
      "0.25": 4.71,
@@ -775,8 +836,8 @@
     "policy_6m_change": 0.0
    },
    "cpi": {
-    "value": 0.1760704,
-    "period": "2026-07"
+    "value": 0.3052945,
+    "period": "2026-08"
    },
    "unemployment": {
     "value": 8.6,
@@ -884,8 +945,8 @@
     "policy_6m_change": 0.25
    },
    "cpi": {
-    "value": 2.976191,
-    "period": "2026-07"
+    "value": 3.293413,
+    "period": "2026-08"
    },
    "unemployment": {
     "value": 4.2,
@@ -965,23 +1026,23 @@
  ],
  "market": {
   "brent": {
-   "value": 96.02,
-   "date": "2026-09-01",
+   "value": 114.89,
+   "date": "2026-09-22",
    "changes": {
-    "d1": 6.99,
-    "w1": 8.82,
-    "m1": -0.96,
-    "y1": 43.12
+    "d1": -1.08,
+    "w1": -12.16,
+    "m1": 18.54,
+    "y1": 71.81
    }
   },
   "vix": {
-   "value": 15.2,
-   "date": "2026-09-02",
+   "value": 14.21,
+   "date": "2026-09-22",
    "changes": {
-    "d1": -6.98,
-    "w1": -0.07,
-    "m1": -4.16,
-    "y1": -11.47
+    "d1": -4.44,
+    "w1": -17.38,
+    "m1": -6.08,
+    "y1": -11.74
    }
   },
   "audjpy": {
@@ -994,6 +1055,6 @@
     "y1": 13.81
    }
   },
-  "brent_nok_corr": 0.27
+  "brent_nok_corr": 0.25
  }
 }
