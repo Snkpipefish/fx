@@ -104,7 +104,7 @@ export function directionSignal(c) {
     const real = policy - target.value;
     score += clamp(real / 2) * 0.2;
     const dir = real > 0.5 ? "up" : real < -0.5 ? "down" : "flat";
-    drivers.push({ key: "realrente", dir, text: dir === "up" ? `positiv realrente${target.note}` : dir === "down" ? `negativ realrente${target.note}` : `realrente nær null${target.note}` });
+    drivers.push({ key: "realrente", dir, text: dir === "up" ? `positiv realrente${target.note}` : dir === "down" ? `negativ realrente${target.note}` : `realrente rundt 0${target.note}` });
   }
 
   const ups = drivers.filter((d) => d.dir === "up").length, downs = drivers.filter((d) => d.dir === "down").length;
