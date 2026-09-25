@@ -527,31 +527,37 @@ def fetch_yahoo(symbol, decimals=2):
 BRENT_MONTH_CODES = "FGHJKMNQUVXZ"
 
 
-def brent_front_contracts(today=None):
-    """Yahoo-symboler for nærmeste og neste Brent-kontrakt som ikke har utløpt.
-
-    ICE Brent for leveringsmåned M utløper siste virkedag i måned M−2, så i
-    september er novemberkontrakten front (utløper 30. september).
-    """
+def month_contracts(root, months_ahead, today=None, count=2, exchange="NYM"):
+    """Yahoo-symboler for `count` påfølgende månedskontrakter fra leveringsmåned
+    (inneværende måned + months_ahead)."""
     today = today or date.today()
-    # Første kandidat: leveringsmåned = inneværende måned + 2
-    y, m = today.year, today.month + 2
-    if m > 12:
-        y, m = y + 1, m - 12
+    y, m = today.year, today.month + months_ahead
+    y, m = y + (m - 1) // 12, (m - 1) % 12 + 1
     out = []
-    while len(out) < 2:
-        out.append(f"BZ{BRENT_MONTH_CODES[m - 1]}{str(y)[2:]}.NYM")
-        m += 1
-        if m > 12:
-            y, m = y + 1, 1
+    for _ in range(count):
+        out.append(f"{root}{BRENT_MONTH_CODES[m - 1]}{str(y)[2:]}.{exchange}")
+        y, m = y + (m == 12), m % 12 + 1
     return out
+
+
+def brent_front_contracts(today=None):
+    """Nærmeste og neste Brent-kontrakt som ikke har utløpt: ICE Brent for leveringsmåned M
+    utløper siste virkedag i måned M−2, så i september er novemberkontrakten front."""
+    return month_contracts("BZ", 2, today)
+
+
+def ttf_front_contracts(today=None):
+    """Nærmeste og neste TTF-gasskontrakt: leveringsmåned M utløper to virkedager før M
+    starter, så i september er oktoberkontrakten front (Yahoo: TTFV26.NYM)."""
+    return month_contracts("TTF", 1, today)
 
 
 BRENT_MONTHS = {"F": "jan", "G": "feb", "H": "mar", "J": "apr", "K": "mai", "M": "jun", "N": "jul", "Q": "aug", "U": "sep", "V": "okt", "X": "nov", "Z": "des"}
 
 
 def brent_label(symbol):
-    code = symbol[2:5]
+    """«okt. 2026-kontrakten (TTFV26)» fra et Yahoo-symbol ROT + månedskode + år."""
+    code = symbol.split(".")[0][-3:]
     return f"{BRENT_MONTHS[code[0]]}. 20{code[1:]}-kontrakten ({symbol.split('.')[0]})"
 
 
@@ -560,6 +566,16 @@ def fetch_brent_futures():
     kontrakter). Endringer regnes innenfor samme kontrakt; front-kontrakten brukes til
     utløp. Returnerer {"front": serie, "next": serie, "front_label", "next_label"}."""
     symbols = brent_front_contracts()
+    front, nxt = fetch_yahoo(symbols[0]), fetch_yahoo(symbols[1])
+    if not front and not nxt:
+        raise RuntimeError(f"ingen data for {symbols[0]} eller {symbols[1]}")
+    return {"front": front, "next": nxt, "front_label": brent_label(symbols[0]), "next_label": brent_label(symbols[1])}
+
+
+def fetch_ttf_futures():
+    """De to nærmeste TTF-kontraktene (ikke Yahoos rullende TTF=F, som hopper ved rulling).
+    Samme struktur som Brent: {"front", "next", "front_label", "next_label"}."""
+    symbols = ttf_front_contracts()
     front, nxt = fetch_yahoo(symbols[0]), fetch_yahoo(symbols[1])
     if not front and not nxt:
         raise RuntimeError(f"ingen data for {symbols[0]} eller {symbols[1]}")
@@ -1973,6 +1989,18 @@ def rates_by_currency(oecd_series, previous=None):
     return out
 
 
+def energy_driver(oil_corr, gas_corr, margin=0.1):
+    """Hvilken av olje og gass som har forklart kronen best siste 90 dager: den med størst
+    |korrelasjon|, «begge» når de ligger innenfor `margin` av hverandre, None uten tall."""
+    if oil_corr is None and gas_corr is None:
+        return None
+    if gas_corr is None or (oil_corr is not None and abs(oil_corr) - abs(gas_corr) > margin):
+        return "olje"
+    if oil_corr is None or abs(gas_corr) - abs(oil_corr) > margin:
+        return "gass"
+    return "begge"
+
+
 def curve_at(series, target_day):
     """Kurvepunktene på eller like før en dato."""
     days = [d for d in series if d <= target_day]
@@ -2215,7 +2243,7 @@ def main():
         "unemployment": fetch_unemployment,
         "brent": lambda: fetch_fred_series("DCOILBRENTEU"),
         "brent_fut": fetch_brent_futures,
-        "ttf": lambda: fetch_yahoo("TTF=F"),
+        "ttf": fetch_ttf_futures,
         "cpi_core": fetch_cpi_core,
         "ons_cpi": fetch_ons_cpi,
         "ssb_kpi_jae": fetch_ssb_kpi_jae,
@@ -2570,7 +2598,10 @@ def main():
     else:  # kilden feilet: forrige front-kontrakt fra historikken
         brent_fut, brent_fut_label = old_history.get("market", {}).get("brent_fut", {}), (old_market.get("brent_fut") or {}).get("contract")
         brent_next, brent_next_label = old_history.get("market", {}).get("brent_next", {}), (old_market.get("brent_next") or {}).get("contract")
-    ttf = sources["ttf"] or old_history.get("market", {}).get("ttf", {})
+    if sources["ttf"]:
+        ttf, ttf_label, _, _ = brent_front_and_next(sources["ttf"])
+    else:
+        ttf, ttf_label = old_history.get("market", {}).get("ttf", {}), (old_market.get("ttf") or {}).get("contract")
     vix = sources["vix"] or old_history.get("market", {}).get("vix", {})
     audjpy = {}
     aud, jpy = fx_all.get("AUD", {}), fx_all.get("JPY", {})
@@ -2602,7 +2633,11 @@ def main():
         "vix": snapshot(vix),
         "audjpy": snapshot(audjpy, 3),
         "brent_nok_corr": correlation(brent, nok_strength),
+        "ttf_nok_corr": correlation(ttf, nok_strength),
     }
+    market["energy_driver"] = energy_driver(market["brent_nok_corr"], market["ttf_nok_corr"])
+    if market["ttf"]:
+        market["ttf"]["contract"] = ttf_label
     if market["brent_fut"]:
         market["brent_fut"]["contract"] = brent_fut_label
         # Spotpremie: Dated Brent minus front-kontrakten på samme dato (FRED henger noen dager

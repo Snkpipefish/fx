@@ -67,7 +67,7 @@ export function card(c, market) {
       ${row(pppLine(c), c.vol30 != null ? `Svingninger <b>${nb1.format(c.vol30)} %</b>` : "")}
       ${f ? row(`1 års termin <b>${nb.format(f.rate)}</b> <small>(${pct(f.pct)} vs. spot)</small>`, `Renteforskjell 1 år <b>${signed(f.diff, nb2)} pp</b>`) : ""}
       ${c.cot || c.currency === "NOK" || c.currency === "SEK" ? row(cotLine(c), "") : ""}
-      ${c.id === "no" && market?.brent ? row(`Brent <b>${nb2.format(market.brent.value)} USD</b> <small>(${pct1(market.brent.changes?.m1)} 1m)</small>`, `Olje↔krone 90 d: <b>${market.brent_nok_corr != null ? nb2.format(market.brent_nok_corr) : "–"}</b>`) : ""}
+      ${c.id === "no" && market?.brent ? row(`Brent <b>${nb2.format(market.brent.value)} USD</b> <small>(${pct1(market.brent.changes?.m1)} 1m)</small>`, `Olje↔krone 90 d: <b>${market.brent_nok_corr != null ? nb2.format(market.brent_nok_corr) : "–"}</b>${market.ttf_nok_corr != null ? ` · gass <b>${nb2.format(market.ttf_nok_corr)}</b>` : ""}`) : ""}
     </div>
   </article>`;
 }

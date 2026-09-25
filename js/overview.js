@@ -150,10 +150,11 @@ export function renderKrone(countries, market) {
       spread = v > 0 ? ` Front-kontrakten ligger ${nb1.format(v)} USD over neste måned (backwardation: markedet betaler for olje nå).`
         : ` Front-kontrakten ligger ${nb1.format(-v)} USD under neste måned (contango: lagrene fylles).`;
     }
-    const corr = market.brent_nok_corr != null ? ` Kronen har fulgt oljen med korrelasjon ${nb2.format(market.brent_nok_corr)} siste 90 dager.` : "";
+    const corr = market.brent_nok_corr != null ? ` Kronen har fulgt oljen med korrelasjon ${nb2.format(market.brent_nok_corr)} siste 90 dager${market.ttf_nok_corr != null ? `, gassen med ${nb2.format(market.ttf_nok_corr)}` : ""}.${
+      market.energy_driver === "gass" ? " Det er gassen, ikke oljen, som har forklart kronen best." : market.energy_driver === "olje" && market.ttf_nok_corr != null ? " Oljen forklarer kronen bedre enn gassen." : market.energy_driver === "begge" ? " Olje og gass forklarer kronen omtrent like godt." : ""}` : "";
     return `<p class="lead">${parts.join(", ")}.${premium}${spread}${corr}</p>`;
   })();
-  const gas = market.ttf ? `<p class="lead">Gass (TTF) koster <b>${nb0.format(market.ttf.value)} EUR/MWh</b> (${pct1(market.ttf.changes?.m1)} siste måned).</p>` : "";
+  const gas = market.ttf ? `<p class="lead">Gass (TTF) koster <b>${nb0.format(market.ttf.value)} EUR/MWh</b> (${pct1(market.ttf.changes?.m1)} siste måned${market.ttf.contract ? `, ${market.ttf.contract}` : ""}).</p>` : "";
   el.innerHTML = `
     <p class="lead">${nokChange != null ? `Kronen er <b class="${cls(nokChange)}">${pct1(nokChange)}</b> mot handelspartnerne denne uken (I-44).` : ""}
       ${risk}</p>${oil}${gas}

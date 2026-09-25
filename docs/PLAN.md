@@ -84,7 +84,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **TTF inngår ikke i beregningene.**
   *Problem:* Gass står bare i teksten; korrelasjon gass↔krone er ikke regnet. (`ttf` ligger allerede i `history.market`.)
-  *Løsning:* Regn `ttf_nok_corr` som for Brent, og bytt «oljenøytral» til «energinøytral» (begge |Δcorr| < 0,25). Vis hvilken av olje/gass som forklarer kronen best siste 90 dager. TTF=F har samme rulleproblem som BZ=F.
+  *Løsning:* ✅ *(PR «ttf», 25. sep 2026)* `market.ttf_nok_corr` regnes som for Brent (90 dagers daglig korrelasjon mot kronestyrke 1/I-44), `market.energy_driver` sier «olje», «gass» eller «begge» (|korr| innenfor 0,1 av hverandre). Motpost-taggen «oljenøytral» er blitt «energinøytral»: |Δ oljekorr| < 0,25 **og** |Δ gasskorr| < 0,25 (gass teller bare der begge bein har korrelasjon). Kroneavsnittet og NOK-kortet viser begge korrelasjonene og hvilken som forklarer kronen best. Yahoo har enkeltkontrakter for TTF (`TTF{mnd}{åå}.NYM`, f.eks. TTFV26), så gass hentes nå som Brent: to kontrakter, front til utløp (to virkedager før leveringsmåneden) og rulling til neste; `market.ttf.contract` viser hvilken. Ingen rullehopp i korrelasjonen.
 
 - [ ] **Frontend-tester.**
   *Problem:* Bare beregningene testes. Tekstlogikken i idéene (som ga «Tre ting» med fire punkter) fanges ikke.
