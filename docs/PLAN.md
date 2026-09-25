@@ -65,7 +65,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **«Heving levert, kurs ikke fulgt».**
   *Problem:* Treffer NZD, der årsaken var signal om pause, ikke «selg på nyheten». Regelen kjenner ikke bankens kommunikasjon.
-  *Løsning:* Klassifiser vedtaket datadrevet: endring i `path[12]` fra dagen før til dagen etter vedtaket. Falt forwardene: «duete heving, kursen fulgte signalet». Steg/uendret og kurs ned: «selg på nyheten». Mål kursen I-44-justert, og carry-setningen bare når `diff > 0`.
+  *Løsning:* ✅ *(PR «vedtakstone», 25. sep 2026)* `decision_reaction`: renten markedet priser om 12 mnd på siste kurvedag før og første kurvedag etter vedtaket (inntil 7 dager), regnet med dagens basis (`path12_at`, virker for både statskurver og futures). Δ ≤ −8 bp: «duete», ≥ +8: «haukete», ellers «nøytral». Lagres i `policy_change` (`path12_change_bp`, `tone`, `measured`). Idéen bruker tre varianter: «Duete heving» (kursen fulgte signalet om pause), «Haukete heving, kurs ikke fulgt» (kursfallet handler om noe annet), «Heving levert, kurs ikke fulgt» (selg på nyheten). Kursen var alt I-44-justert og carry-setningen betinget på `diff > 0`.
 
 - [ ] **Vektene i retningssignalet.**
   *Problem:* Fast vekting (0,45/0,35/0,20) uten empirisk grunnlag.
