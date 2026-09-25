@@ -471,7 +471,7 @@ CURVE_SOURCES = {
     "jp": ("govt", "japanske statsobligasjoner (MoF)"),
     "gb": ("ois", "OIS-kurve (Bank of England)"),
     "ca": ("govt", "kanadiske statspapirer (Bank of Canada)"),
-    "au": ("govt", "1-mnd bankveksel + statsobligasjoner (RBA)"),
+    "au": ("zero", "nullkupong statskurve (RBA F17, månedlig) forskjøvet med daglige obligasjonsrenter"),
     "se": ("govt", "svenske statspapirer (Riksbanken)"),
     "no": ("zero", "nullkupong statskurve (Norges Bank)"),
 }
@@ -480,7 +480,7 @@ CURVE_SOURCES = {
 CURVE_TENORS = (1 / 12, 0.25, 0.5, 1, 2, 3, 5, 10)
 
 # Løpetider som renses bort per land (punkter fra kilder vi har sluttet å bruke).
-CURVE_DROP_TENORS = {"au": {"0.25", "0.5"}}  # bankveksler 3/6 mnd
+CURVE_DROP_TENORS = {"au": {"0.083"}}  # 1-mnd bankveksel fra før F17-kurven (kredittpåslag)
 
 
 def tenor_key(years):
@@ -697,51 +697,90 @@ def fetch_curve_no():
     return out
 
 
-def fetch_curve_au():
-    """RBA-tabellene F1 (pengemarked) og F2 (statsobligasjoner), daglige CSV-er.
-
-    Kolonner velges ut fra tittelen («3-month OIS», «2 year bond»). RBAs
-    OIS-serier opphørte i 2022, så per rad brukes første kolonne med verdi:
-    OIS hvis den finnes, ellers bankveksler (BABs/NCDs), ellers statskasseveksler.
-    """
-    start = str(curve_start())
-    out = {}
-    # F1 gir 1-mnd bankveksel som frontpunkt (OIS-serien har vært tom siden 2022);
-    # F2 gir statsobligasjoner 2–10 år. 3- og 6-mnd veksler utelates (kredittpremie).
-    for table in ("f1", "f2"):
-        raw = fetch(f"https://www.rba.gov.au/statistics/tables/csv/{table}-data.csv", timeout=120)
-        rows = list(csv.reader(io.StringIO(raw)))
-        titles = next((r for r in rows if r and r[0].strip().lower() == "title"), None)
-        if not titles:
+def rba_table(name):
+    """RBA-statistikktabell som CSV: (serie-ID → kolonneindeks, datarader [(dag, rad)])."""
+    rows = list(csv.reader(io.StringIO(fetch(f"https://www.rba.gov.au/statistics/tables/csv/{name}.csv", timeout=120))))
+    ids = next((r for r in rows if r and r[0].strip() == "Series ID"), None)
+    if not ids:
+        raise RuntimeError(f"fant ikke «Series ID»-raden i {name}")
+    columns = {sid.strip(): idx for idx, sid in enumerate(ids) if idx and sid.strip()}
+    data = []
+    for row in rows:
+        try:
+            data.append((str(datetime.strptime(row[0].strip(), "%d-%b-%Y").date()), row))
+        except (ValueError, IndexError):
             continue
-        candidates = {}  # løpetid (år) -> [kolonneindekser i prioritert rekkefølge]
-        for idx, title in enumerate(titles):
-            m = re.search(r"(\d+)-?\s*(month|year)", title, re.I)
-            if not m or idx == 0 or "indexed" in title.lower():
-                continue
-            years = int(m.group(1)) / (12 if m.group(2).lower() == "month" else 1)
-            low = title.lower()
-            is_ois = "ois" in low
-            # F1: OIS på alle korte løpetider (serien har vært tom siden 2022), ellers bare
-            # 1-mnd bankveksel – 3- og 6-mnd veksler bærer kredittpremie som ga falsk pukkel
-            if table == "f1" and not is_ois and not (abs(years - 1 / 12) < 1e-6 and ("bab" in low or "ncd" in low)):
-                continue
-            priority = 0 if is_ois else 1 if "bab" in low or "ncd" in low else 2
-            candidates.setdefault(years, []).append((priority, idx))
-        for row in rows:
-            try:
-                day = str(datetime.strptime(row[0].strip(), "%d-%b-%Y").date())
-            except (ValueError, IndexError):
-                continue
-            if day < start:
-                continue
-            for years, cols in candidates.items():
-                for _, idx in sorted(cols):
-                    value = to_float(row[idx]) if idx < len(row) else None
-                    if value is not None:
-                        out.setdefault(day, {})[tenor_key(years)] = value
-                        break
+    return columns, data
+
+
+def rba_series(name, wanted, start):
+    """{dag: {løpetid: rente}} for utvalgte serie-ID-er (wanted: {serie-ID: løpetid i år})."""
+    columns, data = rba_table(name)
+    out = {}
+    for day, row in data:
+        if day < start:
+            continue
+        for sid, years in wanted.items():
+            idx = columns.get(sid)
+            value = to_float(row[idx]) if idx is not None and idx < len(row) else None
+            if value is not None:
+                out.setdefault(day, {})[tenor_key(years)] = value
     return out
+
+
+RBA_ZERO_TENORS = {f"FZCY{int(t * 100)}D": t for t in (0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 7, 10)}
+RBA_DAILY = {"FIRMMBAB30D": 1 / 12}  # F1: 1-mnd bankveksel (brukes bare til forskyvning av fronten)
+RBA_BONDS = {"FCMYGBAG2D": 2, "FCMYGBAG3D": 3, "FCMYGBAG5D": 5, "FCMYGBAG10D": 10}  # F2: statsobligasjoner
+
+
+def shift_zero_curve(zero, daily, start):
+    """Daglig kurve fra RBAs månedlige nullkupongkurve (F17) og daglige markedsrenter.
+
+    F17 publiseres få dager etter månedsslutt, så for dager etter siste F17-dato
+    forskyves nullkupongkurven med endringen i de daglige rentene siden den datoen:
+    Δ(T) interpoleres lineært i løpetid mellom instrumentene som finnes begge dager
+    (1-mnd veksel, 2/3/5/10-års obligasjoner), flatt utenfor. På F17-datoer brukes
+    kurven direkte. Den daglige 1-mnd-vekselen lagres ikke (kredittpåslag)."""
+    out = {}
+    zero_days = sorted(zero)
+    for day in sorted(set(daily) | set(zero)):
+        if day < start:
+            continue
+        base_day = max((z for z in zero_days if z <= day), default=None)
+        if base_day is None:
+            continue
+        curve = dict(zero[base_day])
+        if day != base_day:
+            ref, now = daily.get(base_day, {}), daily.get(day, {})
+            deltas = sorted((float(t), now[t] - ref[t]) for t in now if t in ref)
+            if not deltas:
+                continue
+
+            def delta(T):
+                if T <= deltas[0][0]:
+                    return deltas[0][1]
+                for (t0, d0), (t1, d1) in zip(deltas, deltas[1:]):
+                    if T <= t1:
+                        return d0 + (d1 - d0) * (T - t0) / (t1 - t0)
+                return deltas[-1][1]
+
+            curve = {t: round(v + delta(float(t)), 3) for t, v in curve.items()}
+        out[day] = curve
+    return out
+
+
+def fetch_curve_au():
+    """RBA F17 (nullkupongkurve, månedlig) forskjøvet daglig med F1 (1-mnd veksel) og F2
+    (statsobligasjoner 2–10 år). Gir tette løpetider fra 3 mnd uten kredittpåslag og uten
+    interpolasjon fra 1 mnd til 2 år."""
+    start = str(curve_start())
+    zero = rba_series("f17-yields", RBA_ZERO_TENORS, str(date.fromisoformat(start) - timedelta(days=45)))
+    daily = rba_series("f1-data", RBA_DAILY, str(date.fromisoformat(start) - timedelta(days=45)))
+    for day, vals in rba_series("f2-data", RBA_BONDS, str(date.fromisoformat(start) - timedelta(days=45))).items():
+        daily.setdefault(day, {}).update(vals)
+    if not zero:
+        raise RuntimeError("ingen nullkupongkurve i F17")
+    return shift_zero_curve(zero, daily, start)
 
 
 BASIS_WINDOW = 250  # handledager i medianen for basis 3 mnd-rente − styringsrente
@@ -1272,7 +1311,9 @@ DATE_RE = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")  # ÅÅÅÅ, ÅÅÅÅ-MM elle
 
 def newest_date(obj):
     """Nyeste periode (YYYY, YYYY-MM eller YYYY-MM-DD) som forekommer som nøkkel eller som
-    første element i en tuppel (World Bank-PPP lagres som {iso: (år, verdi)})."""
+    første element i et par (World Bank-PPP lagres som {iso: (år, verdi)}). Lister som
+    begynner med en dato er kontraktsperioder [start, slutt, rente] og teller ikke –
+    de peker fremover i tid, observasjonsdagen er nøkkelen."""
     best = None
     stack = [obj]
     while stack:
@@ -1283,8 +1324,10 @@ def newest_date(obj):
                     best = k
                 stack.append(v)
         elif isinstance(cur, (list, tuple)):
-            if cur and isinstance(cur[0], str) and DATE_RE.match(cur[0]) and (best is None or cur[0] > best):
-                best = cur[0]
+            if cur and isinstance(cur[0], str) and DATE_RE.match(cur[0]):
+                if len(cur) == 2 and (best is None or cur[0] > best):
+                    best = cur[0]
+                continue
             stack.extend(cur)
     return best
 

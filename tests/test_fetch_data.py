@@ -60,6 +60,9 @@ class HelpersTest(unittest.TestCase):
     def test_newest_date(self):
         self.assertEqual(fd.newest_date({"a": {"2026-01-05": 1, "2026-02": 2}, "b": [{"2025-12-31": 3}]}), "2026-02")
         self.assertIsNone(fd.newest_date({"x": 1}))
+        self.assertEqual(fd.newest_date({"2025-01-01": ("2023", 1.2)}), "2025-01-01")  # PPP: (år, verdi) teller ikke over nøkkelen
+        # Futures: kontraktsperioder peker fremover; observasjonsdagen er nyeste dato
+        self.assertEqual(fd.newest_date({"2026-09-25": [["2026-10-01", "2026-10-31", 4.0], ["2028-01-01", "2028-01-31", 4.2]]}), "2026-09-25")
 
     def test_xlsx_sheet_rows_minimal_workbook(self):
         buf = io.BytesIO()
@@ -273,6 +276,45 @@ class FuturesTest(unittest.TestCase):
         self.assertEqual(curve["points"]["0.25"], 4.05)  # statskurvens punkter beholdes
         # Uten futures faller alt tilbake til statskurven
         self.assertEqual(fd.build_curve("us", series, policy, {})["kind"], "govt")
+
+
+class RbaCurveTest(unittest.TestCase):
+    def test_shift_zero_curve(self):
+        zero = {"2026-08-31": {"0.25": 4.46, "1": 4.61, "2": 4.70, "10": 5.10}}
+        daily = {
+            "2026-08-31": {"0.083": 4.40, "2": 4.20, "10": 4.60},
+            "2026-09-24": {"0.083": 4.42, "2": 4.40, "10": 4.70},  # front +2 bp, 2 år +20 bp, 10 år +10 bp
+            "2026-09-25": {"2": 4.40},                              # 10 år mangler denne dagen
+        }
+        out = fd.shift_zero_curve(zero, daily, "2026-08-01")
+        self.assertEqual(out["2026-08-31"], zero["2026-08-31"])  # F17-dato brukes direkte
+        d = out["2026-09-24"]
+        self.assertAlmostEqual(d["2"], 4.90)
+        self.assertAlmostEqual(d["10"], 5.20)
+        # 1 år ligger mellom 1 mnd (+0,02) og 2 år (+0,20): lineært i løpetid
+        self.assertAlmostEqual(d["1"], 4.61 + 0.02 + (0.20 - 0.02) * (1 - 1 / 12) / (2 - 1 / 12), places=3)
+        self.assertAlmostEqual(d["0.25"], 4.46 + 0.02 + (0.20 - 0.02) * (0.25 - 1 / 12) / (2 - 1 / 12), places=3)
+        self.assertNotIn("0.083", d)  # vekselen lagres ikke
+        # Bare 2 år tilgjengelig: hele kurven forskyves med den
+        self.assertAlmostEqual(out["2026-09-25"]["10"], 5.30)
+        # Dager før første F17-dato og uten daglige endringer hoppes over
+        self.assertNotIn("2026-07-01", fd.shift_zero_curve(zero, {"2026-07-01": {"2": 4.0}}, "2026-01-01"))
+        self.assertEqual(fd.shift_zero_curve(zero, {"2026-09-01": {"7": 1.0}}, "2026-01-01").get("2026-09-01"), None)
+
+    def test_zero_curve_gives_smooth_path_without_synthetic_anchor(self):
+        # Med tette løpetider fra 3 mnd trenger AUD verken syntetisk anker eller 1 mnd→2 år-interpolasjon
+        points = {"0.25": 4.46, "0.5": 4.55, "0.75": 4.59, "1": 4.61, "1.25": 4.63, "1.5": 4.65, "1.75": 4.66,
+                  "2": 4.67, "2.5": 4.69, "3": 4.70, "4": 4.74, "5": 4.78, "7": 4.90, "10": 5.05}
+        m = fd.curve_metrics(points, 4.35)
+        self.assertFalse(m["synthetic_anchor"])
+        self.assertEqual(m["anchor"]["kind"], "marked")
+        steps = [b - a for a, b in zip(m["path"], m["path"][1:])]
+        self.assertTrue(all(abs(x) < 0.15 for x in steps), steps)  # ingen kink i banen
+
+    def test_rba_zero_tenor_ids(self):
+        self.assertEqual(fd.RBA_ZERO_TENORS["FZCY25D"], 0.25)
+        self.assertEqual(fd.RBA_ZERO_TENORS["FZCY175D"], 1.75)
+        self.assertEqual(fd.RBA_ZERO_TENORS["FZCY1000D"], 10)
 
 
 if __name__ == "__main__":

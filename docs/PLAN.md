@@ -18,7 +18,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **AUD-kurven er grov.**
   *Problem:* Frontpunkt 1-mnd bankveksel, neste punkt 2 år. Alt mellom er interpolasjon; «toppen om 21 mnd» er regnestykke, ikke marked.
-  *Løsning:* RBA tabell F17 gir daglig nullkupongkurve i kvartalssteg fra 0,25 til 10 år (`f17-yields.csv`, serier `FZCY25D` … `FZCY1000D`), sjekk oppdateringslag. F1 har bankveksler 1/3/6 mnd for fronten. Da trengs verken syntetisk anker eller interpolasjon fra 1 mnd til 2 år. Merk: RBA blokkerer curl, men ikke urllib.
+  *Løsning:* ✅ *(PR «aud-f17», 25. sep 2026)* RBA tabell F17 gir nullkupongkurve i kvartalssteg fra 0,25 til 10 år (`f17-yields.csv`, serier `FZCY25D` … `FZCY1000D`). **Oppdateringslag: månedlig**, publisert få dager etter månedsslutt (siste dato 31. aug per 25. sep), så den brukes som *form* og forskyves daglig med endringen i F1 1-mnd veksel og F2-obligasjonene 2/3/5/10 år siden F17-datoen (`shift_zero_curve`, Δ lineært i løpetid). F1-vekslene 3/6 mnd brukes ikke (kredittpåslag, ga falsk pukkel tidligere); OIS-seriene i F1 er tomme siden 2022 og Treasury Notes-seriene er tomme. Vekselen 1 mnd lagres ikke. Med futures (1.2) foran betyr statskurven for AUD nå bare skjøten 18–24 mnd, punktene og reserven. Merk: RBA blokkerer nettleser-UA og curl, men ikke `valuta-dashboard/1.0`.
 
 - [ ] **Dated Brent-lag.**
   *Problem:* FREDs Dated Brent henger tre dager etter, spotpremien regnes på ulike datoer.
