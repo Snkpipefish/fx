@@ -27,6 +27,8 @@ python3 -m unittest discover -s tests -v   # terminrenter, markedsanker, futures
 npm ci && node --test tests/*.test.mjs     # calc.js (korrelasjon, signal, motpost, totalavkastning) + rendering av alle seksjoner i jsdom
 ```
 
+Skjermbilder: `npx playwright test` fotograferer hver seksjon i tre bredder (390/768/1280) fra fixtures med frosset klokke og sammenligner mot baselines i `tests/screenshots/` (`npx playwright test -u` godtar nye). Kjører i en egen workflow ([.github/workflows/screenshots.yml](.github/workflows/screenshots.yml)) ved endringer i frontenden, med bildene som artifact.
+
 Rendering-testene (`tests/render.test.mjs`) bygger hele siden fra `tests/fixtures/` i fire varianter (normal dag, vedtaksdag, land uten kurve, syntetisk anker) og sjekker at ingen tomme verdier havner i DOM, at overskriften «N ting å legge merke til» stemmer med antall idéer, og at idé-tekstene er uendret mot snapshots (`UPDATE_SNAPSHOTS=1 node --test tests/render.test.mjs` godtar nye tekster).
 
 Testene kjøres i GitHub Actions før innhentingen. Alle kilder hentes parallelt med korte timeouts, og `dashboard.json` inneholder `sources` med status og nyeste dato per kilde (vises under «Kildestatus» i bunnteksten). Etter publisering kjører [scripts/check_sources.py](scripts/check_sources.py), som gir rød kjøring hvis en kilde er mer enn 10 dager gammel (14 for COT, 75 for månedlige serier) – et varsel som ikke stopper oppdateringen.

@@ -100,7 +100,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **Skjermbilder.**
   *Problem:* Testnettleseren er upålitelig, mobilkontroll gjøres med DOM-målinger og enkeltbilder.
-  *Løsning:* Playwright i Actions (`npx playwright install --with-deps chromium`), viewport 390/768/1280, `locator.screenshot()` per seksjon lastet opp som artifact, assert `scrollWidth <= clientWidth + 1`, `toHaveScreenshot` med `maxDiffPixelRatio: 0.02` mot baselines.
+  *Løsning:* ✅ *(PR «skjermbilder», 25. sep 2026)* `@playwright/test` (dev-avhengighet) med `playwright.config.mjs`: tre prosjekter (mobil 390, tablet 768, desktop 1280), egen `python3 -m http.server` som webServer, data rutet til `tests/fixtures/` og klokken frosset til 25. sep 2026 så bildene er stabile. `tests/screenshots.spec.mjs`: `scrollWidth <= clientWidth + 1` i kompakt og detaljert visning, `locator.screenshot()` per seksjon (hero, renter, kronen, tre ting, handel, land) og NOK-kortet i detaljvisning som artifact, `toHaveScreenshot` med `maxDiffPixelRatio 0.02` mot baselines i `tests/screenshots/<prosjekt>/`, pluss hele siden som artifact. Egen workflow `screenshots.yml` (push/PR på frontend-filer + manuelt), så visuelle avvik ikke stopper datapubliseringen; `npx playwright test -u` godtar nye baselines.
 
 ## Avhengigheter
 

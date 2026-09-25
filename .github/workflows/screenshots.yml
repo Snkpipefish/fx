@@ -1,0 +1,37 @@
+name: Skjermbilder
+
+# Visuell kontroll av frontenden i tre bredder, mot frosne fixtures. Kjører separat fra
+# datainnhentingen, så en visuell endring stopper ikke publiseringen. Bildene lastes opp
+# som artifact; avvik fra baselines i tests/screenshots/ gir rød kjøring (npx playwright test -u
+# lokalt for å godta nye baselines).
+on:
+  push:
+    branches: [main]
+    paths: ["index.html", "css/**", "js/**", "tests/**", "playwright.config.mjs", ".github/workflows/screenshots.yml"]
+  pull_request:
+    paths: ["index.html", "css/**", "js/**", "tests/**", "playwright.config.mjs"]
+  workflow_dispatch:
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Skjermbilder og sammenligning
+        run: npx playwright test
+      - name: Last opp bilder og rapport
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skjermbilder
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 14
