@@ -31,6 +31,8 @@ test("ingen horisontal scroll", async ({ page }) => {
 for (const id of SECTIONS) {
   test(`seksjon ${id}`, async ({ page }, testInfo) => {
     const section = page.locator(`#${id}`);
+    // Den faste navigasjonslinjen ville lagt seg over toppen av utsnittet; hero-bildet beholder den
+    if (id !== "top") await page.addStyleTag({ content: ".nav { visibility: hidden !important; }" });
     await section.scrollIntoViewIfNeeded();
     const png = await section.screenshot();
     await testInfo.attach(`${id}.png`, { body: png, contentType: "image/png" });
@@ -41,6 +43,7 @@ for (const id of SECTIONS) {
 test("kort i detaljvisning", async ({ page }, testInfo) => {
   await page.click("#cardMode");
   await page.waitForSelector(".grid:not(.compact)");
+  await page.addStyleTag({ content: ".nav { visibility: hidden !important; }" });
   const card = page.locator("#card-no");
   await card.scrollIntoViewIfNeeded();
   await testInfo.attach("kort-no-detaljert.png", { body: await card.screenshot(), contentType: "image/png" });
