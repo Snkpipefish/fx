@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-25T15:07:09+00:00",
+ "updated": "2026-09-25T15:09:33+00:00",
  "countries": [
   {
    "id": "us",
@@ -99,6 +99,18 @@
      "w1": 12,
      "m1": 73
     },
+    "repricing_detail": {
+     "w1": {
+      "level": 12,
+      "delivered": 0,
+      "remaining": 12
+     },
+     "m1": {
+      "level": 73,
+      "delivered": 25,
+      "remaining": 48
+     }
+    },
     "y2_change": {
      "w1": 11,
      "m1": 61
@@ -138,7 +150,7 @@
     },
     "path": [
      3.884,
-     3.903,
+     3.898,
      4.048,
      4.193,
      4.268,
@@ -185,7 +197,7 @@
      [
       "2026-10-01",
       "2026-10-31",
-      3.9
+      3.895
      ],
      [
       "2026-11-01",
@@ -359,6 +371,18 @@
     "repricing": {
      "w1": 9,
      "m1": 50
+    },
+    "repricing_detail": {
+     "w1": {
+      "level": 9,
+      "delivered": 0,
+      "remaining": 9
+     },
+     "m1": {
+      "level": 50,
+      "delivered": 25,
+      "remaining": 25
+     }
     },
     "y2_change": {
      "w1": 8,
@@ -534,6 +558,18 @@
      "w1": 4,
      "m1": 24
     },
+    "repricing_detail": {
+     "w1": {
+      "level": 4,
+      "delivered": 25,
+      "remaining": -21
+     },
+     "m1": {
+      "level": 24,
+      "delivered": 25,
+      "remaining": -1
+     }
+    },
     "y2_change": {
      "w1": 4,
      "m1": 23
@@ -705,6 +741,18 @@
     "repricing": {
      "w1": 6,
      "m1": 46
+    },
+    "repricing_detail": {
+     "w1": {
+      "level": 6,
+      "delivered": 0,
+      "remaining": 6
+     },
+     "m1": {
+      "level": 46,
+      "delivered": 0,
+      "remaining": 46
+     }
     },
     "y2_change": {
      "w1": 5,
@@ -878,6 +926,18 @@
      "w1": 2,
      "m1": 12
     },
+    "repricing_detail": {
+     "w1": {
+      "level": 2,
+      "delivered": 0,
+      "remaining": 2
+     },
+     "m1": {
+      "level": 12,
+      "delivered": 0,
+      "remaining": 12
+     }
+    },
     "y2_change": {
      "w1": 1,
      "m1": 11
@@ -1043,6 +1103,7 @@
      "10": 3.97
     },
     "repricing": {},
+    "repricing_detail": {},
     "y2_change": {
      "w1": 12,
      "m1": 49
@@ -1277,6 +1338,7 @@
      "10": 5.221
     },
     "repricing": {},
+    "repricing_detail": {},
     "y2_change": {
      "w1": -2,
      "m1": 38
@@ -1512,6 +1574,7 @@
     "source": "90-dagers bankvekselfutures (ASX) med OECDs 3-mnd-rente som front, flat etter 17 mnd",
     "points": {},
     "repricing": {},
+    "repricing_detail": {},
     "y2_change": {},
     "path_w1": null,
     "govt_source": null,
@@ -1694,6 +1757,18 @@
     "repricing": {
      "w1": 7,
      "m1": 42
+    },
+    "repricing_detail": {
+     "w1": {
+      "level": 7,
+      "delivered": 0,
+      "remaining": 7
+     },
+     "m1": {
+      "level": 42,
+      "delivered": 0,
+      "remaining": 42
+     }
     },
     "y2_change": {
      "w1": 6,
@@ -1883,6 +1958,18 @@
      "w1": 15,
      "m1": 32
     },
+    "repricing_detail": {
+     "w1": {
+      "level": 15,
+      "delivered": 25,
+      "remaining": -10
+     },
+     "m1": {
+      "level": 32,
+      "delivered": 25,
+      "remaining": 7
+     }
+    },
     "y2_change": {
      "w1": 14,
      "m1": 30
@@ -1980,13 +2067,13 @@
    }
   },
   "brent_fut": {
-   "value": 106.15,
+   "value": 106.17,
    "date": "2026-09-25",
    "changes": {
-    "d1": -0.42,
-    "w1": 2.2,
-    "m1": 22.1,
-    "y1": 59.67
+    "d1": -0.4,
+    "w1": 2.21,
+    "m1": 22.12,
+    "y1": 59.7
    },
    "contract": "nov. 2026-kontrakten (BZX26)"
   },
@@ -2027,12 +2114,12 @@
    "avg90": 5.6
   },
   "brent_next": {
-   "value": 99.32,
+   "value": 99.42,
    "date": "2026-09-25",
    "contract": "des. 2026-kontrakten (BZZ26)"
   },
   "brent_spread": {
-   "value": 6.83,
+   "value": 6.75,
    "date": "2026-09-25"
   }
  },
@@ -2067,13 +2154,19 @@
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
-  "fx": {
+  "ons_cpi": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "i44": {
    "ok": true,
    "error": null,
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
-  "i44": {
+  "fx": {
    "ok": true,
    "error": null,
    "latest": "2026-09-25",
@@ -2085,13 +2178,13 @@
    "latest": "2026-07",
    "fetched": "2026-09-25"
   },
-  "cpi_core": {
+  "unemployment": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
    "fetched": "2026-09-25"
   },
-  "ons_cpi": {
+  "cpi_core": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -2103,19 +2196,19 @@
    "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
-  "boc_core": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
   "abs_trimmed": {
    "ok": true,
    "error": null,
    "latest": "2026-07",
    "fetched": "2026-09-25"
   },
-  "scb_kpif": {
+  "boc_core": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "ssb_kpi_jae": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -2127,7 +2220,7 @@
    "latest": "2025",
    "fetched": "2026-09-25"
   },
-  "ssb_kpi_jae": {
+  "scb_kpif": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -2139,13 +2232,13 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_gb": {
+  "curve_ca": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_ca": {
+  "curve_gb": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
@@ -2163,34 +2256,16 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_no": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
   "curve_us": {
    "ok": true,
    "error": null,
    "latest": "2026-09-23",
    "fetched": "2026-09-25"
   },
-  "curve_ch": {
+  "curve_no": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-25",
-   "fetched": "2026-09-25"
-  },
-  "cot": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-15",
-   "fetched": "2026-09-25"
-  },
-  "futures_nz": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-25",
+   "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
   "futures_au": {
@@ -2199,25 +2274,7 @@
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
-  "policy_se": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-25",
-   "fetched": "2026-09-25"
-  },
-  "policy_no": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "policy_ca": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "policy_ea": {
+  "futures_nz": {
    "ok": true,
    "error": null,
    "latest": "2026-09-25",
@@ -2229,10 +2286,28 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "policy_gb": {
+  "policy_no": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "policy_se": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-25",
+   "fetched": "2026-09-25"
+  },
+  "policy_ca": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "cot": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-15",
    "fetched": "2026-09-25"
   },
   "policy_us": {
@@ -2241,7 +2316,19 @@
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
-  "policy_au": {
+  "curve_ch": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-25",
+   "fetched": "2026-09-25"
+  },
+  "policy_ea": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-25",
+   "fetched": "2026-09-25"
+  },
+  "policy_gb": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
@@ -2260,13 +2347,13 @@
    "fetched": "2026-09-25",
    "warn": "ubekreftet etter møtet 2026-09-24"
   },
-  "cb_path_se": {
+  "policy_au": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "futures_ca": {
+  "cb_path_se": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
@@ -2278,16 +2365,16 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
+  "futures_ca": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
   "futures_us": {
    "ok": true,
    "error": null,
    "latest": "2026-09-25",
-   "fetched": "2026-09-25"
-  },
-  "unemployment": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
    "fetched": "2026-09-25"
   },
   "cpi": {
