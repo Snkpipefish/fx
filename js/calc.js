@@ -62,38 +62,40 @@ export function targetInflation(c) {
 }
 
 /**
- * Datadrevet retningssignal for valutaen (heuristikk, ikke prognose):
- *  - rentesignal: hva rentekurven priser av endringer neste 6 mnd
- *                 (fallback: 3 mnd-rente minus styringsrente)
- *  - momentum:    kursutvikling mot NOK siste 3 mnd
- *  - realrente:   styringsrente minus KPI å/å
+ * Datadrevet retningssignal for valutaen (heuristikk, ikke prognose), vist som «2 av 3 drivere»:
+ *  - rente:      hva rentekurven priser av endringer neste 6 mnd (fallback: 3 mnd-rente minus styringsrente)
+ *  - momentum:   kursutvikling mot NOK siste 3 mnd
+ *  - realrente:  styringsrente minus inflasjonen banken styrer etter
+ * Hver driver får en pil (▲ ▼ ▶); samlet retning krever at minst to peker samme vei. Den gamle
+ * vektede summen (0,45/0,35/0,20) beholdes som `score` til scripts/backtest_signal.py har
+ * kalibrert vektene mot ekte avkastning; da kan den tas i bruk igjen.
  */
 export function directionSignal(c) {
   const invert = c.fx?.index; // I-44: lavere indeks = sterkere krone
-  const parts = [];
+  const drivers = [];
   let score = 0;
   const clamp = (v) => Math.max(-1, Math.min(1, v));
+  const arrowOf = (d) => ({ up: "▲", down: "▼", flat: "▶" }[d]);
 
   const imp6 = c.curve?.implied?.["6m"];
   const m3 = c.rates?.m3, policy = c.rates?.policy;
   if (imp6 != null) {
     score += clamp(imp6 / 40) * 0.45;
-    if (Math.abs(imp6) > 15) parts.push(`markedet venter <b>${moves(imp6)}</b> innen 6 mnd`);
-    else parts.push("markedet venter <b>uendret rente</b> neste 6 mnd");
+    const dir = imp6 > 15 ? "up" : imp6 < -15 ? "down" : "flat";
+    drivers.push({ key: "rente", dir, text: Math.abs(imp6) > 15 ? `markedet venter <b>${moves(imp6)}</b> innen 6 mnd` : "markedet venter <b>uendret rente</b> neste 6 mnd" });
   } else if (m3 != null && policy != null) {
     const spread = m3 - policy;
     score += clamp(spread / 0.4) * 0.45;
-    if (spread > 0.15) parts.push("pengemarkedet venter <b>renteheving</b>");
-    else if (spread < -0.15) parts.push("pengemarkedet venter <b>rentekutt</b>");
-    else parts.push("pengemarkedet venter <b>uendret rente</b>");
+    const dir = spread > 0.15 ? "up" : spread < -0.15 ? "down" : "flat";
+    drivers.push({ key: "rente", dir, text: `pengemarkedet venter <b>${dir === "up" ? "renteheving" : dir === "down" ? "rentekutt" : "uendret rente"}</b>` });
   }
 
   let mom = c.fx?.changes?.m3;
   if (mom != null) {
     if (invert) mom = -mom;
     score += clamp(mom / 4) * 0.35;
-    if (mom > 0.5) parts.push("valutaen har <b>styrket seg</b> siste 3 mnd");
-    else if (mom < -0.5) parts.push("valutaen har <b>svekket seg</b> siste 3 mnd");
+    const dir = mom > 0.5 ? "up" : mom < -0.5 ? "down" : "flat";
+    drivers.push({ key: "momentum", dir, text: dir === "up" ? "valutaen har <b>styrket seg</b> siste 3 mnd" : dir === "down" ? "valutaen har <b>svekket seg</b> siste 3 mnd" : "kursen har ligget <b>stille</b> siste 3 mnd" });
   }
 
   // Realrente mot det banken faktisk styrer etter: målvariabelen der vi har den, ellers samlet KPI
@@ -101,14 +103,19 @@ export function directionSignal(c) {
   if (policy != null && target.value != null) {
     const real = policy - target.value;
     score += clamp(real / 2) * 0.2;
-    if (real > 0.5) parts.push(`positiv realrente${target.note}`);
-    else if (real < -0.5) parts.push(`negativ realrente${target.note}`);
+    const dir = real > 0.5 ? "up" : real < -0.5 ? "down" : "flat";
+    drivers.push({ key: "realrente", dir, text: dir === "up" ? `positiv realrente${target.note}` : dir === "down" ? `negativ realrente${target.note}` : `realrente nær null${target.note}` });
   }
 
-  const dir = score > 0.12 ? "up" : score < -0.12 ? "down" : "flat";
-  const arrow = { up: "▲", down: "▼", flat: "▶" }[dir];
-  const word = { up: "Styrkende drivere", down: "Svekkende drivere", flat: "Nøytralt bilde" }[dir];
-  return { dir, arrow, word, score, text: parts.join(" · ") || "For lite data" };
+  const ups = drivers.filter((d) => d.dir === "up").length, downs = drivers.filter((d) => d.dir === "down").length;
+  const dir = ups >= 2 && ups > downs ? "up" : downs >= 2 && downs > ups ? "down" : "flat";
+  const arrow = arrowOf(dir);
+  const n = drivers.length;
+  const word = !n ? "For lite data"
+    : dir === "up" ? `${ups} av ${n} drivere styrker` : dir === "down" ? `${downs} av ${n} drivere svekker`
+    : ups && downs ? "Delt bilde" : "Nøytralt bilde";
+  const text = drivers.map((d) => `${arrowOf(d.dir)} ${d.text}`).join(" · ") || "For lite data";
+  return { dir, arrow, word, score, drivers, ups, downs, text };
 }
 
 /**

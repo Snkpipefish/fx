@@ -6,7 +6,7 @@ Redaksjonell «brief» over G10-valutaene (USD, EUR, JPY, GBP, CHF, CAD, AUD, NZ
 2. **Kronen.** Én setning om kronen, risikoappetitten (VIX, AUD/JPY), oljen og gassen (hvilken av dem som har forklart kronen best siste 90 dager), en søyleliste over hvem som har gått mest mot kronen (uke/måned/3 mnd/år) og en linjegraf over alle valutaene mot kronen siste år, med bryter for totalavkastning (kurs pluss renteforskjellen mot kronen dag for dag).
 3. **Tre ting å legge merke til.** Automatisk genererte observasjoner: sprik i renteforventninger, reprising, kutt/hevinger som ikke rimer med inflasjonen, renteforskjell mot kronen, ensidig posisjonering.
 4. **Finn motparten til en handel.** Velg valuta (chips) og retning, få tre forslag («Beste match», «Mest betalt for å vente», «Renest rentesyn») med begrunnelse, og hele kandidattabellen bak «Vis alle». Bygger på ideen om at én posisjon alltid er to, og at motparten bør velges bevisst.
-5. **Land for land.** Kort per land med kurs, utvikling, sparkline og én setning om hva markedet venter av sentralbanken; «Vis detaljer» åpner renter, inflasjon (samlet og bankens eget kjernemål der det finnes: kjerne-PCE, trimmet gjennomsnitt, CPI-trim/median, KPI-JAE, KPIF), ledighet, kjøpekraft, terminkurs og posisjonering.
+5. **Land for land.** Kort per land med kurs, utvikling, sparkline, én setning om hva markedet venter av sentralbanken og et retningssignal som teller tre drivere (rente, momentum, realrente) med hver sin pil, «2 av 3 drivere styrker»; «Vis detaljer» åpner renter, inflasjon (samlet og bankens eget kjernemål der det finnes: kjerne-PCE, trimmet gjennomsnitt, CPI-trim/median, KPI-JAE, KPIF), ledighet, kjøpekraft, terminkurs og posisjonering.
 
 Øverst står en overskrift som oppsummerer dagen med fire bokser som måler ulike ting: banken som er nærmest et vedtak, mest priset på 12 måneder (som nivå fra → til, siden antall hevinger belønner lavt utgangspunkt), størst uenighet med bankens eget anslag (det som gir kursutslag), og ukens sterkeste valuta mot kronen. Nederst ligger ordliste, kilder og kildestatus. Designet bruker Fraunces (overskrifter) og Inter (brødtekst), begge selvhostet som variable woff2 under `css/fonts/` (OFL), varme nøytrale farger og egne SVG-grafer; Chart.js brukes bare til de to linjegrafene. Siden laster ingenting fra tredjepart.
 
@@ -28,6 +28,8 @@ npm ci && node --test tests/*.test.mjs     # calc.js (korrelasjon, signal, motpo
 ```
 
 Skjermbilder: `npx playwright test` fotograferer hver seksjon i tre bredder (390/768/1280) fra fixtures med frosset klokke og sammenligner mot baselines i `tests/screenshots/` (`npx playwright test -u` godtar nye). Kjører i en egen workflow ([.github/workflows/screenshots.yml](.github/workflows/screenshots.yml)) ved endringer i frontenden, med bildene som artifact.
+
+Kalibrering av retningssignalet: `python3 scripts/backtest_signal.py` regresserer 4-ukers avkastning mot handelspartnerne på de tre faktorene fra snapshotene og foreslår vekter; den sier fra når det er for få observasjoner (`--rate-from 12m --factors rente,momentum` bruker det de utfylte snapshotene har).
 
 Rendering-testene (`tests/render.test.mjs`) bygger hele siden fra `tests/fixtures/` i fire varianter (normal dag, vedtaksdag, land uten kurve, syntetisk anker) og sjekker at ingen tomme verdier havner i DOM, at overskriften «N ting å legge merke til» stemmer med antall idéer, og at idé-tekstene er uendret mot snapshots (`UPDATE_SNAPSHOTS=1 node --test tests/render.test.mjs` godtar nye tekster).
 
