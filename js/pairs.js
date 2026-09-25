@@ -3,7 +3,7 @@ import { nb, nb1, nb2, pct, pct1, rate, signed, pp, moves, cls, name } from "./f
 import { legInfo, pairSeries, pairCandidates, realizedVol } from "./calc.js";
 
 const TAG_TEXT = {
-  carry: "får betalt for å vente", risikonøytral: "isolerer rentesynet", oljenøytral: "lik oljeeksponering",
+  carry: "får betalt for å vente", risikonøytral: "isolerer rentesynet", energinøytral: "lik energieksponering",
   momentum: "medvind siste 3 mnd", kontrær: "motsatt av flokken", "allerede priset": "ligger alt i kursen", "mot strømmen": "mot markedets prising",
 };
 
@@ -54,7 +54,7 @@ export function renderPairs(dashboard, history) {
     if (neutral && neutral !== best && neutral !== carry) cards.push(cardFor("Renest rentesyn", neutral, `Begge valutaene reagerer likt på risikoappetitt, så paret handler om renter – ikke om børsen.`));
     const cashNote = chosen.id === "no"
       ? `Å sitte i kroner er også en posisjon: den følger oljeprisen og Norges Banks rente.`
-      : `Selger du bare kroner, er kronen motparten – og den følger oljeprisen (samvariasjon ${corrWord(info.no.oilCorr)}) og Norges Banks rente (${moves(info.no.imp12)} ventet neste år).`;
+      : `Selger du bare kroner, er kronen motparten – og den følger oljeprisen (samvariasjon ${corrWord(info.no.oilCorr)}${info.no.gasCorr != null ? `, gass ${corrWord(info.no.gasCorr)}` : ""}) og Norges Banks rente (${moves(info.no.imp12)} ventet neste år).`;
     const gapCell = (g) => (g == null ? "–" : Math.abs(g) < 13 ? `<span class="muted">lite</span>` : g > 0
       ? `<span class="neg">ja</span> <small>${moves(g)} mer for long-beinet</small>` : `nei <small>markedet priser ${moves(-g)} mer for short-beinet</small>`);
     const table = rows.map((r) => `<tr>

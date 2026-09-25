@@ -120,6 +120,7 @@ export function legInfo(countries, history) {
   const i44 = history.fx?.I44 || {};
   const riskRet = dailyReturns(history.market?.audjpy || {});
   const oilRet = dailyReturns(history.market?.brent || {});
+  const gasRet = dailyReturns(history.market?.ttf || {});
   const worldSeries = (c) => {
     if (c.id === "no") return Object.fromEntries(Object.entries(i44).map(([d, v]) => [d, 1 / v]));
     const s = history.fx?.[c.currency] || {};
@@ -131,6 +132,7 @@ export function legInfo(countries, history) {
     info[c.id] = {
       riskCorr: correlation(wr, riskRet),
       oilCorr: correlation(wr, oilRet),
+      gasCorr: correlation(wr, gasRet),
       r1y: rate1y(c),
       imp12: c.curve?.implied?.["12m"] ?? null,
       m3: c.id === "no" ? 0 : c.fx?.changes?.m3 ?? null, // endring mot NOK siste 3 mnd
@@ -161,17 +163,19 @@ export function pairCandidates({ countries, info, chosen, isLong, volOf }) {
     const mom = iL.m3 != null && iS.m3 != null ? ((1 + iL.m3 / 100) / (1 + iS.m3 / 100) - 1) * 100 : null;
     const dRisk = iL.riskCorr != null && iS.riskCorr != null ? iL.riskCorr - iS.riskCorr : null;
     const dOil = iL.oilCorr != null && iS.oilCorr != null ? iL.oilCorr - iS.oilCorr : null;
+    const dGas = iL.gasCorr != null && iS.gasCorr != null ? iL.gasCorr - iS.gasCorr : null;
     const vol = volOf ? volOf(L, S) : null;
     const crowded = S.cot?.pct_oi != null && S.cot.pct_oi >= 20 ? S.cot.pct_oi : null;
     const tags = [];
     if (carry != null && carry > 0.5) tags.push(["carry", `Du får betalt ${carry.toFixed(2).replace(".", ",")} pp i året for å vente`]);
     if (dRisk != null && Math.abs(dRisk) < 0.25) tags.push(["risikonøytral", "Begge beina reagerer likt på risikoappetitt – paret isolerer rente-/makrosynet"]);
-    if (dOil != null && Math.abs(dOil) < 0.25) tags.push(["oljenøytral", "Lik oljeeksponering på begge sider"]);
+    // Energinøytral: lik eksponering mot både olje og gass (gass teller bare der vi har korrelasjonen)
+    if (dOil != null && Math.abs(dOil) < 0.25 && (dGas == null || Math.abs(dGas) < 0.25)) tags.push(["energinøytral", dGas == null ? "Lik oljeeksponering på begge sider" : "Lik eksponering mot olje og gass på begge sider"]);
     if (mom != null && mom > 1) tags.push(["momentum", `Paret har gått ${mom.toFixed(1).replace(".", ",")} % din vei siste 3 mnd`]);
     if (crowded != null) tags.push(["kontrær", `Spekulanter er +${crowded} % av OI long ${S.currency} – short-beinet er fullt`]);
     if (gap != null && gap >= 25) tags.push(["allerede priset", `Markedet priser ${bp(gap)} mer for ${L.currency} enn ${S.currency} – du trenger mer enn det som ligger i kurven`]);
     if (gap != null && gap <= -25) tags.push(["mot strømmen", `Markedet priser ${bp(-gap)} mer for ${S.currency}; du satser på at det reverseres`]);
-    return { L, S, other, carry, gap, mom, dRisk, dOil, vol, crowded, tags };
+    return { L, S, other, carry, gap, mom, dRisk, dOil, dGas, vol, crowded, tags };
   });
   const positive = (r) => r.tags.filter(([t]) => t !== "allerede priset").length;
   rows.sort((a, b) => positive(b) - positive(a) || (b.carry ?? -99) - (a.carry ?? -99));

@@ -680,6 +680,16 @@ class RatesByCurrencyTest(unittest.TestCase):
         self.assertEqual(prev["USD"], {"2025-01": 4.5})  # urørt
 
 
+class EnergyDriverTest(unittest.TestCase):
+    def test_energy_driver(self):
+        self.assertEqual(fd.energy_driver(0.35, 0.10), "olje")
+        self.assertEqual(fd.energy_driver(-0.05, -0.30), "gass")   # fortegn spiller ingen rolle
+        self.assertEqual(fd.energy_driver(0.25, 0.20), "begge")
+        self.assertEqual(fd.energy_driver(0.25, None), "olje")
+        self.assertEqual(fd.energy_driver(None, 0.2), "gass")
+        self.assertIsNone(fd.energy_driver(None, None))
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -769,6 +779,11 @@ class BrentContractTest(unittest.TestCase):
         self.assertEqual(fd.trailing_mean({"2026-06-01": 2.0, "2026-09-22": 16.0}), 16.0)  # 1. juni er utenfor 90 dager
         self.assertIsNone(fd.trailing_mean({}))
         self.assertEqual(fd.brent_label("BZX26.NYM"), "nov. 2026-kontrakten (BZX26)")
+        self.assertEqual(fd.brent_label("TTFV26.NYM"), "okt. 2026-kontrakten (TTFV26)")
+        from datetime import date as d
+        self.assertEqual(fd.ttf_front_contracts(d(2026, 9, 25)), ["TTFV26.NYM", "TTFX26.NYM"])
+        self.assertEqual(fd.ttf_front_contracts(d(2026, 12, 15)), ["TTFF27.NYM", "TTFG27.NYM"])
+        self.assertEqual(fd.month_contracts("BZ", 2, d(2026, 11, 30), count=3), ["BZF27.NYM", "BZG27.NYM", "BZH27.NYM"])
 
     def test_front_contract_rolls_after_expiry(self):
         from datetime import date as d
