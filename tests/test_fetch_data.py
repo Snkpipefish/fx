@@ -680,6 +680,18 @@ class RatesByCurrencyTest(unittest.TestCase):
         self.assertEqual(prev["USD"], {"2025-01": 4.5})  # urørt
 
 
+class FillIr3Test(unittest.TestCase):
+    def test_fills_missing_months_from_curve_front(self):
+        ir3 = {"GBP": {"2026-01": 3.71, "2026-02": 3.62}, "NOK": {"2026-08": 4.51}}
+        curves = {"GBP": {"2026-02-10": {"0.25": 3.70, "1": 3.8}, "2026-03-05": {"0.25": 3.80}, "2026-03-20": {"0.25": 3.90}, "2026-04-01": {"1": 4.0}},
+                  "NOK": {"2026-09-10": {"0.25": 4.45}}}
+        out = fd.fill_ir3_from_curves(ir3, curves)
+        self.assertEqual(out["GBP"], {"2026-01": 3.71, "2026-02": 3.62, "2026-03": 3.85})  # feb beholdes fra OECD, mars = snitt, april mangler 0.25
+        self.assertEqual(out["NOK"], {"2026-08": 4.51})  # bare valutaer i CURVE_IR3_FILL
+        self.assertEqual(ir3["GBP"], {"2026-01": 3.71, "2026-02": 3.62})  # urørt
+        self.assertEqual(fd.fill_ir3_from_curves({}, curves)["GBP"], {"2026-02": 3.7, "2026-03": 3.85})
+
+
 class EnergyDriverTest(unittest.TestCase):
     def test_energy_driver(self):
         self.assertEqual(fd.energy_driver(0.35, 0.10), "olje")

@@ -78,7 +78,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **Totalavkastning i sammenligningsgrafen.**
   *Problem:* Grafen viser kurs mot NOK, ikke totalavkastning med carry.
-  *Løsning:* ✅ *(PR «totalavkastning», 25. sep 2026)* `TR_t = TR_{t−1} · S_t/S_{t−1} · (1 + (r_X − r_NOK)/100/360 · dager)` i `totalReturn` (calc.js, testet), med OECDs månedlige 3-mnd-renter per valuta i `history.ir3` (OECD gir 430 dager; historikken flettes med forrige kjøring så den vokser). Bryter «med carry (totalavkastning)» under sammenligningsgrafen bytter datasett og beholder hva som er slått av i tegnforklaringen; aria-teksten følger med. Uten renter for en valuta vises kursen.
+  *Løsning:* ✅ *(PR «totalavkastning», 25. sep 2026)* `TR_t = TR_{t−1} · S_t/S_{t−1} · (1 + (r_X − r_NOK)/100/360 · dager)` i `totalReturn` (calc.js, testet), med OECDs månedlige 3-mnd-renter per valuta i `history.ir3` (OECD gir 430 dager; historikken flettes med forrige kjøring så den vokser). Bryter «med carry (totalavkastning)» under sammenligningsgrafen bytter datasett og beholder hva som er slått av i tegnforklaringen; aria-teksten følger med. Uten renter for en valuta vises kursen. *(Oppfølging:* OECDs 3-mnd-rente for GBP stoppet i februar 2026; `fill_ir3_from_curves` fyller ut manglende måneder med månedssnittet av BoE-OIS 3-mnd-punktet, så GBP-carryen er à jour.)
 
 ## Teknisk
 
