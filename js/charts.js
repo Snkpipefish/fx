@@ -1,5 +1,6 @@
 /* Grafer: SVG-sparklines for kortene (ingen bibliotek) og Chart.js for oversikten. */
 import { nb, nb1, nb2, bp, rate, cssVar, color, name, shortDate, sortedEntries } from "./format.js";
+import { totalReturn } from "./calc.js";
 
 /**
  * Liten SVG-linjegraf med tekstalternativ. `fmt` formaterer verdier til aria-tekst.
@@ -59,9 +60,14 @@ function baseLineOptions(tooltipLabel) {
 
 const legend = () => ({ display: true, position: "bottom", labels: { color: cssVar("--text"), boxWidth: 18, boxHeight: 3 } });
 
+/**
+ * Alle valutaer mot kronen, rebasert til 100. Bryteren «med carry» bytter til totalavkastning:
+ * kurs pluss renteforskjellen mot kronen dag for dag (totalReturn i calc.js, OECD 3-mnd-renter).
+ */
 export function drawComparison(countries, history) {
   const datasets = [];
   let labels = null;
+  const nokRates = history.ir3?.NOK;
   for (const c of countries) {
     if (!c.fx || c.fx.index) continue;
     const series = history.fx?.[c.currency];
@@ -69,22 +75,37 @@ export function drawComparison(countries, history) {
     const entries = sortedEntries(series);
     if (!labels || entries.length > labels.length) labels = entries.map(([d]) => d);
     const base = entries[0][1];
+    const tr = totalReturn(series, history.ir3?.[c.currency], nokRates);
     datasets.push({
       label: name(c), borderColor: color(c), borderWidth: 1.6, pointRadius: 0, tension: 0.2,
-      data: Object.fromEntries(entries.map(([d, v]) => [d, +(v / base * 100).toFixed(2)])),
+      price: Object.fromEntries(entries.map(([d, v]) => [d, +(v / base * 100).toFixed(2)])),
+      carry: tr,
     });
   }
   if (!labels) return;
-  const mapped = datasets.map((ds) => ({ ...ds, data: labels.map((d) => ds.data[d] ?? null) }));
-  new Chart(document.getElementById("comparisonChart"), {
+  const pick = (withCarry) => datasets.map((ds) => ({ ...ds, data: labels.map((d) => (withCarry && ds.carry ? ds.carry[d] : ds.price[d]) ?? null) }));
+  const canvas = document.getElementById("comparisonChart");
+  const chart = new Chart(canvas, {
     type: "line",
-    data: { labels, datasets: mapped },
+    data: { labels, datasets: pick(false) },
     options: {
       ...baseLineOptions((item) => `${item.dataset.label}: ${nb2.format(item.parsed.y)}`),
       plugins: { legend: legend(), tooltip: { callbacks: { label: (item) => `${item.dataset.label}: ${nb2.format(item.parsed.y)}` } } },
       spanGaps: true,
     },
   });
+  const toggle = document.getElementById("comparisonCarry");
+  if (toggle) {
+    toggle.disabled = !datasets.some((ds) => ds.carry);
+    toggle.addEventListener("change", () => {
+      const hidden = chart.data.datasets.map((_, i) => !chart.isDatasetVisible(i));
+      chart.data.datasets = pick(toggle.checked);
+      hidden.forEach((h, i) => chart.setDatasetVisibility(i, !h));
+      canvas.setAttribute("aria-label", toggle.checked ? "Totalavkastning av alle G10-valutaer mot kronen siste år, kurs pluss renteforskjell, rebasert til 100"
+        : "Alle G10-valutaer mot kronen siste år, rebasert til 100");
+      chart.update();
+    });
+  }
 }
 
 /** Implisert rentebane 0–24 mnd frem, med valgfritt lag for én uke siden (stiplet). */

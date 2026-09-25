@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { correlation, realizedVol, rate1y, directionSignal, pairCandidates, dailyReturns } from "../js/calc.js";
+import { correlation, realizedVol, rate1y, directionSignal, pairCandidates, dailyReturns, totalReturn } from "../js/calc.js";
 
 const series = (vals) => Object.fromEntries(vals.map((v, i) => [`2026-01-${String(i + 1).padStart(2, "0")}`, v]));
 
@@ -64,4 +64,17 @@ test("pairCandidates rangerer etter treff og setter riktige merkelapper", () => 
   const short = pairCandidates({ countries, info, chosen: countries[0], isLong: false });
   assert.equal(short[0].S.id, "us");
   assert.ok(short.find((r) => r.L.id === "jp").tags.some(([t]) => t === "kontrær"), "USD er fullt long → kontrær");
+});
+
+test("totalReturn: kurs pluss renteforskjell dag for dag, rebasert til 100", () => {
+  const fx = { "2026-01-01": 10, "2026-01-31": 10, "2026-03-02": 11 };
+  const tr = totalReturn(fx, { "2025-12": 4.0, "2026-02": 5.0 }, { "2025-12": 4.0, "2026-02": 3.0 });
+  assert.equal(tr["2026-01-01"], 100);
+  assert.equal(tr["2026-01-31"], 100);                       // 30 dager uten renteforskjell, flat kurs
+  // 31. jan → 2. mar: 30 dager, renten for januar (ingen februar-verdi ennå på d0) er lik → bare kurs: 110
+  assert.equal(tr["2026-03-02"], 110);
+  const tr2 = totalReturn({ "2026-02-01": 10, "2026-03-03": 10 }, { "2026-02": 5.0 }, { "2026-02": 3.0 });
+  assert.equal(tr2["2026-03-03"], +(100 * (1 + 0.02 / 360 * 30)).toFixed(3)); // 2 pp carry i 30 dager
+  assert.equal(totalReturn(fx, null, {}), null);
+  assert.equal(totalReturn({ "2026-01-01": 10 }, {}, {}), null);
 });
