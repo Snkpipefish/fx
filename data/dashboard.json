@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-25T11:29:39+00:00",
+ "updated": "2026-09-25T11:31:47+00:00",
  "countries": [
   {
    "id": "us",
@@ -1437,13 +1437,13 @@
    }
   },
   "brent_fut": {
-   "value": 104.85,
+   "value": 104.88,
    "date": "2026-09-25",
    "changes": {
-    "d1": -1.64,
-    "w1": 0.94,
-    "m1": 20.6,
-    "y1": 57.72
+    "d1": -1.61,
+    "w1": 0.97,
+    "m1": 20.63,
+    "y1": 57.76
    },
    "contract": "nov. 2026-kontrakten (BZX26)"
   },
@@ -1485,33 +1485,9 @@
  },
  "sources": {
   "brent": {
-   "ok": false,
-   "error": "FRED hoppet over lokalt (DCOILBRENTEU)",
+   "ok": true,
+   "error": null,
    "latest": "2026-09-22",
-   "fetched": "2026-09-25"
-  },
-  "irlt": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "ir3": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "fx": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "i44": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
   "brent_fut": {
@@ -1526,10 +1502,10 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "vix": {
-   "ok": false,
-   "error": "FRED hoppet over lokalt (VIXCLS)",
-   "latest": "2026-09-22",
+  "i44": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
   "ons_cpi": {
@@ -1538,19 +1514,19 @@
    "latest": "2026-08",
    "fetched": "2026-09-25"
   },
-  "ppp": {
+  "fx": {
    "ok": true,
    "error": null,
-   "latest": "2025",
+   "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_us": {
-   "ok": false,
-   "error": "FRED hoppet over lokalt (DGS1MO)",
-   "latest": "2026-09-23",
+  "ir3": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
    "fetched": "2026-09-25"
   },
-  "unemployment": {
+  "irlt": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -1562,13 +1538,43 @@
    "latest": "2026-08",
    "fetched": "2026-09-25"
   },
+  "ppp": {
+   "ok": true,
+   "error": null,
+   "latest": "2025",
+   "fetched": "2026-09-25"
+  },
+  "vix": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-22",
+   "fetched": "2026-09-25"
+  },
+  "ssb_kpi_jae": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "cot": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-15",
+   "fetched": "2026-09-25"
+  },
+  "curve_gb": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
   "scb_kpif": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
    "fetched": "2026-09-25"
   },
-  "curve_gb": {
+  "curve_jp": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
@@ -1580,19 +1586,19 @@
    "latest": "2026-09-23",
    "fetched": "2026-09-25"
   },
-  "ssb_kpi_jae": {
+  "curve_ea": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "unemployment": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
    "fetched": "2026-09-25"
   },
-  "policy": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-22",
-   "fetched": "2026-09-25"
-  },
-  "curve_ea": {
+  "curve_au": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
@@ -1604,28 +1610,22 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "cot": {
+  "curve_us": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-15",
-   "fetched": "2026-09-25"
-  },
-  "curve_jp": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "curve_au": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
+   "latest": "2026-09-23",
    "fetched": "2026-09-25"
   },
   "cpi": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "policy": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
   "curve_se": {
