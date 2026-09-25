@@ -156,6 +156,7 @@ POLICY_SOURCE_LABELS = {"no": "Norges Bank", "se": "Riksbanken", "ca": "Bank of 
                         "us": "Fed (FRED, midtpunkt i intervallet)", "gb": "Bank of England", "au": "RBA", "ch": "SNB"}
 POLICY_LOOKBACK_DAYS = 60
 OVERRIDE_GRACE_DAYS = 5  # dager etter et manuelt vedtak der den offisielle serien får lov å henge etter (virkningsdato)
+OVERRIDE_GRACE_DAYS_BIS = 21  # uten egen serie (BoJ, RBNZ) er BIS eneste kilde, og BIS henger ofte 1–2 uker etter vedtak
 
 
 def policy_start():
@@ -2001,6 +2002,72 @@ def energy_driver(oil_corr, gas_corr, margin=0.1):
     return "begge"
 
 
+# ---------------------------------------------------------------------------
+# Manuelt vedlikeholdte filer inn i kildestatus: as_of, gyldighet og hva som bør gjøres.
+# Radene heter manual_* og vises som egen gruppe; ok=False gir rød kjøring, warn bare merknad.
+# ---------------------------------------------------------------------------
+MEETINGS_WARN_DAYS = 45
+
+
+def meetings_status(meetings, today, as_of=None):
+    """Kalenderen er gyldig til den første banken går tom for kommende møter."""
+    banks = {k: v for k, v in meetings.items() if not k.startswith("_") and isinstance(v, list)}
+    if not banks:
+        return {"ok": False, "error": "meetings.json er tom", "latest": as_of, "fetched": today, "warn": None}
+    last = {k: max(v) for k, v in banks.items() if v}
+    empty = sorted(k for k in banks if not banks[k] or last[k] < today)
+    if empty:
+        return {"ok": False, "error": f"ingen kommende møter for {', '.join(empty)}", "latest": as_of, "fetched": today, "warn": None}
+    first_out = min(last.items(), key=lambda kv: kv[1])
+    days_left = (date.fromisoformat(first_out[1]) - date.fromisoformat(today)).days
+    warn = f"{first_out[0]} går tom for oppførte møter {first_out[1]} – fyll på kalenderen" if days_left <= MEETINGS_WARN_DAYS else None
+    return {"ok": True, "error": None, "latest": as_of, "fetched": today, "warn": warn, "valid_until": first_out[1]}
+
+
+def overrides_status(overrides, statuses, today):
+    """policy_overrides.json: as_of = nyeste post; merknad når en post er bekreftet av serien
+    (kan fjernes) eller avviker fra den (bør rettes)."""
+    entries = {k: v for k, v in overrides.items() if not k.startswith("_")}
+    as_of = max((v.get("as_of") or v.get("date") for v in entries.values() if v.get("as_of") or v.get("date")), default=None)
+    notes = []
+    for cid, st in sorted(statuses.items()):
+        if st == "bekreftet":
+            notes.append(f"{cid} er bekreftet av serien og kan fjernes")
+        elif st == "avvik":
+            notes.append(f"{cid} avviker fra serien – sjekk posten")
+    return {"ok": True, "error": None, "latest": as_of, "fetched": today, "warn": "; ".join(notes) or None, "entries": len(entries)}
+
+
+def meeting_odds_status(odds, used, today):
+    """meeting_odds.json: poster med passert møtedato er utgått og kan fjernes; poster som
+    ikke brukes (futures/OIS finnes) nevnes."""
+    entries = {k: v for k, v in odds.items() if not k.startswith("_")}
+    as_of = max((v.get("as_of") or v.get("date") for v in entries.values() if v.get("as_of") or v.get("date")), default=None)
+    notes = []
+    expired = sorted(k for k, v in entries.items() if v.get("date") and v["date"] < today)
+    unused = sorted(k for k in entries if k not in used and k not in expired)
+    if expired:
+        notes.append(f"utgått (møtet er passert): {', '.join(expired)} – kan fjernes")
+    if unused:
+        notes.append(f"brukes ikke (futures/OIS finnes): {', '.join(unused)}")
+    return {"ok": True, "error": None, "latest": as_of, "fetched": today, "warn": "; ".join(notes) or None, "entries": len(entries)}
+
+
+def cb_paths_status(cb_paths, used, today):
+    """cb_paths.json: as_of = eldste post i bruk; merknad når en post i bruk har passert valid_until."""
+    entries = {k: v for k, v in cb_paths.items() if not k.startswith("_")}
+    in_use = {k: v for k, v in entries.items() if k in used}
+    as_of = min((v.get("as_of") for v in in_use.values() if v.get("as_of")), default=None) if in_use else max((v.get("as_of") for v in entries.values() if v.get("as_of")), default=None)
+    expired = sorted(k for k, v in in_use.items() if v.get("valid_until") and v["valid_until"] < today)
+    notes = []
+    if expired:
+        notes.append(f"utløpt (ny rapport er kommet): {', '.join(expired)}")
+    if in_use:
+        notes.append(f"i bruk for {', '.join(sorted(in_use))}; resten er reserve")
+    return {"ok": True, "error": None, "latest": as_of, "fetched": today, "warn": "; ".join(notes) if expired else None,
+            "note": "; ".join(notes) or None, "entries": len(entries)}
+
+
 def curve_at(series, target_day):
     """Kurvepunktene på eller like før en dato."""
     days = [d for d in series if d <= target_day]
@@ -2298,6 +2365,7 @@ def main():
     overrides = {k: v for k, v in load_existing(DATA_DIR / "policy_overrides.json").items() if not k.startswith("_")}
     cb_paths = {k: v for k, v in load_existing(DATA_DIR / "cb_paths.json").items() if not k.startswith("_")}
     meeting_odds = {k: v for k, v in load_existing(DATA_DIR / "meeting_odds.json").items() if not k.startswith("_")}
+    override_statuses, odds_used, cb_manual_used = {}, set(), set()
     today = str(date.today())
 
     # Britisk KPI fra ONS overstyrer OECD når ONS er nyere
@@ -2350,7 +2418,10 @@ def main():
             policy_source = POLICY_SOURCE_LABELS.get(c["id"], "sentralbanken")
         # Manuelt registrert vedtak (annonseringsdato) bruker vi til seriene har fått det med seg
         ov = overrides.get(c["id"])
-        policy_series, ov_status = apply_policy_override(policy_series, ov, today)
+        policy_series, ov_status = apply_policy_override(policy_series, ov, today,
+                                                         OVERRIDE_GRACE_DAYS if official else OVERRIDE_GRACE_DAYS_BIS)
+        if ov_status:
+            override_statuses[c["id"]] = ov_status
         if ov_status == "brukt":
             policy_source = "vedtak (manuelt registrert)"
         elif ov_status == "avvik":
@@ -2516,6 +2587,7 @@ def main():
                            "path": {d: v for d, v in sorted(auto["path"].items()) if DATE_RE.match(d) and d >= today}}
         if cb_path is None and cb_paths.get(c["id"]):
             manual = cb_paths[c["id"]]
+            cb_manual_used.add(c["id"])
             cb_path = {k: manual[k] for k in ("level", "horizon", "source", "as_of", "valid_until") if k in manual}
             key = f"cb_path_{c['id']}"
             expired = manual.get("valid_until") and manual["valid_until"] < today
@@ -2539,6 +2611,7 @@ def main():
                 next_meeting.update({**implied_next, "source": FUTURES_SOURCES[c["id"]]})
             elif odds and odds.get("date") == next_meeting["date"]:
                 next_meeting.update({k: odds[k] for k in ("bp", "prob", "move", "source") if k in odds})
+                odds_used.add(c["id"])
             elif curve:
                 # Uten futures: les møtet ut av 1/3-mnd-renten der fronten følger styringsrenten (OIS,
                 # swap). Statsveksler har knapphetspremie som ikke kan skilles fra priset bevegelse
@@ -2652,6 +2725,13 @@ def main():
                 d = spread_days[-1]
                 market["brent_next"] = {"value": round(brent_next[d], 2), "date": d, "contract": brent_next_label}
                 market["brent_spread"] = {"value": round(brent_fut[d] - brent_next[d], 2), "date": d}
+
+    # Manuelt vedlikeholdte filer i kildestatus (egen gruppe i bunnteksten)
+    raw_meetings = load_existing(DATA_DIR / "meetings.json")
+    status["manual_meetings"] = meetings_status(raw_meetings, today, raw_meetings.get("_as_of"))
+    status["manual_policy_overrides"] = overrides_status(load_existing(DATA_DIR / "policy_overrides.json"), override_statuses, today)
+    status["manual_meeting_odds"] = meeting_odds_status(load_existing(DATA_DIR / "meeting_odds.json"), odds_used, today)
+    status["manual_cb_paths"] = cb_paths_status(load_existing(DATA_DIR / "cb_paths.json"), cb_manual_used, today)
 
     # Daglig snapshot (og utfylling bakover første gang), pluss path[12]-historikk til frontenden
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)

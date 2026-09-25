@@ -259,15 +259,23 @@ export function renderSources(sources, updated) {
     policy_ea: "Styringsrente EUR (ECB)", policy_us: "Styringsrente USD (FRED)", policy_gb: "Styringsrente GBP (BoE)",
     policy_au: "Styringsrente AUD (RBA)", policy_ch: "Styringsrente CHF (SNB)", policy_jp: "Styringsrente JPY (BIS + manuell)", policy_nz: "Styringsrente NZD (BIS + manuell)",
     cb_path_us: "Fed dot plot (SEP)", cb_path_no: "Norges Banks rentebane (PPR)", cb_path_se: "Riksbankens prognos", cb_path_nz: "RBNZ-bane (manuell)",
-    futures_us: "Fed funds-futures (CME/Yahoo)", futures_au: "Cash rate-futures (ASX)", futures_ca: "CORRA-futures (TMX)", futures_nz: "Bankvekselfutures NZ (ASX)" };
+    futures_us: "Fed funds-futures (CME/Yahoo)", futures_au: "Cash rate-futures (ASX)", futures_ca: "CORRA-futures (TMX)", futures_nz: "Bankvekselfutures NZ (ASX)",
+    manual_meetings: "Rentemøter (meetings.json)", manual_policy_overrides: "Registrerte vedtak (policy_overrides.json)",
+    manual_meeting_odds: "Møteodds som reserve (meeting_odds.json)", manual_cb_paths: "Bankenes baner som reserve (cb_paths.json)" };
   const today = new Date(updated);
   const age = (iso) => (iso ? Math.round((today - new Date(iso.length === 4 ? `${iso}-12-31` : iso.length === 7 ? `${iso}-28` : iso)) / 86400000) : null);
   const limit = (k) => (k === "ppp" ? 800 : k.startsWith("cb_path_") ? 120 : k === "cot" || k === "policy_ch" ? 14 : ["irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "ssb_kpi_jae", "scb_kpif", "pce_core", "abs_trimmed", "boc_core", "unemployment"].includes(k) ? 75 : 10);
+  // Manuelle filer måles på gyldighet (ok/warn), ikke på alder
   const items = Object.entries(sources).map(([k, s]) => {
+    const manual = k.startsWith("manual_");
     const a = age(s.latest);
-    return { label: labels[k] || k, ok: s.ok, latest: s.latest, stale: !s.ok || a == null || a > limit(k) || !!s.warn, error: s.error, warn: s.warn };
+    return { key: k, manual, label: labels[k] || k, ok: s.ok, latest: s.latest, error: s.error, warn: s.warn, note: s.note,
+      valid: s.valid_until, stale: !s.ok || !!s.warn || (!manual && (a == null || a > limit(k))) };
   });
   const bad = items.filter((i) => i.stale);
+  const line = (i) => `<li class="${i.stale ? "neg" : ""}">${i.stale ? "⚠" : "✓"} ${i.label}: ${i.latest ?? "ingen data"}${i.ok ? "" : ` (feilet: ${i.error ?? "ukjent"})`}${i.warn ? ` (${i.warn})` : i.note ? ` <span class="muted">(${i.note})</span>` : ""}${i.valid ? ` <span class="muted">· gyldig til ${shortDate(i.valid)}</span>` : ""}</li>`;
+  const auto = items.filter((i) => !i.manual), manual = items.filter((i) => i.manual);
   el.innerHTML = `<details class="more"><summary>Kildestatus: ${items.length - bad.length} av ${items.length} oppdatert${bad.length ? ` · <span class="neg">${bad.length} bak</span>` : ""}</summary>
-    <ul class="sources">${items.map((i) => `<li class="${i.stale ? "neg" : ""}">${i.stale ? "⚠" : "✓"} ${i.label}: ${i.latest ?? "ingen data"}${i.ok ? "" : ` (feilet: ${i.error ?? "ukjent"})`}${i.warn ? ` (${i.warn})` : ""}</li>`).join("")}</ul></details>`;
+    <ul class="sources">${auto.map(line).join("")}</ul>
+    ${manual.length ? `<p class="note">Manuelt vedlikeholdt (dato = sist oppdatert):</p><ul class="sources">${manual.map(line).join("")}</ul>` : ""}</details>`;
 }

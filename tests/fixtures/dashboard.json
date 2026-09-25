@@ -2437,6 +2437,39 @@
 "latest": "2026-08-19",
 "fetched": "2026-09-25",
 "warn": null
+},
+"manual_meetings": {
+"ok": true,
+"error": null,
+"latest": "2026-09-25",
+"fetched": "2026-09-25",
+"warn": null,
+"valid_until": "2026-11-25"
+},
+"manual_policy_overrides": {
+"ok": true,
+"error": null,
+"latest": "2026-09-23",
+"fetched": "2026-09-25",
+"warn": "jp er bekreftet av serien og kan fjernes",
+"entries": 2
+},
+"manual_meeting_odds": {
+"ok": true,
+"error": null,
+"latest": "2026-09-25",
+"fetched": "2026-09-25",
+"warn": "brukes ikke (futures/OIS finnes): au, ca",
+"entries": 2
+},
+"manual_cb_paths": {
+"ok": true,
+"error": null,
+"latest": "2026-08-19",
+"fetched": "2026-09-25",
+"warn": null,
+"note": "i bruk for nz; resten er reserve",
+"entries": 4
 }
 }
 }

@@ -119,8 +119,11 @@ for (const [name, make] of Object.entries(variants)) {
     assert.equal(body.querySelectorAll("#rates ul.plain li").length, withCurve.length);
     for (const c of dashboard.countries.filter((x) => !x.curve)) assert.ok(text.includes(c.currency), `${c.currency} uten kurve nevnes`);
 
-    // Kilder og grafer
+    // Kilder og grafer: automatiske kilder pluss egen gruppe for manuelt vedlikeholdte filer
     assert.ok(body.querySelectorAll("#sources li").length > 20);
+    assert.match(document.getElementById("sources").textContent, /Manuelt vedlikeholdt/);
+    assert.equal(body.querySelectorAll("#sources ul.sources")[1].querySelectorAll("li").length, 4);
+    assert.match(document.getElementById("sources").textContent, /gyldig til 25\. nov/);
     assert.equal(charts.length, 2, "sammenligningsgraf og rentebane tegnet");
     assert.ok(body.querySelector("#pairResult .pair-card"), "motpost-modulen gir minst ett forslag");
   });

@@ -28,6 +28,12 @@ def main():
     for name, st in sources.items():
         limit = LIMITS.get(name, MONTHLY_DAYS if name in MONTHLY else DEFAULT_DAYS)
         age = age_days(st.get("latest"))
+        if name.startswith("manual_"):  # manuelle filer: gyldighet ligger i ok/warn, ikke i alder
+            if not st.get("ok"):
+                stale.append(f"{name}: {st.get('error')}")
+            if st.get("warn"):
+                notes.append(f"{name}: {st['warn']}")
+            continue
         if age is None or age > limit:
             stale.append(f"{name}: nyeste {st.get('latest')} ({age} dager, grense {limit}){'' if st.get('ok') else ' – siste henting feilet: ' + str(st.get('error'))}")
         if st.get("warn"):  # f.eks. «ubekreftet etter møtet»: vises, men gir ikke rød kjøring
