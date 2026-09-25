@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-25T14:58:25+00:00",
+ "updated": "2026-09-25T15:07:09+00:00",
  "countries": [
   {
    "id": "us",
@@ -36,9 +36,10 @@
     "period": "2026-08"
    },
    "cpi_core": {
-    "value": 2.44598,
-    "period": "2026-08",
-    "label": "KPI uten mat og energi (OECD)"
+    "value": 3.34,
+    "period": "2026-07",
+    "label": "Kjerne-PCE (FRED)",
+    "is_target": true
    },
    "policy_change": {
     "date": "2026-09-16",
@@ -131,25 +132,25 @@
     ],
     "implied": {
      "3m": 32,
-     "6m": 59,
+     "6m": 58,
      "12m": 92,
      "24m": 84
     },
     "path": [
      3.884,
-     3.898,
+     3.903,
      4.048,
      4.193,
      4.268,
      4.378,
-     4.463,
+     4.458,
      4.558,
      4.648,
      4.718,
-     4.753,
-     4.783,
+     4.748,
+     4.778,
      4.798,
-     4.813,
+     4.808,
      4.813,
      4.794,
      4.773,
@@ -184,7 +185,7 @@
      [
       "2026-10-01",
       "2026-10-31",
-      3.895
+      3.9
      ],
      [
       "2026-11-01",
@@ -209,7 +210,7 @@
      [
       "2027-03-01",
       "2027-03-31",
-      4.46
+      4.455
      ],
      [
       "2027-04-01",
@@ -229,12 +230,12 @@
      [
       "2027-07-01",
       "2027-07-31",
-      4.75
+      4.745
      ],
      [
       "2027-08-01",
       "2027-08-31",
-      4.78
+      4.775
      ],
      [
       "2027-09-01",
@@ -244,7 +245,7 @@
      [
       "2027-10-01",
       "2027-10-31",
-      4.81
+      4.805
      ],
      [
       "2027-11-01",
@@ -310,7 +311,8 @@
    "cpi_core": {
     "value": 2.4,
     "period": "2026-08",
-    "label": "HICP uten energi og mat (Eurostat)"
+    "label": "HICP uten energi og mat (Eurostat)",
+    "is_target": false
    },
    "policy_change": {
     "date": "2026-09-10",
@@ -485,7 +487,8 @@
    "cpi_core": {
     "value": 1.7,
     "period": "2026-08",
-    "label": "KPI uten mat og energi (OECD)"
+    "label": "KPI uten mat og energi (OECD) – BoJ styrer etter KPI uten fersk mat",
+    "is_target": false
    },
    "policy_change": {
     "date": "2026-09-18",
@@ -658,7 +661,8 @@
    "cpi_core": {
     "value": 2.9,
     "period": "2026-08",
-    "label": "KPI uten mat og energi (OECD)"
+    "label": "KPI uten mat og energi (OECD) – målet er samlet KPI",
+    "is_target": false
    },
    "policy_change": null,
    "cb_path": null,
@@ -831,7 +835,8 @@
    "cpi_core": {
     "value": 0.5380723,
     "period": "2026-08",
-    "label": "KPI uten mat og energi (OECD)"
+    "label": "KPI uten mat og energi (OECD) – målet er samlet KPI",
+    "is_target": false
    },
    "policy_change": null,
    "cb_path": null,
@@ -998,9 +1003,10 @@
     "period": "2026-08"
    },
    "cpi_core": {
-    "value": 1.895633,
+    "value": 1.95,
     "period": "2026-08",
-    "label": "KPI uten mat og energi (OECD)"
+    "label": "CPI-trim/median (Bank of Canada)",
+    "is_target": true
    },
    "policy_change": null,
    "cb_path": null,
@@ -1221,9 +1227,10 @@
     "period": "2026-07"
    },
    "cpi_core": {
-    "value": 3.644784,
+    "value": 3.6,
     "period": "2026-07",
-    "label": "KPI uten mat og energi (OECD)"
+    "label": "Trimmet gjennomsnitt (ABS, sesongjustert)",
+    "is_target": true
    },
    "policy_change": null,
    "cb_path": null,
@@ -1637,7 +1644,8 @@
    "cpi_core": {
     "value": 0.7,
     "period": "2026-08",
-    "label": "KPIF (SCB)"
+    "label": "KPIF (SCB)",
+    "is_target": true
    },
    "policy_change": null,
    "cb_path": {
@@ -1814,7 +1822,8 @@
    "cpi_core": {
     "value": 3.0,
     "period": "2026-08",
-    "label": "KPI-JAE (SSB)"
+    "label": "KPI-JAE (SSB)",
+    "is_target": true
    },
    "policy_change": {
     "date": "2026-09-23",
@@ -1971,13 +1980,13 @@
    }
   },
   "brent_fut": {
-   "value": 106.3,
+   "value": 106.15,
    "date": "2026-09-25",
    "changes": {
-    "d1": -0.28,
-    "w1": 2.34,
-    "m1": 22.27,
-    "y1": 59.9
+    "d1": -0.42,
+    "w1": 2.2,
+    "m1": 22.1,
+    "y1": 59.67
    },
    "contract": "nov. 2026-kontrakten (BZX26)"
   },
@@ -2018,17 +2027,23 @@
    "avg90": 5.6
   },
   "brent_next": {
-   "value": 99.37,
+   "value": 99.32,
    "date": "2026-09-25",
    "contract": "des. 2026-kontrakten (BZZ26)"
   },
   "brent_spread": {
-   "value": 6.93,
+   "value": 6.83,
    "date": "2026-09-25"
   }
  },
  "sources": {
   "ir3": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "irlt": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -2040,25 +2055,13 @@
    "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
-  "brent_fut": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-25",
-   "fetched": "2026-09-25"
-  },
   "ttf": {
    "ok": true,
    "error": null,
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
-  "ons_cpi": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "i44": {
+  "brent_fut": {
    "ok": true,
    "error": null,
    "latest": "2026-09-25",
@@ -2070,7 +2073,25 @@
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
-  "irlt": {
+  "i44": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-25",
+   "fetched": "2026-09-25"
+  },
+  "pce_core": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-07",
+   "fetched": "2026-09-25"
+  },
+  "cpi_core": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "ons_cpi": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -2082,7 +2103,19 @@
    "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
-  "unemployment": {
+  "boc_core": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "abs_trimmed": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-07",
+   "fetched": "2026-09-25"
+  },
+  "scb_kpif": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -2094,40 +2127,10 @@
    "latest": "2025",
    "fetched": "2026-09-25"
   },
-  "cpi_core": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "curve_us": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-23",
-   "fetched": "2026-09-25"
-  },
   "ssb_kpi_jae": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "scb_kpif": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "curve_ea": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "curve_ca": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
   "curve_jp": {
@@ -2142,16 +2145,52 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
+  "curve_ca": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "policy": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-22",
+   "fetched": "2026-09-25"
+  },
+  "curve_ea": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
   "curve_no": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_au": {
+  "curve_us": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-24",
+   "latest": "2026-09-23",
+   "fetched": "2026-09-25"
+  },
+  "curve_ch": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-25",
+   "fetched": "2026-09-25"
+  },
+  "cot": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-15",
+   "fetched": "2026-09-25"
+  },
+  "futures_nz": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
   "futures_au": {
@@ -2160,7 +2199,7 @@
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
-  "futures_nz": {
+  "policy_se": {
    "ok": true,
    "error": null,
    "latest": "2026-09-25",
@@ -2172,28 +2211,22 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_ch": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-25",
-   "fetched": "2026-09-25"
-  },
   "policy_ca": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "policy_se": {
+  "policy_ea": {
    "ok": true,
    "error": null,
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
-  "policy_us": {
+  "curve_au": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-25",
+   "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
   "policy_gb": {
@@ -2202,10 +2235,10 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "policy": {
+  "policy_us": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-22",
+   "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
   "policy_au": {
@@ -2227,12 +2260,6 @@
    "fetched": "2026-09-25",
    "warn": "ubekreftet etter møtet 2026-09-24"
   },
-  "policy_ea": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-25",
-   "fetched": "2026-09-25"
-  },
   "cb_path_se": {
    "ok": true,
    "error": null,
@@ -2251,16 +2278,16 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "cot": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-15",
-   "fetched": "2026-09-25"
-  },
   "futures_us": {
    "ok": true,
    "error": null,
    "latest": "2026-09-25",
+   "fetched": "2026-09-25"
+  },
+  "unemployment": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
    "fetched": "2026-09-25"
   },
   "cpi": {
