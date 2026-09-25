@@ -269,17 +269,48 @@ def brent_front_contracts(today=None):
     return out
 
 
+BRENT_MONTHS = {"F": "jan", "G": "feb", "H": "mar", "J": "apr", "K": "mai", "M": "jun", "N": "jul", "Q": "aug", "U": "sep", "V": "okt", "X": "nov", "Z": "des"}
+
+
+def brent_label(symbol):
+    code = symbol[2:5]
+    return f"{BRENT_MONTHS[code[0]]}. 20{code[1:]}-kontrakten ({symbol.split('.')[0]})"
+
+
 def fetch_brent_futures():
-    """Front-kontrakten for Brent (ikke Yahoos rullende BZ=F, som hopper mellom
-    kontrakter). Endringer regnes innenfor samme kontrakt. Returnerer serie + etikett."""
+    """De to nærmeste Brent-kontraktene (ikke Yahoos rullende BZ=F, som hopper mellom
+    kontrakter). Endringer regnes innenfor samme kontrakt; front-kontrakten brukes til
+    utløp. Returnerer {"front": serie, "next": serie, "front_label", "next_label"}."""
     symbols = brent_front_contracts()
-    series = fetch_yahoo(symbols[0])
-    if not series:
-        raise RuntimeError(f"ingen data for {symbols[0]}")
-    code = symbols[0][2:5]
-    months = {"F": "jan", "G": "feb", "H": "mar", "J": "apr", "K": "mai", "M": "jun", "N": "jul", "Q": "aug", "U": "sep", "V": "okt", "X": "nov", "Z": "des"}
-    series["_label"] = f"{months[code[0]]}. 20{code[1:]}-kontrakten ({symbols[0].split('.')[0]})"
-    return series
+    front, nxt = fetch_yahoo(symbols[0]), fetch_yahoo(symbols[1])
+    if not front and not nxt:
+        raise RuntimeError(f"ingen data for {symbols[0]} eller {symbols[1]}")
+    return {"front": front, "next": nxt, "front_label": brent_label(symbols[0]), "next_label": brent_label(symbols[1])}
+
+
+def brent_front_and_next(fut):
+    """Velger front-kontrakten så lenge den har ferske kurser; har neste kontrakt en nyere
+    dato (front utløpt eller uten handel), rulles det til den. Returnerer
+    (front-serie, front-etikett, neste-serie, neste-etikett)."""
+    front, nxt = fut.get("front") or {}, fut.get("next") or {}
+    if nxt and (not front or max(nxt) > max(front)):
+        return nxt, fut.get("next_label"), {}, None
+    return front, fut.get("front_label"), nxt, fut.get("next_label")
+
+
+def premium_series(dated, fut):
+    """Spotpremie per dag: Dated Brent minus front-kontrakten samme dato (bare dager der begge finnes)."""
+    return {d: round(dated[d] - fut[d], 2) for d in sorted(set(dated) & set(fut))}
+
+
+def trailing_mean(series, days=90):
+    """Gjennomsnitt av verdiene siste `days` kalenderdager fra siste observasjon."""
+    day, _ = latest(series)
+    if not day:
+        return None
+    cutoff = str(date.fromisoformat(day) - timedelta(days=days))
+    values = [v for d, v in series.items() if d > cutoff]
+    return round(sum(values) / len(values), 2) if values else None
 
 
 def fetch_ons_cpi():
@@ -1778,8 +1809,12 @@ def main():
     # Markedsindikatorer på tvers av landene
     fx_all = sources["fx"] or old_history.get("fx", {})
     brent = sources["brent"] or old_history.get("market", {}).get("brent", {})
-    brent_fut = dict(sources["brent_fut"] or old_history.get("market", {}).get("brent_fut", {}))
-    brent_fut_label = brent_fut.pop("_label", None) or (old_dashboard and load_existing(dashboard_path).get("market", {}).get("brent_fut", {}) or {}).get("contract")
+    old_market = load_existing(dashboard_path).get("market", {}) if old_dashboard else {}
+    if sources["brent_fut"]:
+        brent_fut, brent_fut_label, brent_next, brent_next_label = brent_front_and_next(sources["brent_fut"])
+    else:  # kilden feilet: forrige front-kontrakt fra historikken
+        brent_fut, brent_fut_label = old_history.get("market", {}).get("brent_fut", {}), (old_market.get("brent_fut") or {}).get("contract")
+        brent_next, brent_next_label = old_history.get("market", {}).get("brent_next", {}), (old_market.get("brent_next") or {}).get("contract")
     ttf = sources["ttf"] or old_history.get("market", {}).get("ttf", {})
     vix = sources["vix"] or old_history.get("market", {}).get("vix", {})
     audjpy = {}
@@ -1787,7 +1822,9 @@ def main():
     for day in sorted(set(aud) & set(jpy)):
         if jpy[day]:
             audjpy[day] = round(aud[day] / jpy[day], 3)
-    history["market"] = {"brent": brent, "brent_fut": brent_fut, "ttf": ttf, "vix": vix, "audjpy": audjpy}
+    brent_premium = premium_series(brent, brent_fut)
+    history["market"] = {"brent": brent, "brent_fut": brent_fut, "brent_next": brent_next, "brent_premium": brent_premium,
+                         "ttf": ttf, "vix": vix, "audjpy": audjpy}
 
     def snapshot(series, decimals=2):
         day, value = latest(series)
@@ -1813,11 +1850,18 @@ def main():
     }
     if market["brent_fut"]:
         market["brent_fut"]["contract"] = brent_fut_label
-        # Spotpremie: Dated Brent minus front-kontrakten på samme dato
-        if market["brent"]:
-            fut_same_day = value_at_or_before(brent_fut, market["brent"]["date"])
-            if fut_same_day:
-                market["brent_premium"] = {"value": round(market["brent"]["value"] - fut_same_day, 2), "date": market["brent"]["date"]}
+        # Spotpremie: Dated Brent minus front-kontrakten på samme dato (FRED henger noen dager
+        # etter, så datoen vises), med 90-dagers snitt fra historikken som referanse
+        prem_day, prem = latest(brent_premium)
+        if prem_day:
+            market["brent_premium"] = {"value": prem, "date": prem_day, "avg90": trailing_mean(brent_premium)}
+        # Kalenderspread front − neste kontrakt: positiv = backwardation (stramt marked)
+        if brent_next:
+            spread_days = sorted(set(brent_fut) & set(brent_next))
+            if spread_days:
+                d = spread_days[-1]
+                market["brent_next"] = {"value": round(brent_next[d], 2), "date": d, "contract": brent_next_label}
+                market["brent_spread"] = {"value": round(brent_fut[d] - brent_next[d], 2), "date": d}
 
     dashboard_path.write_text(json.dumps(
         {"updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),

@@ -23,7 +23,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **Dated Brent-lag.**
   *Problem:* FREDs Dated Brent henger tre dager etter, spotpremien regnes på ulike datoer.
-  *Løsning:* `premium = brent_dated[t] − brent_fut[t]` for siste dato der begge finnes, vis «per dd.mm». Legg serien i `history.market` for 90-dagers snitt. Yahoo BZ=F: hent to kontrakter (nov/des) og regn d1/w1 innen samme kontrakt; front til utløp.
+  *Løsning:* ✅ *(PR «brent», 25. sep 2026)* `premium = brent_dated[t] − brent_fut[t]` for siste dato der begge finnes, vist «per dd.mm» (var allerede på plass). Nytt: serien `brent_premium` i `history.market` med 90-dagers snitt (`avg90`) som referanse i teksten; begge kontraktene (nov/des) hentes, front brukes til utløp og rulles automatisk til neste når den ikke lenger har kurs; kalenderspread front − neste (`brent_spread`, positiv = backwardation) lagres og vises. d1/w1 regnes innenfor samme kontrakt som før.
 
 - [ ] **Styringsrenter er manuelle til BIS er à jour.**
   *Problem:* Glemmes `policy_overrides.json`, er tallene feil i noen dager etter hvert vedtak.

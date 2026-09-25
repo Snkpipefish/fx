@@ -127,11 +127,18 @@ export function renderKrone(countries, market) {
     if (market.brent) parts.push(`fysisk Brent (Dated, ${shortDate(market.brent.date)}) <b>${nb0.format(market.brent.value)} USD</b>`);
     let premium = "";
     if (market.brent_premium) {
-      const d = market.brent_premium.value;
-      premium = Math.abs(d) >= 3 ? ` Spotpremien på ${nb0.format(d)} USD samme dag er et ${d > 0 ? "tegn på stramt fysisk marked" : "tegn på slakt fysisk marked"}.` : "";
+      const d = market.brent_premium.value, avg = market.brent_premium.avg90;
+      const vsAvg = avg != null ? ` mot ${nb0.format(avg)} USD i snitt siste 90 dager` : "";
+      premium = Math.abs(d) >= 3 ? ` Spotpremien på ${nb0.format(d)} USD samme dag${vsAvg} er et ${d > 0 ? "tegn på stramt fysisk marked" : "tegn på slakt fysisk marked"}.` : "";
+    }
+    let spread = "";
+    if (market.brent_spread && Math.abs(market.brent_spread.value) >= 1) {
+      const v = market.brent_spread.value;
+      spread = v > 0 ? ` Front-kontrakten ligger ${nb1.format(v)} USD over neste måned (backwardation: markedet betaler for olje nå).`
+        : ` Front-kontrakten ligger ${nb1.format(-v)} USD under neste måned (contango: lagrene fylles).`;
     }
     const corr = market.brent_nok_corr != null ? ` Kronen har fulgt oljen med korrelasjon ${nb2.format(market.brent_nok_corr)} siste 90 dager.` : "";
-    return `<p class="lead">${parts.join(", ")}.${premium}${corr}</p>`;
+    return `<p class="lead">${parts.join(", ")}.${premium}${spread}${corr}</p>`;
   })();
   const gas = market.ttf ? `<p class="lead">Gass (TTF) koster <b>${nb0.format(market.ttf.value)} EUR/MWh</b> (${pct1(market.ttf.changes?.m1)} siste måned).</p>` : "";
   el.innerHTML = `
