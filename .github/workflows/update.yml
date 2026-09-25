@@ -27,6 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Kjør tester
+        run: |
+          python3 -m unittest discover -s tests -v
+          node --test tests/
+
       - name: Hent ferske markedsdata
         run: python3 scripts/fetch_data.py
 
@@ -49,3 +54,7 @@ jobs:
       - name: Publiser til GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      # Kjøres etter publisering, så en gammel kilde gir rød kjøring (varsel) uten å stoppe siden.
+      - name: Sjekk at kildene er ferske
+        run: python3 scripts/check_sources.py

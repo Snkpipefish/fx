@@ -41,13 +41,25 @@ Sveits og New Zealand mangler daglig kurve (SNBs API er ikke oppdatert siden 202
 
 Fra spotkurven regnes 3-måneders terminrenter: `f(h) = (r(h+¼)·(h+¼) − r(h)·h) / ¼`. Priset endring ved horisont *h* er `f(h) − r(¼)`, og nivået i rentebanen er styringsrenten pluss denne endringen. Dermed faller et konstant basis-avvik mellom statspapirer og styringsrente bort. Terminrenter inneholder likevel terminpremie, så tallene skal leses som retning og størrelse på det som er priset, ikke som sannsynligheter. For kurver uten punkter under 6 mnd (Japan) settes 3-mnd-renten lik styringsrenten (merket med `*`).
 
-Kurvehistorikken lagres i `data/history.json` (`curve`) og bygges opp over tid. BoE og MoF publiserer bare inneværende måned per fil, så første kjøring backfyller fra arkivfiler.
+Kurvehistorikken lagres i `data/curves.json` og bygges opp over tid. BoE og MoF publiserer bare inneværende måned per fil, så første kjøring backfyller fra arkivfiler.
 
 ## Slik virker det
 
+- Frontenden er delt i ES-moduler under `js/`: `format.js` (formatering/farger), `calc.js` (ren beregningslogikk, testet), `charts.js` (SVG-sparklines og Chart.js-grafer), `overview.js`, `cards.js`, `pairs.js` og `app.js` (inngang). Chart.js ligger lokalt i `js/vendor/`.
+- Siden laster `data/dashboard.json` først og rendrer alt som ikke trenger historikk; `data/history.json` hentes parallelt og fyller sparklines, sammenligningsgraf og motpost-modul når den er klar. Kurvehistorikken ligger i `data/curves.json` og brukes bare av hentescriptet.
+- Landskortene er kompakte som standard («Vis detaljer» husker valget i nettleseren). Øverst ligger en stripe med dagens bilde: ukens sterkeste/svakeste, største reprising, mest priset innen 12 mnd, høyeste carry, risikoappetitt og neste rentemøte.
 - [scripts/fetch_data.py](scripts/fetch_data.py) henter data fra gratis API-er (Frankfurter/ECB, Norges Bank, BIS, OECD, FRED, CFTC, World Bank og sentralbankenes kurvedata – ingen nøkler) og skriver `data/dashboard.json` og `data/history.json`.
 - GitHub Actions ([.github/workflows/update.yml](.github/workflows/update.yml)) kjører skriptet hver ukedag kl. 06:45 UTC, committer nye data og publiserer siden til GitHub Pages. Alt skjer i skyen – ingen lokal maskin trengs.
 - Frontenden er statisk HTML/CSS/JS med [Chart.js](https://www.chartjs.org/) fra CDN.
+
+## Tester og kildeovervåking
+
+```bash
+python3 -m unittest discover -s tests -v   # terminrenter, interpolasjon, xlsx-leser
+node --test tests/                         # korrelasjon, volatilitet, signal, motpost-rangering
+```
+
+Testene kjøres i GitHub Actions før innhentingen. Alle kilder hentes parallelt med korte timeouts, og `dashboard.json` inneholder `sources` med status og nyeste dato per kilde (vises under «Kildestatus» i bunnteksten). Etter publisering kjører [scripts/check_sources.py](scripts/check_sources.py), som gir rød kjøring hvis en kilde er mer enn 10 dager gammel (14 for COT, 75 for månedlige serier) – et varsel som ikke stopper oppdateringen.
 
 ## Manuelt vedlikehold
 

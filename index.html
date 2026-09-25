@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>G10 Valutadashboard</title>
-  <meta name="description" content="Valutakurser, renter og inflasjon for G10-landene, med Norge i sentrum.">
+  <meta name="description" content="Valutakurser, hva rentemarkedet har priset inn, inflasjon og posisjonering for G10-landene, med Norge i sentrum.">
   <link rel="stylesheet" href="css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="js/vendor/chart.umd.min.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -16,21 +16,25 @@
   </header>
 
   <section class="overview">
-    <div id="movers" class="movers"></div>
+    <div id="today" class="today" aria-label="Dagens bilde"></div>
+
     <div class="panel-row priced-row">
       <div class="panel" id="pricedPanel">
         <h3>Hva er priset inn? <small>· renteendringer markedet har priset, og hvor langt frem</small></h3>
         <div id="pricedTable"></div>
       </div>
       <div class="panel" id="pathPanel">
-        <h3>Implisert rentebane <small>· styringsrenten markedet priser, måneder frem</small></h3>
-        <div class="chart-wrap-md"><canvas id="pathChart"></canvas></div>
+        <h3>Implisert rentebane <small>· styringsrenten markedet priser, måneder frem</small>
+          <label class="toggle"><input type="checkbox" id="pathWeek"> vis for én uke siden</label></h3>
+        <div class="chart-wrap-md"><canvas id="pathChart" role="img" aria-label="Implisert styringsrente per land, 0 til 24 måneder frem"></canvas></div>
       </div>
     </div>
+
     <div class="panel" id="ideasPanel">
       <h3>Idéer fra dataene <small>· automatisk genererte observasjoner til videre graving – ikke anbefalinger</small></h3>
       <div class="ideas" id="ideas"></div>
     </div>
+
     <div class="panel" id="pairPanel">
       <h3>Motposten – ingen posisjon står alene <small>· velg hva du vil eie, og se hva den andre siden av handelen bør være</small></h3>
       <p class="pair-intro">Én posisjon er alltid to: det du kjøpte og cashen du betalte med. Og er du long én ting, er du
@@ -41,14 +45,16 @@
       <div class="pair-controls">
         <label>Jeg vil være
           <select id="pairDir"><option value="long">long</option><option value="short">short</option></select></label>
-        <label><select id="pairLeg"></select></label>
+        <label><select id="pairLeg" aria-label="Valuta"></select></label>
       </div>
-      <div id="pairResult"></div>
+      <div id="pairResult"><p class="loading">Laster historikk …</p></div>
     </div>
+
     <div class="panel">
       <h3>Relativ utvikling mot NOK <small>· rebasert til 100 for ett år siden · klikk i tegnforklaringen for å slå av/på</small></h3>
-      <div class="chart-wrap-lg"><canvas id="comparisonChart"></canvas></div>
+      <div class="chart-wrap-lg"><canvas id="comparisonChart" role="img" aria-label="Alle G10-valutaer mot NOK siste år, rebasert til 100"></canvas></div>
     </div>
+
     <div class="panel-row">
       <div class="panel" id="riskPanel">
         <h3>Risikobarometer</h3>
@@ -61,20 +67,25 @@
     </div>
   </section>
 
-  <main id="grid" class="grid">
+  <div class="grid-head">
+    <h2>Land for land</h2>
+    <button type="button" id="cardMode" class="btn" aria-pressed="false">Vis detaljer</button>
+  </div>
+  <main id="grid" class="grid compact">
     <p class="loading">Laster data …</p>
   </main>
 
   <footer class="footer">
-    <p><strong>Retningssignalet er en enkel heuristikk</strong> basert på rentedifferanser, kursmomentum og realrente
-      – ikke en prognose og ikke investeringsråd.</p>
-    <p><strong>«Priset inn»</strong> er regnet fra terminrenter i OIS- og statskurver (FRED, ECB, Japans finansdepartement,
-      Bank of England, Bank of Canada, Riksbanken, Norges Bank). Terminrenter inneholder terminpremie og viser derfor retning
-      og størrelse på markedets prising, ikke sannsynligheter. Idéene er automatisk genererte observasjoner – ikke investeringsråd.</p>
-    <p>Kilder: ECB/Frankfurter (valutakurser), Norges Bank (I-44), BIS (styringsrenter), OECD (statsrenter og KPI), CFTC (posisjonering).
-      Data oppdateres automatisk hver ukedag via GitHub Actions.</p>
+    <p><strong>Retningssignalet er en enkel heuristikk</strong> basert på priset rentebane, kursmomentum og realrente
+      – ikke en prognose og ikke investeringsråd. «Priset inn» er regnet fra terminrenter i OIS- og statskurver; terminrenter
+      inneholder terminpremie og viser retning og størrelse på markedets prising, ikke sannsynligheter. Idéene og motpost-rangeringen
+      er automatisk genererte observasjoner.</p>
+    <p>Kilder: ECB/Frankfurter (valutakurser), Norges Bank (I-44, nullkupongkurve), BIS (styringsrenter), OECD/Eurostat (renter, KPI, ledighet),
+      FRED, ECB, Japans finansdepartement, Bank of England, Bank of Canada, RBA og Riksbanken (rentekurver), CFTC (posisjonering),
+      World Bank (PPP). Data oppdateres automatisk hver ukedag via GitHub Actions.</p>
+    <div id="sources"></div>
   </footer>
 
-  <script src="js/app.js"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

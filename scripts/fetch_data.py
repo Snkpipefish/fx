@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Henter markedsdata for G10-landene og skriver data/dashboard.json + data/history.json.
+"""Henter markedsdata for G10-landene og skriver data/dashboard.json, data/history.json
+og data/curves.json (kurvehistorikk, brukes bare av dette scriptet).
 
 Kilder (alle gratis, uten API-nøkkel):
   - Valutakurser:      Frankfurter (ECB-referansekurser)
@@ -20,6 +21,7 @@ Kjøres uten argumenter. Feiler én kilde beholdes forrige verdi fra eksisterend
 JSON-filer, slik at en enkelt nede-tjeneste ikke velter hele oppdateringen.
 """
 
+import concurrent.futures
 import csv
 import io
 import json
@@ -70,7 +72,9 @@ PPP_ISO = {"us": "USA", "ea": "DEU", "jp": "JPN", "gb": "GBR", "ch": "CHE",
            "ca": "CAN", "au": "AUS", "nz": "NZL", "se": "SWE", "no": "NOR"}
 
 
-def fetch(url, timeout=60, attempts=4, errors="strict"):
+def fetch(url, timeout=45, attempts=3, errors="strict"):
+    """HTTP GET med få, korte forsøk. Kildene hentes parallelt, så én treg kilde
+    skal ikke koste mer enn sin egen timeout."""
     # Accept-headeren er nødvendig: FRED (Akamai) lar forespørsler uten den henge til timeout
     req = urllib.request.Request(url, headers={"User-Agent": "valuta-dashboard/1.0", "Accept": "*/*"})
     for attempt in range(attempts):
@@ -80,7 +84,7 @@ def fetch(url, timeout=60, attempts=4, errors="strict"):
         except Exception:
             if attempt == attempts - 1:
                 raise
-            time.sleep(5 * (attempt + 1))
+            time.sleep(3 * (attempt + 1))
 
 
 def to_float(value):
@@ -660,7 +664,7 @@ def build_curve(cid, series, policy_series):
     if not metrics:
         return None
     kind, source = CURVE_SOURCES[cid]
-    repricing, y2_change = {}, {}
+    repricing, y2_change, path_w1 = {}, {}, None
     for label, days in (("w1", 7), ("m1", 30)):
         past_day = str(date.fromisoformat(day) - timedelta(days=days))
         past = curve_at(series, past_day)
@@ -670,6 +674,8 @@ def build_curve(cid, series, policy_series):
         past_metrics = curve_metrics(past, past_policy if past_policy is not None else policy)
         if past_metrics:
             repricing[label] = metrics["implied"]["12m"] - past_metrics["implied"]["12m"]
+            if label == "w1":
+                path_w1 = past_metrics["path"]
         if series[day].get("2") is not None and past.get("2") is not None:
             y2_change[label] = round((series[day]["2"] - past["2"]) * 100)
     return {
@@ -679,6 +685,7 @@ def build_curve(cid, series, policy_series):
         "points": {k: round(v, 3) for k, v in sorted(series[day].items(), key=lambda kv: float(kv[0]))},
         "repricing": repricing,
         "y2_change": y2_change,
+        "path_w1": path_w1,
         **metrics,
     }
 
@@ -750,6 +757,47 @@ def pct_change(series, days):
     return round((value / past - 1) * 100, 2)
 
 
+DATE_RE = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")  # ÅÅÅÅ, ÅÅÅÅ-MM eller ÅÅÅÅ-MM-DD
+
+
+def newest_date(obj):
+    """Nyeste periode (YYYY, YYYY-MM eller YYYY-MM-DD) som forekommer som nøkkel eller som
+    første element i en tuppel (World Bank-PPP lagres som {iso: (år, verdi)})."""
+    best = None
+    stack = [obj]
+    while stack:
+        cur = stack.pop()
+        if isinstance(cur, dict):
+            for k, v in cur.items():
+                if isinstance(k, str) and DATE_RE.match(k) and (best is None or k > best):
+                    best = k
+                stack.append(v)
+        elif isinstance(cur, (list, tuple)):
+            if cur and isinstance(cur[0], str) and DATE_RE.match(cur[0]) and (best is None or cur[0] > best):
+                best = cur[0]
+            stack.extend(cur)
+    return best
+
+
+def run_parallel(jobs, workers=8):
+    """Kjører {navn: funksjon} parallelt. Returnerer (resultater, status) der status
+    per kilde er {"ok": bool, "error": str|None, "latest": nyeste dato i dataene}."""
+    results, status = {}, {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(fn): name for name, fn in jobs.items()}
+        for future in concurrent.futures.as_completed(futures):
+            name = futures[future]
+            try:
+                results[name] = future.result()
+                status[name] = {"ok": True, "error": None, "latest": newest_date(results[name])}
+                print(f"  {name}: ok (nyeste {status[name]['latest']})")
+            except Exception as exc:
+                results[name] = None
+                status[name] = {"ok": False, "error": str(exc)[:200], "latest": None}
+                print(f"  ADVARSEL: {name} feilet ({exc}) – beholder forrige data", file=sys.stderr)
+    return results, status
+
+
 def load_existing(path):
     try:
         return json.loads(path.read_text())
@@ -764,49 +812,48 @@ def main():
     old_dashboard = {c["id"]: c for c in load_existing(dashboard_path).get("countries", [])}
     old_history = load_existing(history_path)
 
-    sources = {}
-    for name, fn in [
-        ("fx", fetch_fx_history),
-        ("i44", fetch_i44_history),
-        ("policy", fetch_policy_rates),
-        ("irlt", lambda: fetch_oecd_rates("IRLT")),
-        ("ir3", lambda: fetch_oecd_rates("IR3TIB")),
-        ("cpi", fetch_cpi),
-        ("unemployment", fetch_unemployment),
-        ("brent", lambda: fetch_fred_series("DCOILBRENTEU")),
-        ("vix", lambda: fetch_fred_series("VIXCLS")),
-        ("cot", fetch_cot),
-        ("ppp", fetch_ppp),
-    ]:
-        print(f"Henter {name} ...")
-        try:
-            sources[name] = fn()
-        except Exception as exc:
-            print(f"  ADVARSEL: {name} feilet ({exc}) – beholder forrige data", file=sys.stderr)
-            sources[name] = None
+    curves_path = DATA_DIR / "curves.json"
+    old_curves = load_existing(curves_path).get("curve") or old_history.get("curve", {})
+    old_status = load_existing(dashboard_path).get("sources", {})
 
-    # Rentekurver per land (grunnlag for «hva er priset inn»). BoE og MoF gir bare
-    # inneværende måned per fil, så historikken bygges opp over tid og backfylles
-    # fra arkivfiler første gang.
-    old_curves = old_history.get("curve", {})
-    curve_fetchers = {
-        "us": fetch_curve_us,
-        "ea": fetch_curve_ea,
-        "jp": lambda: fetch_curve_jp(len(old_curves.get("JPY", {}))),
-        "gb": lambda: fetch_curve_gb(len(old_curves.get("GBP", {}))),
-        "ca": fetch_curve_ca,
-        "au": fetch_curve_au,
-        "se": fetch_curve_se,
-        "no": fetch_curve_no,
+    # Alle kilder hentes parallelt; én treg eller nede tjeneste koster bare sin egen timeout.
+    # BoE og MoF gir bare inneværende måned per fil, så kurvehistorikken bygges opp
+    # over tid og backfylles fra arkivfiler første gang.
+    print("Henter kilder parallelt ...")
+    jobs = {
+        "fx": fetch_fx_history,
+        "i44": fetch_i44_history,
+        "policy": fetch_policy_rates,
+        "irlt": lambda: fetch_oecd_rates("IRLT"),
+        "ir3": lambda: fetch_oecd_rates("IR3TIB"),
+        "cpi": fetch_cpi,
+        "unemployment": fetch_unemployment,
+        "brent": lambda: fetch_fred_series("DCOILBRENTEU"),
+        "vix": lambda: fetch_fred_series("VIXCLS"),
+        "cot": fetch_cot,
+        "ppp": fetch_ppp,
+        "curve_us": fetch_curve_us,
+        "curve_ea": fetch_curve_ea,
+        "curve_jp": lambda: fetch_curve_jp(len(old_curves.get("JPY", {}))),
+        "curve_gb": lambda: fetch_curve_gb(len(old_curves.get("GBP", {}))),
+        "curve_ca": fetch_curve_ca,
+        "curve_au": fetch_curve_au,
+        "curve_se": fetch_curve_se,
+        "curve_no": fetch_curve_no,
     }
-    curves = {}
-    for cid, fn in curve_fetchers.items():
-        print(f"Henter rentekurve {cid} ...")
-        try:
-            curves[cid] = fn()
-        except Exception as exc:
-            print(f"  ADVARSEL: rentekurve {cid} feilet ({exc}) – beholder forrige data", file=sys.stderr)
-            curves[cid] = None
+    results, status = run_parallel(jobs)
+    sources = {k: v for k, v in results.items() if not k.startswith("curve_")}
+    curves = {k[6:]: v for k, v in results.items() if k.startswith("curve_")}
+
+    # Kildestatus: ved feil beholdes forrige vellykkede dato, så alder kan overvåkes
+    today_iso = str(date.today())
+    for name, st in status.items():
+        prev = old_status.get(name, {})
+        if st["ok"]:
+            st["fetched"] = today_iso
+        else:
+            st["latest"] = prev.get("latest")
+            st["fetched"] = prev.get("fetched")
 
     meetings = load_existing(DATA_DIR / "meetings.json")
     today = str(date.today())
@@ -816,7 +863,8 @@ def main():
     _, usd_nok_last = latest(usd_nok)
 
     countries = []
-    history = {"fx": {}, "policy": {}, "cot": {}, "market": {}, "curve": {}}
+    history = {"fx": {}, "policy": {}, "cot": {}, "market": {}}
+    curve_history = {}
     for c in COUNTRIES:
         cur, per = c["currency"], c.get("per", 1)
         old = old_dashboard.get(c["id"], {})
@@ -916,7 +964,7 @@ def main():
         curve_series = {d: v for d, v in curve_series.items() if d >= cutoff}
         curve = build_curve(c["id"], curve_series, policy_series) if c["id"] in CURVE_SOURCES else None
         if curve_series:
-            history["curve"][cur] = curve_series
+            curve_history[cur] = curve_series
 
         # Neste rentemøte fra den statiske kalenderen
         upcoming = [d for d in meetings.get(c["id"], []) if d >= today]
@@ -992,10 +1040,13 @@ def main():
 
     dashboard_path.write_text(json.dumps(
         {"updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-         "countries": countries, "market": market},
+         "countries": countries, "market": market, "sources": status},
         ensure_ascii=False, indent=1, allow_nan=False))
+    # history.json lastes av siden; kurvehistorikken brukes bare av dette scriptet
+    # (reprising) og ligger derfor i egen fil.
     history_path.write_text(json.dumps(history, ensure_ascii=False, allow_nan=False))
-    print(f"Skrev {dashboard_path} og {history_path}")
+    curves_path.write_text(json.dumps({"curve": curve_history}, ensure_ascii=False, allow_nan=False))
+    print(f"Skrev {dashboard_path}, {history_path} og {curves_path}")
 
 
 if __name__ == "__main__":

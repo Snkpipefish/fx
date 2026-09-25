@@ -1,0 +1,67 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { correlation, realizedVol, rate1y, directionSignal, pairCandidates, dailyReturns } from "../js/calc.js";
+
+const series = (vals) => Object.fromEntries(vals.map((v, i) => [`2026-01-${String(i + 1).padStart(2, "0")}`, v]));
+
+test("dailyReturns gir logavkastning", () => {
+  const r = dailyReturns(series([100, 110]));
+  assert.ok(Math.abs(r["2026-01-02"] - Math.log(1.1)) < 1e-12);
+});
+
+test("correlation er 1 for identiske serier og −1 for motsatte", () => {
+  const a = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`d${i}`, Math.sin(i)]));
+  const b = Object.fromEntries(Object.entries(a).map(([d, v]) => [d, -v]));
+  assert.ok(Math.abs(correlation(a, a) - 1) < 1e-12);
+  assert.ok(Math.abs(correlation(a, b) + 1) < 1e-12);
+  assert.equal(correlation({ d1: 1 }, { d1: 1 }), null, "for få observasjoner");
+});
+
+test("realizedVol er null for konstant serie og positiv for svingende", () => {
+  assert.equal(realizedVol(series(Array(20).fill(5))), 0);
+  assert.ok(realizedVol(series(Array.from({ length: 20 }, (_, i) => 100 + (i % 2)))) > 0);
+  assert.equal(realizedVol(series([1, 2, 3])), null);
+});
+
+test("rate1y interpolerer kurven og faller tilbake på 3 mnd", () => {
+  assert.equal(rate1y({ curve: { points: { "0.5": 2, "2": 4 } } }), 2 + (4 - 2) * (0.5 / 1.5));
+  assert.equal(rate1y({ curve: { points: { "1": 3.3 } } }), 3.3);
+  assert.equal(rate1y({ rates: { m3: 4.1 } }), 4.1);
+  assert.equal(rate1y({}), null);
+});
+
+test("directionSignal bruker kurven når den finnes", () => {
+  const up = directionSignal({ curve: { implied: { "6m": 60 } }, fx: { changes: { m3: 3 } }, rates: { policy: 4 }, cpi: { value: 2 } });
+  assert.equal(up.dir, "up");
+  const down = directionSignal({ rates: { policy: 4, m3: 3.2 }, fx: { changes: { m3: -3 } }, cpi: { value: 5 } });
+  assert.equal(down.dir, "down");
+  assert.match(down.text, /rentekutt/);
+});
+
+test("pairCandidates rangerer etter treff og setter riktige merkelapper", () => {
+  const countries = [
+    { id: "us", currency: "USD", flag: "", cot: { pct_oi: 30 } },
+    { id: "jp", currency: "JPY", flag: "", cot: { pct_oi: -10 } },
+    { id: "no", currency: "NOK", flag: "" },
+  ];
+  const info = {
+    us: { r1y: 4, imp12: 50, m3: 2, riskCorr: 0.1, oilCorr: 0.2 },
+    jp: { r1y: 1, imp12: 90, m3: -1, riskCorr: -0.6, oilCorr: 0.1 },
+    no: { r1y: 4.5, imp12: 30, m3: 0, riskCorr: 0.2, oilCorr: 0.3 },
+  };
+  const rows = pairCandidates({ countries, info, chosen: countries[0], isLong: true });
+  assert.equal(rows.length, 2);
+  const jpy = rows.find((r) => r.S.id === "jp");
+  assert.equal(jpy.carry, 3);
+  assert.equal(jpy.gap, -40);
+  assert.ok(jpy.tags.some(([t]) => t === "carry"));
+  assert.ok(jpy.tags.some(([t]) => t === "mot strømmen"));
+  assert.ok(!jpy.tags.some(([t]) => t === "risikonøytral"), "ulik risikoprofil");
+  const nok = rows.find((r) => r.S.id === "no");
+  assert.ok(nok.tags.some(([t]) => t === "risikonøytral"));
+  assert.equal(rows[0].S.id, "jp", "flest treff først");
+  // short-retning bytter bein
+  const short = pairCandidates({ countries, info, chosen: countries[0], isLong: false });
+  assert.equal(short[0].S.id, "us");
+  assert.ok(short.find((r) => r.L.id === "jp").tags.some(([t]) => t === "kontrær"), "USD er fullt long → kontrær");
+});
