@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-25T10:56:27+00:00",
+ "updated": "2026-09-25T11:17:53+00:00",
  "countries": [
   {
    "id": "us",
@@ -26,8 +26,8 @@
     "policy_source": "BIS",
     "m3": 4.19,
     "y10": 5.11,
-    "m3_source": "kurve",
-    "y10_source": "kurve",
+    "m3_source": "statsveksel",
+    "y10_source": "statsobligasjon",
     "policy_6m_change": 0.25
    },
    "cpi": {
@@ -40,10 +40,10 @@
     "label": "KPI uten mat og energi (OECD)"
    },
    "policy_change": {
-    "date": "2026-09-17",
+    "date": "2026-09-16",
     "from": 3.625,
     "to": 3.875,
-    "fx_since": 0.67
+    "fx_since": 1.13
    },
    "cb_path": {
     "level": 4.125,
@@ -81,8 +81,8 @@
      "10": 5.11
     },
     "repricing": {
-     "w1": 8,
-     "m1": 33
+     "w1": 33,
+     "m1": 58
     },
     "y2_change": {
      "w1": 11,
@@ -189,8 +189,8 @@
     "policy_source": "BIS",
     "m3": 2.612,
     "y10": 3.566,
-    "m3_source": "kurve",
-    "y10_source": "kurve",
+    "m3_source": "statspapir",
+    "y10_source": "statsobligasjon",
     "policy_6m_change": 0.5
    },
    "cpi": {
@@ -203,10 +203,10 @@
     "label": "HICP uten energi og mat (Eurostat)"
    },
    "policy_change": {
-    "date": "2026-09-16",
+    "date": "2026-09-10",
     "from": 2.25,
     "to": 2.5,
-    "fx_since": 0.01
+    "fx_since": -0.39
    },
    "cb_path": null,
    "unemployment": {
@@ -239,8 +239,8 @@
      "10": 3.566
     },
     "repricing": {
-     "w1": 2,
-     "m1": 30
+     "w1": 1,
+     "m1": 54
     },
     "y2_change": {
      "w1": 8,
@@ -348,7 +348,7 @@
     "m3": 1.45845,
     "y10": 3.073,
     "m3_source": "OECD (månedssnitt)",
-    "y10_source": "kurve",
+    "y10_source": "statsobligasjon",
     "policy_6m_change": 0.5
    },
    "cpi": {
@@ -364,7 +364,7 @@
     "date": "2026-09-18",
     "from": 1.0,
     "to": 1.25,
-    "fx_since": 0.02
+    "fx_since": -0.0
    },
    "cb_path": null,
    "unemployment": {
@@ -395,8 +395,8 @@
      "10": 3.073
     },
     "repricing": {
-     "w1": -21,
-     "m1": -1
+     "w1": 4,
+     "m1": 24
     },
     "y2_change": {
      "w1": 4,
@@ -503,8 +503,8 @@
     "policy_source": "BIS",
     "m3": 3.859,
     "y10": 4.851,
-    "m3_source": "kurve",
-    "y10_source": "kurve",
+    "m3_source": "OIS",
+    "y10_source": "statsobligasjon",
     "policy_6m_change": 0.0
    },
    "cpi": {
@@ -550,7 +550,7 @@
     },
     "repricing": {
      "w1": 4,
-     "m1": 39
+     "m1": 38
     },
     "y2_change": {
      "w1": 5,
@@ -723,8 +723,8 @@
     "policy_source": "BIS",
     "m3": 2.35,
     "y10": 3.96,
-    "m3_source": "kurve",
-    "y10_source": "kurve",
+    "m3_source": "statsveksel",
+    "y10_source": "statsobligasjon",
     "policy_6m_change": 0.0
    },
    "cpi": {
@@ -878,7 +878,7 @@
     "m3": 4.51,
     "y10": 5.245,
     "m3_source": "OECD (månedssnitt)",
-    "y10_source": "kurve",
+    "y10_source": "statsobligasjon",
     "policy_6m_change": 0.25
    },
    "cpi": {
@@ -911,16 +911,17 @@
    "curve": {
     "date": "2026-09-23",
     "kind": "govt",
-    "source": "australske statsobligasjoner (RBA) – inkl. terminpremie",
+    "source": "1-mnd bankveksel + statsobligasjoner (RBA) – inkl. terminpremie",
     "points": {
+     "0.083": 4.46,
      "2": 4.947,
      "3": 4.934,
      "5": 4.965,
      "10": 5.245
     },
     "repricing": {
-     "w1": -6,
-     "m1": 45
+     "w1": -11,
+     "m1": 26
     },
     "y2_change": {
      "w1": -5,
@@ -928,77 +929,77 @@
     },
     "path_w1": [
      4.35,
-     4.391,
+     4.401,
      4.453,
-     4.536,
-     4.598,
-     4.66,
-     4.721,
-     4.783,
-     4.845,
-     4.907,
-     4.969,
-     5.031,
-     5.093,
-     5.155,
-     5.217,
-     5.279,
-     5.34,
-     5.402,
-     5.464,
-     5.526,
-     5.588,
-     5.65,
-     5.447,
-     5.223,
-     4.978
+     4.504,
+     4.555,
+     4.606,
+     4.658,
+     4.709,
+     4.76,
+     4.812,
+     4.863,
+     4.914,
+     4.966,
+     5.017,
+     5.068,
+     5.119,
+     5.171,
+     5.222,
+     5.273,
+     5.325,
+     5.376,
+     5.427,
+     5.258,
+     5.071,
+     4.866
     ],
     "implied": {
-     "3m": 17,
-     "6m": 34,
-     "12m": 68,
-     "24m": 57
+     "3m": 13,
+     "6m": 25,
+     "12m": 51,
+     "24m": 42
     },
     "path": [
      4.35,
-     4.388,
-     4.445,
-     4.521,
-     4.577,
-     4.634,
-     4.691,
-     4.748,
-     4.805,
-     4.862,
-     4.919,
-     4.975,
-     5.032,
-     5.089,
-     5.146,
-     5.203,
-     5.26,
-     5.317,
-     5.373,
-     5.43,
-     5.487,
-     5.544,
-     5.355,
-     5.146,
-     4.918
+     4.392,
+     4.435,
+     4.477,
+     4.519,
+     4.562,
+     4.604,
+     4.646,
+     4.689,
+     4.731,
+     4.773,
+     4.816,
+     4.858,
+     4.9,
+     4.943,
+     4.985,
+     5.027,
+     5.07,
+     5.112,
+     5.154,
+     5.197,
+     5.239,
+     5.096,
+     4.938,
+     4.765
     ],
     "extreme": {
      "months": 21,
-     "level": 5.544,
-     "bp": 119
+     "level": 5.239,
+     "bp": 89
     },
-    "synthetic_anchor": true
+    "synthetic_anchor": false
    },
    "vol30": 5.0,
    "meeting": "2026-09-29",
    "fwd_fx_1y": {
-    "rate": 6.653,
-    "pct": -0.25,
-    "diff": 0.26,
+    "rate": 6.6691,
+    "pct": -0.01,
+    "diff": 0.01,
     "from_curve": true
    }
   },
@@ -1040,7 +1041,7 @@
     "date": "2026-09-03",
     "from": 2.5,
     "to": 2.75,
-    "fx_since": -1.5
+    "fx_since": -1.7
    },
    "cb_path": {
     "level": 3.28,
@@ -1098,8 +1099,8 @@
     "policy_source": "BIS",
     "m3": 1.908,
     "y10": 3.252,
-    "m3_source": "kurve",
-    "y10_source": "kurve",
+    "m3_source": "statsveksel",
+    "y10_source": "statsobligasjon",
     "policy_6m_change": 0.0
    },
    "cpi": {
@@ -1107,9 +1108,9 @@
     "period": "2026-08"
    },
    "cpi_core": {
-    "value": 1.260299,
+    "value": 0.7,
     "period": "2026-08",
-    "label": "KPI uten mat og energi (OECD)"
+    "label": "KPIF (SCB)"
    },
    "policy_change": null,
    "cb_path": {
@@ -1248,8 +1249,8 @@
     "policy_source": "vedtak (manuelt registrert)",
     "m3": 4.449,
     "y10": 4.451,
-    "m3_source": "kurve",
-    "y10_source": "kurve",
+    "m3_source": "statsveksel",
+    "y10_source": "statsobligasjon",
     "policy_6m_change": 0.5
    },
    "cpi": {
@@ -1257,9 +1258,9 @@
     "period": "2026-08"
    },
    "cpi_core": {
-    "value": 3.493282,
+    "value": 3.0,
     "period": "2026-08",
-    "label": "KPI uten mat og energi (OECD)"
+    "label": "KPI-JAE (SSB)"
    },
    "policy_change": {
     "date": "2026-09-23",
@@ -1297,8 +1298,8 @@
      "10": 4.451
     },
     "repricing": {
-     "w1": 10,
-     "m1": 27
+     "w1": 35,
+     "m1": 52
     },
     "y2_change": {
      "w1": 14,
@@ -1387,14 +1388,15 @@
    }
   },
   "brent_fut": {
-   "value": 98.91,
+   "value": 105.41,
    "date": "2026-09-25",
    "changes": {
-    "d1": -7.21,
-    "w1": -4.78,
-    "m1": 12.6,
-    "y1": 42.48
-   }
+    "d1": -1.12,
+    "w1": 1.48,
+    "m1": 21.24,
+    "y1": 58.56
+   },
+   "contract": "nov. 2026-kontrakten (BZX26)"
   },
   "ttf": {
    "value": 75.11,
@@ -1426,19 +1428,23 @@
     "y1": 13.81
    }
   },
-  "brent_nok_corr": 0.25
+  "brent_nok_corr": 0.25,
+  "brent_premium": {
+   "value": 15.64,
+   "date": "2026-09-22"
+  }
  },
  "sources": {
-  "fx": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
+  "brent": {
+   "ok": false,
+   "error": "FRED hoppet over lokalt (DCOILBRENTEU)",
+   "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
-  "brent": {
+  "irlt": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-22",
+   "latest": "2026-08",
    "fetched": "2026-09-25"
   },
   "ir3": {
@@ -1447,7 +1453,19 @@
    "latest": "2026-08",
    "fetched": "2026-09-25"
   },
-  "irlt": {
+  "fx": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "i44": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "ons_cpi": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -1459,28 +1477,16 @@
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
-  "ttf": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
   "vix": {
-   "ok": true,
-   "error": null,
+   "ok": false,
+   "error": "FRED hoppet over lokalt (VIXCLS)",
    "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
-  "ppp": {
+  "ssb_kpi_jae": {
    "ok": true,
    "error": null,
-   "latest": "2025",
-   "fetched": "2026-09-25"
-  },
-  "i44": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
+   "latest": "2026-08",
    "fetched": "2026-09-25"
   },
   "unemployment": {
@@ -1489,13 +1495,25 @@
    "latest": "2026-08",
    "fetched": "2026-09-25"
   },
-  "cpi_core": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
+  "curve_us": {
+   "ok": false,
+   "error": "FRED hoppet over lokalt (DGS1MO)",
+   "latest": "2026-09-23",
    "fetched": "2026-09-25"
   },
-  "ons_cpi": {
+  "ttf": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "ppp": {
+   "ok": true,
+   "error": null,
+   "latest": "2025",
+   "fetched": "2026-09-25"
+  },
+  "cpi_core": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -1507,16 +1525,10 @@
    "latest": "2026-09-23",
    "fetched": "2026-09-25"
   },
-  "cot": {
+  "scb_kpif": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-15",
-   "fetched": "2026-09-25"
-  },
-  "curve_jp": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
+   "latest": "2026-08",
    "fetched": "2026-09-25"
   },
   "curve_gb": {
@@ -1531,16 +1543,10 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_us": {
+  "curve_no": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-23",
-   "fetched": "2026-09-25"
-  },
-  "curve_au": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-23",
+   "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
   "policy": {
@@ -1549,7 +1555,19 @@
    "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
-  "curve_no": {
+  "cot": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-15",
+   "fetched": "2026-09-25"
+  },
+  "curve_jp": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "curve_au": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",

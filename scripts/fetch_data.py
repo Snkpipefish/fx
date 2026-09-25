@@ -243,6 +243,42 @@ def fetch_yahoo(symbol):
     return out
 
 
+BRENT_MONTH_CODES = "FGHJKMNQUVXZ"
+
+
+def brent_front_contracts(today=None):
+    """Yahoo-symboler for nærmeste og neste Brent-kontrakt som ikke har utløpt.
+
+    ICE Brent for leveringsmåned M utløper siste virkedag i måned M−2, så i
+    september er novemberkontrakten front (utløper 30. september).
+    """
+    today = today or date.today()
+    # Første kandidat: leveringsmåned = inneværende måned + 2
+    y, m = today.year, today.month + 2
+    if m > 12:
+        y, m = y + 1, m - 12
+    out = []
+    while len(out) < 2:
+        out.append(f"BZ{BRENT_MONTH_CODES[m - 1]}{str(y)[2:]}.NYM")
+        m += 1
+        if m > 12:
+            y, m = y + 1, 1
+    return out
+
+
+def fetch_brent_futures():
+    """Front-kontrakten for Brent (ikke Yahoos rullende BZ=F, som hopper mellom
+    kontrakter). Endringer regnes innenfor samme kontrakt. Returnerer serie + etikett."""
+    symbols = brent_front_contracts()
+    series = fetch_yahoo(symbols[0])
+    if not series:
+        raise RuntimeError(f"ingen data for {symbols[0]}")
+    code = symbols[0][2:5]
+    months = {"F": "jan", "G": "feb", "H": "mar", "J": "apr", "K": "mai", "M": "jun", "N": "jul", "Q": "aug", "U": "sep", "V": "okt", "X": "nov", "Z": "des"}
+    series["_label"] = f"{months[code[0]]}. 20{code[1:]}-kontrakten ({symbols[0].split('.')[0]})"
+    return series
+
+
 def fetch_ons_cpi():
     """Britisk KPI å/å (ONS-serie D7G7) – ONS publiserer før OECD og uten revisjonslag."""
     raw = json.loads(fetch("https://www.ons.gov.uk/economy/inflationandpriceindices/timeseries/d7g7/mm23/data", timeout=60))
@@ -253,6 +289,44 @@ def fetch_ons_cpi():
         value = to_float(row.get("value"))
         if value is not None and row.get("month") in months:
             out[f"{row['year']}-{months[row['month']]}"] = value
+    return out
+
+
+def fetch_ssb_kpi_jae():
+    """KPI-JAE 12-måneders endring fra SSB (tabell 14706, 2025=100) – Norges Banks målvariabel."""
+    query = {"query": [
+        {"code": "KPIavledetSerie", "selection": {"filter": "item", "values": ["KPI-JAE"]}},
+        {"code": "ContentsCode", "selection": {"filter": "item", "values": ["Tolvmanedersendring"]}},
+        {"code": "Tid", "selection": {"filter": "top", "values": ["4"]}}],
+        "response": {"format": "json"}}
+    req = urllib.request.Request("https://data.ssb.no/api/v0/no/table/14706", data=json.dumps(query).encode(),
+                                 headers={"User-Agent": "valuta-dashboard/1.0", "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        data = json.loads(resp.read().decode("utf-8-sig"))
+    out = {}
+    for row in data["data"]:
+        value = to_float(row["values"][0])
+        if value is not None:
+            out[row["key"][-1].replace("M", "-")] = value
+    return out
+
+
+def fetch_scb_kpif():
+    """KPIF 12-månadsförändring fra SCB (tabell KPIF2020) – Riksbankens målvariabel."""
+    query = {"query": [
+        {"code": "ContentsCode", "selection": {"filter": "item", "values": ["000007ZM"]}},
+        {"code": "Tid", "selection": {"filter": "top", "values": ["4"]}}],
+        "response": {"format": "json"}}
+    req = urllib.request.Request("https://api.scb.se/OV0104/v1/doris/sv/ssd/START/PR/PR0101/PR0101G/KPIF2020",
+                                 data=json.dumps(query).encode(),
+                                 headers={"User-Agent": "valuta-dashboard/1.0", "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        data = json.loads(resp.read().decode("utf-8-sig"))
+    out = {}
+    for row in data["data"]:
+        value = to_float(row["values"][0])
+        if value is not None:
+            out[row["key"][-1].replace("M", "-")] = value
     return out
 
 
@@ -395,7 +469,7 @@ CURVE_SOURCES = {
     "jp": ("govt", "japanske statsobligasjoner (MoF)"),
     "gb": ("ois", "OIS-kurve (Bank of England)"),
     "ca": ("govt", "kanadiske statspapirer (Bank of Canada)"),
-    "au": ("govt", "australske statsobligasjoner (RBA)"),
+    "au": ("govt", "1-mnd bankveksel + statsobligasjoner (RBA)"),
     "se": ("govt", "svenske statspapirer (Riksbanken)"),
     "no": ("zero", "nullkupong statskurve (Norges Bank)"),
 }
@@ -403,9 +477,8 @@ CURVE_SOURCES = {
 # Løpetider (år) som lagres i historikken. Nøkkel i JSON = f"{tenor:g}".
 CURVE_TENORS = (1 / 12, 0.25, 0.5, 1, 2, 3, 5, 10)
 
-# Korteste løpetid som beholdes per land (renser bort punkter fra kilder vi har sluttet å bruke,
-# f.eks. australske bankveksler som lå i historikken).
-CURVE_MIN_TENOR = {"au": 1}
+# Løpetider som renses bort per land (punkter fra kilder vi har sluttet å bruke).
+CURVE_DROP_TENORS = {"au": {"0.25", "0.5"}}  # bankveksler 3/6 mnd
 
 
 def tenor_key(years):
@@ -631,10 +704,9 @@ def fetch_curve_au():
     """
     start = str(curve_start())
     out = {}
-    # Kun F2 (statsobligasjoner). Bankvekslene i F1 (BABs) bærer en kredittpremie som
-    # stiger med løpetiden og ga en falsk «pukkel» i banen; RBAs OIS-serier opphørte
-    # i 2022. Med bare 2 år+ brukes styringsrenten som 3-mnd-anker (synthetic_anchor).
-    for table in ("f2",):
+    # F1 gir 1-mnd bankveksel som frontpunkt (OIS-serien har vært tom siden 2022);
+    # F2 gir statsobligasjoner 2–10 år. 3- og 6-mnd veksler utelates (kredittpremie).
+    for table in ("f1", "f2"):
         raw = fetch(f"https://www.rba.gov.au/statistics/tables/csv/{table}-data.csv", timeout=120)
         rows = list(csv.reader(io.StringIO(raw)))
         titles = next((r for r in rows if r and r[0].strip().lower() == "title"), None)
@@ -646,10 +718,13 @@ def fetch_curve_au():
             if not m or idx == 0 or "indexed" in title.lower():
                 continue
             years = int(m.group(1)) / (12 if m.group(2).lower() == "month" else 1)
-            if table == "f1" and years >= 1:
-                continue
             low = title.lower()
-            priority = 0 if "ois" in low else 1 if "bab" in low or "ncd" in low else 2
+            is_ois = "ois" in low
+            # F1: OIS på alle korte løpetider (serien har vært tom siden 2022), ellers bare
+            # 1-mnd bankveksel – 3- og 6-mnd veksler bærer kredittpremie som ga falsk pukkel
+            if table == "f1" and not is_ois and not (abs(years - 1 / 12) < 1e-6 and ("bab" in low or "ncd" in low)):
+                continue
+            priority = 0 if is_ois else 1 if "bab" in low or "ncd" in low else 2
             candidates.setdefault(years, []).append((priority, idx))
         for row in rows:
             try:
@@ -742,7 +817,9 @@ def build_curve(cid, series, policy_series):
         past_policy = value_at_or_before(policy_series, past_day) if policy_series else policy
         past_metrics = curve_metrics(past, past_policy if past_policy is not None else policy)
         if past_metrics:
-            repricing[label] = metrics["implied"]["12m"] - past_metrics["implied"]["12m"]
+            # Nivåbasert: renten markedet priser om 12 mnd nå minus det samme for en uke/måned
+            # siden. Endring i «implied» ville hoppet 25 bp ved hvert vedtak fordi ankeret flytter seg.
+            repricing[label] = round((metrics["path"][12] - past_metrics["path"][12]) * 100)
             if label == "w1":
                 path_w1 = past_metrics["path"]
         if series[day].get("2") is not None and past.get("2") is not None:
@@ -898,10 +975,12 @@ def main():
         "cpi": fetch_cpi,
         "unemployment": fetch_unemployment,
         "brent": lambda: fetch_fred_series("DCOILBRENTEU"),
-        "brent_fut": lambda: fetch_yahoo("BZ=F"),
+        "brent_fut": fetch_brent_futures,
         "ttf": lambda: fetch_yahoo("TTF=F"),
         "cpi_core": fetch_cpi_core,
         "ons_cpi": fetch_ons_cpi,
+        "ssb_kpi_jae": fetch_ssb_kpi_jae,
+        "scb_kpif": fetch_scb_kpif,
         "vix": lambda: fetch_fred_series("VIXCLS"),
         "cot": fetch_cot,
         "ppp": fetch_ppp,
@@ -994,7 +1073,12 @@ def main():
             past_val = value_at_or_before(policy_series, past_day)
             if past_val is not None and abs(past_val - policy) > 1e-9:
                 change_day = min(d for d in policy_series if d > past_day and abs(policy_series[d] - past_val) > 1e-9)
-                policy_change = {"date": change_day, "from": past_val, "to": policy}
+                # BIS fører virkningsdato; bruk annonseringsdatoen (siste møte inntil 7 dager før)
+                announced = [d for d in meetings.get(c["id"], [])
+                             if d <= change_day and d >= str(date.fromisoformat(change_day) - timedelta(days=7))]
+                if ov and ov.get("date") and ov["date"] == change_day:
+                    announced = [ov["date"]]  # manuelt registrert vedtak: datoen er annonseringsdatoen
+                policy_change = {"date": max(announced) if announced else change_day, "from": past_val, "to": policy}
         _, y10 = latest((sources["irlt"] or {}).get(c["oecd"], {}))
         _, m3 = latest((sources["ir3"] or {}).get(c["oecd"], {}))
         old_rates = old.get("rates", {})
@@ -1019,6 +1103,11 @@ def main():
 
         core_period, core_value = latest((sources["cpi_core"] or {}).get(c["oecd"], {}))
         core_label = "HICP uten energi og mat (Eurostat)" if c["id"] == "ea" else "KPI uten mat og energi (OECD)"
+        # Sentralbankens egen målvariabel der den finnes (KPI-JAE fra SSB, KPIF fra SCB)
+        target = {"no": ("ssb_kpi_jae", "KPI-JAE (SSB)"), "se": ("scb_kpif", "KPIF (SCB)")}.get(c["id"])
+        if target and sources.get(target[0]):
+            core_period, core_value = latest(sources[target[0]])
+            core_label = target[1]
         cpi_core = {"value": core_value, "period": core_period, "label": core_label} if core_period else old.get("cpi_core")
 
         # Arbeidsledighet
@@ -1065,8 +1154,8 @@ def main():
         for day, vals in (curves.get(c["id"]) or {}).items():
             curve_series.setdefault(day, {}).update(vals)
         cutoff = str(date.today() - timedelta(days=400))
-        min_tenor = CURVE_MIN_TENOR.get(c["id"], 0)
-        curve_series = {d: {t: r for t, r in v.items() if float(t) >= min_tenor}
+        drop = CURVE_DROP_TENORS.get(c["id"], set())
+        curve_series = {d: {t: r for t, r in v.items() if t not in drop}
                         for d, v in curve_series.items() if d >= cutoff}
         curve_series = {d: v for d, v in curve_series.items() if v}
         curve = build_curve(c["id"], curve_series, policy_series) if c["id"] in CURVE_SOURCES else None
@@ -1075,17 +1164,25 @@ def main():
         if curve:
             # Dagsferske kurvepunkter foran OECDs månedssnitt der kurven har dem
             if curve["points"].get("0.25") is not None:
-                rates["m3"], rates["m3_source"] = curve["points"]["0.25"], "kurve"
+                rates["m3"] = curve["points"]["0.25"]
+                rates["m3_source"] = "OIS" if curve["kind"] == "ois" else "statsveksel" if curve["kind"] != "govt" or c["id"] in ("us", "no", "se", "ca") else "statspapir"
             if curve["points"].get("10") is not None:
-                rates["y10"], rates["y10_source"] = curve["points"]["10"], "kurve"
+                rates["y10"], rates["y10_source"] = curve["points"]["10"], "statsobligasjon"
             if curve["kind"] != "ois":
                 curve["source"] += " – inkl. terminpremie"
-        # Kursutvikling siden siste renteendring (til «heving levert, kurs ikke fulgt»)
+        # Kursutvikling siden vedtaket, målt mot handelspartnerne (X/NOK ÷ I-44; NOK = 1/I-44),
+        # så kronens egne bevegelser ikke farger bildet
         if policy_change and fx_series:
-            base = value_at_or_before(fx_series, policy_change["date"])
-            if base:
-                since = (fx_value / base - 1) * 100
-                policy_change["fx_since"] = round(-since if invert else since, 2)
+            i44 = sources["i44"] or old_history.get("fx", {}).get("I44", {})
+            def world(day):
+                if cur == "NOK":
+                    v = value_at_or_before(fx_series, day)
+                    return 1 / v if v else None
+                x, b = value_at_or_before(fx_series, day), value_at_or_before(i44, day)
+                return x / b if x and b else None
+            base, now = world(policy_change["date"]), world(fx_day)
+            if base and now:
+                policy_change["fx_since"] = round((now / base - 1) * 100, 2)
 
         # Neste rentemøte fra den statiske kalenderen
         upcoming = [d for d in meetings.get(c["id"], []) if d >= today]
@@ -1133,7 +1230,8 @@ def main():
     # Markedsindikatorer på tvers av landene
     fx_all = sources["fx"] or old_history.get("fx", {})
     brent = sources["brent"] or old_history.get("market", {}).get("brent", {})
-    brent_fut = sources["brent_fut"] or old_history.get("market", {}).get("brent_fut", {})
+    brent_fut = dict(sources["brent_fut"] or old_history.get("market", {}).get("brent_fut", {}))
+    brent_fut_label = brent_fut.pop("_label", None) or (old_dashboard and load_existing(dashboard_path).get("market", {}).get("brent_fut", {}) or {}).get("contract")
     ttf = sources["ttf"] or old_history.get("market", {}).get("ttf", {})
     vix = sources["vix"] or old_history.get("market", {}).get("vix", {})
     audjpy = {}
@@ -1159,12 +1257,19 @@ def main():
     nok_strength = {d: 1 / v for d, v in i44.items() if v}
     market = {
         "brent": snapshot(brent),          # Dated Brent (fysisk spot, FRED)
-        "brent_fut": snapshot(brent_fut),  # ICE Brent front-måned futures (Yahoo BZ=F)
+        "brent_fut": snapshot(brent_fut),  # ICE Brent front-kontrakt (Yahoo, kontrakt for kontrakt)
         "ttf": snapshot(ttf),              # TTF-gass front-måned, EUR/MWh (Yahoo TTF=F)
         "vix": snapshot(vix),
         "audjpy": snapshot(audjpy, 3),
         "brent_nok_corr": correlation(brent, nok_strength),
     }
+    if market["brent_fut"]:
+        market["brent_fut"]["contract"] = brent_fut_label
+        # Spotpremie: Dated Brent minus front-kontrakten på samme dato
+        if market["brent"]:
+            fut_same_day = value_at_or_before(brent_fut, market["brent"]["date"])
+            if fut_same_day:
+                market["brent_premium"] = {"value": round(market["brent"]["value"] - fut_same_day, 2), "date": market["brent"]["date"]}
 
     dashboard_path.write_text(json.dumps(
         {"updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),

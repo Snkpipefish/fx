@@ -99,3 +99,11 @@ class OverrideTest(unittest.TestCase):
         # curve_metrics ankrer nå på 4,50: flat kurve på 4,5 gir null priset endring
         m = fd.curve_metrics({"0.25": 4.5, "1": 4.5, "2": 4.5}, fd.latest(series)[1])
         self.assertEqual(m["implied"]["12m"], 0)
+
+
+class BrentContractTest(unittest.TestCase):
+    def test_front_contract_rolls_after_expiry(self):
+        from datetime import date as d
+        self.assertEqual(fd.brent_front_contracts(d(2026, 9, 25)), ["BZX26.NYM", "BZZ26.NYM"])
+        self.assertEqual(fd.brent_front_contracts(d(2026, 10, 1)), ["BZZ26.NYM", "BZF27.NYM"])
+        self.assertEqual(fd.brent_front_contracts(d(2026, 11, 30))[0], "BZF27.NYM")

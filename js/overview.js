@@ -114,12 +114,12 @@ export function renderKrone(countries, market) {
   const oil = (() => {
     if (!market.brent && !market.brent_fut) return "";
     const parts = [];
-    if (market.brent_fut) parts.push(`Brent-futures koster <b>${nb0.format(market.brent_fut.value)} USD</b> (${pct1(market.brent_fut.changes?.m1)} siste måned)`);
-    if (market.brent) parts.push(`fysisk Brent (Dated) <b>${nb0.format(market.brent.value)} USD</b>`);
+    if (market.brent_fut) parts.push(`Brent-futures koster <b>${nb0.format(market.brent_fut.value)} USD</b> (${market.brent_fut.contract ?? "front-kontrakten"}, ${pct1(market.brent_fut.changes?.m1)} siste måned innenfor kontrakten)`);
+    if (market.brent) parts.push(`fysisk Brent (Dated, ${shortDate(market.brent.date)}) <b>${nb0.format(market.brent.value)} USD</b>`);
     let premium = "";
-    if (market.brent && market.brent_fut) {
-      const d = market.brent.value - market.brent_fut.value;
-      premium = Math.abs(d) >= 3 ? ` – spotpremien på ${nb0.format(d)} USD er et ${d > 0 ? "tegn på stramt fysisk marked" : "tegn på slakt fysisk marked"}` : "";
+    if (market.brent_premium) {
+      const d = market.brent_premium.value;
+      premium = Math.abs(d) >= 3 ? ` – spotpremien på ${nb0.format(d)} USD samme dag er et ${d > 0 ? "tegn på stramt fysisk marked" : "tegn på slakt fysisk marked"}` : "";
     }
     const corr = market.brent_nok_corr != null ? ` Kronen har fulgt oljen med korrelasjon ${nb2.format(market.brent_nok_corr)} siste 90 dager.` : "";
     const gas = market.ttf ? ` Gass (TTF) koster <b>${nb0.format(market.ttf.value)} EUR/MWh</b> (${pct1(market.ttf.changes?.m1)} siste måned).` : "";
@@ -164,8 +164,9 @@ export function renderIdeas(countries, market) {
     .sort((a, b) => a.policy_change.fx_since - b.policy_change.fx_since);
   for (const c of delivered.slice(0, 1)) {
     const pc = c.policy_change;
+    const carry = c.fwd_fx_1y && c.fwd_fx_1y.diff > 0 ? ` Renteforskjellen mot kronen er likevel ${signed(c.fwd_fx_1y.diff, nb2)} pp i ${c.currency}s favør.` : "";
     ideas.push({ tag: "Heving levert, kurs ikke fulgt", text: `${c.bank} hevet til <b>${rate(pc.to)}</b> ${shortDate(pc.date)}, men ${c.currency} er
-      <b>${pct1(pc.fx_since)}</b> mot kronen siden. Klassisk «selg på nyheten»${c.fwd_fx_1y ? ` – og renteforskjellen mot kronen er fortsatt ${signed(c.fwd_fx_1y.diff, nb2)} pp` : ""}.` });
+      <b>${pct1(pc.fx_since)}</b> mot handelspartnerne siden. Enten var hevingen alt i kursen, eller så la banken vekt på pause videre.${carry}` });
   }
   const carry = countries.filter((c) => c.fwd_fx_1y).sort((a, b) => b.fwd_fx_1y.diff - a.fwd_fx_1y.diff);
   if (carry.length >= 2) {
@@ -190,12 +191,12 @@ export function renderSources(sources, updated) {
   if (!el || !sources) return;
   const labels = { fx: "Valutakurser (ECB)", i44: "I-44 (Norges Bank)", policy: "Styringsrenter (BIS)", irlt: "10-års renter (OECD)",
     ir3: "3-mnd renter (OECD)", cpi: "KPI (OECD/Eurostat)", unemployment: "Ledighet (OECD/Eurostat)", brent: "Brent (FRED)", vix: "VIX (FRED)",
-    cot: "COT (CFTC)", ppp: "PPP (World Bank)", cpi_core: "Kjerne-KPI (OECD/Eurostat)", ons_cpi: "KPI Storbritannia (ONS)",
+    cot: "COT (CFTC)", ppp: "PPP (World Bank)", cpi_core: "Kjerne-KPI (OECD/Eurostat)", ons_cpi: "KPI Storbritannia (ONS)", ssb_kpi_jae: "KPI-JAE (SSB)", scb_kpif: "KPIF (SCB)",
     brent_fut: "Brent-futures (Yahoo)", ttf: "TTF-gass (Yahoo)", curve_us: "Kurve USD", curve_ea: "Kurve EUR", curve_jp: "Kurve JPY", curve_gb: "Kurve GBP",
     curve_ca: "Kurve CAD", curve_au: "Kurve AUD", curve_se: "Kurve SEK", curve_no: "Kurve NOK" };
   const today = new Date(updated);
   const age = (iso) => (iso ? Math.round((today - new Date(iso.length === 4 ? `${iso}-12-31` : iso.length === 7 ? `${iso}-28` : iso)) / 86400000) : null);
-  const limit = (k) => (k === "ppp" ? 800 : k === "cot" ? 14 : ["irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "unemployment"].includes(k) ? 75 : 10);
+  const limit = (k) => (k === "ppp" ? 800 : k === "cot" ? 14 : ["irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "ssb_kpi_jae", "scb_kpif", "unemployment"].includes(k) ? 75 : 10);
   const items = Object.entries(sources).map(([k, s]) => {
     const a = age(s.latest);
     return { label: labels[k] || k, ok: s.ok, latest: s.latest, stale: !s.ok || a == null || a > limit(k), error: s.error };
