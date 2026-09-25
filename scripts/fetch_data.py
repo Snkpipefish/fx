@@ -939,6 +939,7 @@ FUTURES_SOURCES = {
     "us": "fed funds-futures per måned (CME via Yahoo)",
     "au": "30-dagers cash rate-futures (ASX)",
     "ca": "CORRA-futures 1 mnd og 3 mnd (Montréal-børsen)",
+    "nz": "90-dagers bankvekselfutures (ASX) med OECDs 3-mnd-rente som front",
 }
 FUTURES_MAX_MONTHS = 24
 
@@ -1009,6 +1010,47 @@ def parse_asx_ib(payload):
             continue
         month, year = BRENT_MONTH_CODES.index(m.group(1)) + 1, int(m.group(2))
         out.setdefault(day, []).append([*month_span(year, month), round(100 - price, 4)])
+    return out
+
+
+def parse_asx_bb(payload):
+    """ASX NZ 90 Day Bank Bill Futures (BB): {dag: [[start, slutt, rente], ...]}. Kontrakten
+    gjør opp mot 90-dagers BKBM på utløpsdagen, så perioden er de 90 dagene fra utløp.
+    Kontrakter uten siste handel (priceLastTrade tom) er illikvide med stående oppgjørspris
+    og hoppes over."""
+    out = {}
+    for item in payload.get("data", {}).get("items", []):
+        m = re.fullmatch(r"BB([FGHJKMNQUVXZ])(\d{4})", item.get("symbol") or "")
+        price = to_float(item.get("pricePreviousSettlement"))
+        day, expiry = item.get("datePreviousSettlement"), item.get("dateExpiry")
+        if not m or price is None or not day or not expiry or item.get("priceLastTrade") is None:
+            continue
+        end = str(date.fromisoformat(expiry) + timedelta(days=90))
+        out.setdefault(day, []).append([expiry, end, round(100 - price, 4)])
+    return out
+
+
+def fetch_futures_nz():
+    url = "https://asx.api.markitdigital.com/asx-research/1.0/derivatives/interest-rate/bb/futures?days=1&height=179&width=179"
+    out = parse_asx_bb(json.loads(fetch(url, timeout=60)))
+    if not out:
+        raise RuntimeError("ingen BB-kontrakter i svaret fra ASX")
+    return out
+
+
+def add_monthly_front(futures_series, monthly):
+    """Legger en syntetisk front-periode for dagens kalendermåned fra en månedlig 3-mnd-rente
+    ({«ÅÅÅÅ-MM»: rente}, f.eks. OECD): nyeste måned til og med dagens måned. Gir
+    kvartalskontrakter et nåpunkt og en basis (renten er et månedssnitt som henger litt etter)."""
+    months = sorted(m for m in monthly if monthly[m] is not None)
+    out = {}
+    for day, periods in futures_series.items():
+        usable = [m for m in months if m <= day[:7]]
+        extra = []
+        if usable:
+            y, mo = map(int, day[:7].split("-"))
+            extra = [[*month_span(y, mo), monthly[usable[-1]]]]
+        out[day] = [p for p in periods if not p[0].endswith("-01")] + extra
     return out
 
 
@@ -1308,24 +1350,26 @@ def build_curve(cid, series, policy_series, futures_series=None):
     Finnes futures på styringsrenten (futures_series), overstyrer de banen og prisingen;
     statskurven beholdes for punktene (3 mnd, 10 år, terminkurs) og for skjøten utover
     siste kontrakt."""
-    if not series:
-        return None
+    series = series or {}
     policy_day, policy = latest(policy_series)
     # Kilder med flere delserier kan mangle de korte punktene på siste dag;
     # bruk nyeste dag (inntil en uke tilbake) der kurven er komplett nok.
-    day, metrics = None, None
+    day, metrics, basis = None, None, None
     for candidate in sorted(series, reverse=True)[:7]:
         if curve_metrics(series[candidate], policy):
             day = candidate
             break
-    if not day:
+    if day:
+        # Samme basis for dagens og tidligere baner, så reprising er rent forventningsskift
+        basis = curve_basis(series, policy_series, day)
+        metrics = curve_metrics(series[day], policy, basis)
+    elif not futures_series or policy is None:
         return None
-    # Samme basis for dagens og tidligere baner, så reprising er rent forventningsskift
-    basis = curve_basis(series, policy_series, day)
-    metrics = curve_metrics(series[day], policy, basis)
-    kind, source = CURVE_SOURCES[cid]
+    else:
+        day = str(date.today())  # bare futures: «kurvedato» settes av futures-dagen under
+    kind, source = CURVE_SOURCES.get(cid, ("futures", "futures"))
     repricing, y2_change, path_w1 = {}, {}, None
-    for label, days in (("w1", 7), ("m1", 30)):
+    for label, days in (("w1", 7), ("m1", 30)) if metrics else ():
         past_day = str(date.fromisoformat(day) - timedelta(days=days))
         past = curve_at(series, past_day)
         if not past:
@@ -1344,16 +1388,18 @@ def build_curve(cid, series, policy_series, futures_series=None):
         "date": day,
         "kind": kind,
         "source": source,
-        "points": {k: round(v, 3) for k, v in sorted(series[day].items(), key=lambda kv: float(kv[0]))},
+        "points": {k: round(v, 3) for k, v in sorted(series[day].items(), key=lambda kv: float(kv[0]))} if metrics else {},
         "repricing": repricing,
         "y2_change": y2_change,
         "path_w1": path_w1,
-        **metrics,
+        **(metrics or {}),
     }
     fut_day = max((d for d in (futures_series or {}) if d >= str(date.fromisoformat(day) - timedelta(days=7))), default=None)
+    if not fut_day and not metrics:
+        return None
     if fut_day:
         fut_basis = futures_basis(futures_series, policy_series, fut_day)
-        fut = futures_metrics(futures_series[fut_day], policy, fut_basis, date.fromisoformat(fut_day), metrics["path"], policy_series)
+        fut = futures_metrics(futures_series[fut_day], policy, fut_basis, date.fromisoformat(fut_day), metrics["path"] if metrics else None, policy_series)
         if fut:
             fut_rep, fut_w1 = {}, None
             for label, days in (("w1", 7), ("m1", 30)):
@@ -1361,7 +1407,7 @@ def build_curve(cid, series, policy_series, futures_series=None):
                 past_key = max((d for d in futures_series if d <= past_day), default=None)
                 if not past_key:
                     continue  # snapshot-kilder uten historikk ennå: ingen reprising før den bygges opp
-                past_govt = curve_at(series, past_day)
+                past_govt = curve_at(series, past_day) if series else None
                 past_govt_metrics = curve_metrics(past_govt, policy, basis) if past_govt else None
                 past_fut = futures_metrics(futures_series[past_key], value_at_or_before(policy_series, past_key) or policy, fut["anchor"]["basis"],
                                            date.fromisoformat(past_key), past_govt_metrics["path"] if past_govt_metrics else None, policy_series)
@@ -1370,11 +1416,12 @@ def build_curve(cid, series, policy_series, futures_series=None):
                     if label == "w1":
                         fut_w1 = past_fut["path"]
             horizon = fut.pop("horizon_months")
-            splice = f" + {source} etter {horizon} mnd" if horizon is not None and horizon < FUTURES_MAX_MONTHS else ""
+            splice = (f" + {source} etter {horizon} mnd" if metrics else f", flat etter {horizon} mnd") if horizon is not None and horizon < FUTURES_MAX_MONTHS else ""
             out.update({
                 "kind": "futures",
+                "date": fut_day if not metrics else day,
                 "source": FUTURES_SOURCES.get(cid, "futures") + splice,
-                "govt_source": source,
+                "govt_source": source if metrics else None,
                 "futures_date": fut_day,
                 "futures": futures_series[fut_day],
                 "repricing": fut_rep,
@@ -1545,12 +1592,16 @@ def main():
         "curve_au": fetch_curve_au,
         "curve_se": fetch_curve_se,
         "curve_no": fetch_curve_no,
-        "curve_nz": fetch_curve_nz,
         "curve_ch": fetch_curve_ch,
         "futures_us": fetch_futures_us,
         "futures_au": fetch_futures_au,
         "futures_ca": fetch_futures_ca,
+        "futures_nz": fetch_futures_nz,
     }
+    # RBNZ ligger bak Cloudflare, som også blokkerer GitHub-runnere; B2-kurven hentes bare
+    # når scripts/fetch_rbnz.py har lagt fila klar (f.eks. lokalt)
+    if Path(os.environ.get("RBNZ_B2_FILE", RBNZ_B2_FILE)).exists():
+        jobs["curve_nz"] = fetch_curve_nz
     results, status = run_parallel(jobs)
     sources = {k: v for k, v in results.items() if not k.startswith(("curve_", "futures_"))}
     curves = {k[6:]: v for k, v in results.items() if k.startswith("curve_")}
@@ -1721,6 +1772,9 @@ def main():
         # Futures på styringsrenten: dagens snapshot (ASX, TMX) eller historikk (Yahoo) flettes inn
         futures_series = {d: list(v) for d, v in old_futures.get(cur, {}).items() if d >= cutoff}
         futures_series.update(futures.get(c["id"]) or {})
+        if c["id"] == "nz" and futures_series:
+            # Kvartalskontraktene starter først om 2–3 mnd; OECDs 3-mnd-rente (månedssnitt) gir nåpunktet
+            futures_series = add_monthly_front(futures_series, (sources["ir3"] or {}).get(c["oecd"], {}))
         curve = build_curve(c["id"], curve_series, policy_series, futures_series) if c["id"] in CURVE_SOURCES else None
         if curve_series:
             curve_history[cur] = curve_series

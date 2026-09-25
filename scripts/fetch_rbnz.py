@@ -9,6 +9,10 @@ deretter med fetch() inne i siden og skrives til .cache/rbnz-b2.xlsx, som
 scripts/fetch_data.py leser (fetch_curve_nz).
 
 Kjør: pip install playwright && playwright install --with-deps chromium && python3 scripts/fetch_rbnz.py
+
+Merk: fra GitHub-runnere svarer rbnz.govt.nz 403 også for selve siden (Cloudflare
+blokkerer IP-området), så dette virker bare fra vanlige nett. fetch_data.py bruker
+fila når den finnes; ellers kommer NZD-kurven fra ASXs bankvekselfutures.
 """
 import base64
 import os
