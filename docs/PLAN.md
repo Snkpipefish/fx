@@ -39,7 +39,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
   | RBA | `f1-data.csv` (`FIRMMCRTD`) |
   | SNB | kube `snbpolizid` (sjekk) |
   BoJ og RBNZ: behold override, men legg til *kalendervakt*: hvis `meetings.json` har et møte ≤ i dag og `policy_date` < møtedato, vis «ubekreftet etter møtet» på kortet og i kildestatus.
-  ✅ *(PR «styringsrenter», 25. sep 2026)* Alle åtte kildene over virker (SNB: `snbgwdzid` serie `LZ`, daglig; ECB gir bare endringsdatoer og videreføres som trapp; Fed = midtpunkt av `DFEDTARU`/`DFEDTARL`). `merge_policy` lar sentralbankens serie overstyre BIS fra sin første dato. Seriene fører **virkningsdato**, så Norges Bank viste 4,25 % t.o.m. 24. sep etter vedtaket 23. sep: `apply_policy_override` bruker den manuelle posten (annonseringsdato) inntil fem dager etter, deretter vinner serien og fila varsles som «avvik». Kalendervakt for alle banker (`unconfirmed_meeting`): `rates.policy_unconfirmed` på kortet og i lista, `warn` i kildestatus; BoJ/RBNZ får egne statusrader «BIS + manuell».
+  ✅ *(PR «styringsrenter», 25. sep 2026)* Alle åtte kildene over virker (SNB: `snbgwdzid` serie `LZ`, daglig; ECB gir bare endringsdatoer og videreføres som trapp; Fed = midtpunkt av `DFEDTARU`/`DFEDTARL`). `merge_policy` lar sentralbankens serie overstyre BIS fra sin første dato. Seriene fører **virkningsdato**, så Norges Bank viste 4,25 % t.o.m. 24. sep etter vedtaket 23. sep: `apply_policy_override` bruker den manuelle posten (annonseringsdato) inntil fem dager etter, deretter vinner serien og fila varsles som «avvik». For BoJ og RBNZ, der BIS er eneste serie og henger 1–2 uker etter vedtak (BIS viste 1,0 % for Japan 22. sep etter hevingen 18. sep), er slingringsmonnet 21 dager. Kalendervakt for alle banker (`unconfirmed_meeting`): `rates.policy_unconfirmed` på kortet og i lista, `warn` i kildestatus; BoJ/RBNZ får egne statusrader «BIS + manuell».
 
 - [ ] **Neste-møte-prising er manuell.**
   *Problem:* `meeting_odds.json` finnes bare for RBA og BoC. Andre banker viser kurvens 3-mnd-prising, som ikke skiller møtet fra resten av kvartalet.
@@ -92,7 +92,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **Manuelle filer uten varsel.**
   *Problem:* Kildesjekken dekker API-kilder, ikke `meetings.json`, `policy_overrides.json`, `cb_paths.json` og `meeting_odds.json`.
-  *Løsning:* Gi alle fire `as_of` + `valid_until`, ta dem inn i `renderSources` som egen gruppe «manuelt vedlikeholdt» med samme ⚠-logikk.
+  *Løsning:* ✅ *(PR «manuelle-filer», 25. sep 2026)* Alle fire har `as_of` (`_as_of` i meetings.json, per post i de andre; cb_paths hadde det). Fire statusrader `manual_*` regnes i `fetch_data.py`: **meetings** – gyldig til den første banken går tom for oppførte møter (`valid_until`), merknad 45 dager før, **rød** når en bank mangler kommende møter; **policy_overrides** – merknad når en post er bekreftet av serien (kan fjernes) eller avviker; **meeting_odds** – utgåtte poster (møtet passert) og poster som ikke brukes fordi futures/OIS finnes; **cb_paths** – hvilke poster som er i bruk (reserve for resten) og utløpt `valid_until`. `renderSources` viser dem som egen gruppe «Manuelt vedlikeholdt» med ⚠ på ok=false/warn (ikke aldersgrense); `check_sources.py` gir rødt bare på ok=false, merknader listes.
 
 - [ ] **Skrifter fra Google Fonts.**
   *Problem:* Siden er ikke uavhengig av tredjepart (`index.html` linje 8–10).

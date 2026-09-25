@@ -690,6 +690,38 @@ class EnergyDriverTest(unittest.TestCase):
         self.assertIsNone(fd.energy_driver(None, None))
 
 
+class ManualFilesStatusTest(unittest.TestCase):
+    def test_meetings_status(self):
+        meetings = {"_kommentar": "x", "us": ["2026-09-16", "2026-10-28"], "nz": ["2026-10-28", "2026-11-25"]}
+        st = fd.meetings_status(meetings, "2026-09-25", "2026-09-25")
+        self.assertTrue(st["ok"])
+        self.assertEqual(st["valid_until"], "2026-10-28")
+        self.assertIn("us går tom", st["warn"])  # 33 dager igjen < 45
+        far = {"us": ["2027-06-01"], "nz": ["2027-03-01"]}
+        self.assertIsNone(fd.meetings_status(far, "2026-09-25")["warn"])
+        gone = fd.meetings_status({"us": ["2026-09-16"], "nz": ["2027-03-01"]}, "2026-09-25")
+        self.assertFalse(gone["ok"])
+        self.assertIn("us", gone["error"])
+        self.assertFalse(fd.meetings_status({"_kommentar": "x"}, "2026-09-25")["ok"])
+
+    def test_overrides_and_odds_and_cb_paths_status(self):
+        ov = {"_kommentar": "x", "no": {"date": "2026-09-23", "rate": 4.5, "as_of": "2026-09-23"}, "jp": {"date": "2026-09-18", "rate": 1.25}}
+        st = fd.overrides_status(ov, {"no": "brukt", "jp": "bekreftet"}, "2026-09-25")
+        self.assertEqual((st["latest"], st["entries"]), ("2026-09-23", 2))
+        self.assertIn("jp er bekreftet", st["warn"])
+        self.assertIn("avviker", fd.overrides_status(ov, {"no": "avvik"}, "2026-09-25")["warn"])
+        self.assertIsNone(fd.overrides_status(ov, {"no": "brukt"}, "2026-09-25")["warn"])
+        odds = {"au": {"date": "2026-09-29", "bp": 23, "as_of": "2026-09-25"}, "ca": {"date": "2026-09-09", "bp": 13}, "gb": {"date": "2026-11-05", "bp": 20}}
+        st = fd.meeting_odds_status(odds, {"gb"}, "2026-09-25")
+        self.assertIn("utgått", st["warn"]); self.assertIn("ca", st["warn"])
+        self.assertIn("brukes ikke", st["warn"]); self.assertIn("au", st["warn"])
+        paths = {"us": {"level": 4.1, "as_of": "2026-09-16", "valid_until": "2026-12-09"}, "nz": {"level": 3.28, "as_of": "2026-08-19", "valid_until": "2026-08-30"}}
+        st = fd.cb_paths_status(paths, {"nz"}, "2026-09-25")
+        self.assertEqual(st["latest"], "2026-08-19")
+        self.assertIn("utløpt", st["warn"]); self.assertIn("nz", st["warn"])
+        self.assertIsNone(fd.cb_paths_status(paths, {"us"}, "2026-09-25")["warn"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -718,6 +750,8 @@ class OverrideTest(unittest.TestCase):
         series = {"2026-09-24": 4.25, "2026-09-30": 4.25}
         out, st = fd.apply_policy_override(series, ov, "2026-10-01")
         self.assertEqual((st, out), ("avvik", series))
+        # Uten egen serie (BIS eneste kilde) gjelder lengre slingringsmonn: 21 dager
+        self.assertEqual(fd.apply_policy_override(series, ov, "2026-10-01", fd.OVERRIDE_GRACE_DAYS_BIS)[1], "brukt")
         # Fremtidig eller ufullstendig post ignoreres
         self.assertEqual(fd.apply_policy_override(series, {"date": "2026-10-05", "rate": 4.5}, "2026-10-01")[1], None)
         self.assertEqual(fd.apply_policy_override(series, {"date": "2026-09-23"}, "2026-10-01")[1], None)

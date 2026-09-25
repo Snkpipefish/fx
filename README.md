@@ -41,7 +41,7 @@ Tre små JSON-filer i `data/` holdes ved like for hånd:
 - `cb_paths.json` – sentralbankenes egne renteanslag (dot plot, rentebane), som vises som en rombe i hantelgrafen og gir setningen «markedet ligger lengst fra bankens eget anslag for …». Fed (SEP), Norges Bank (PPR-tallsett) og Riksbanken (utfall och prognoser) hentes automatisk og sammenlignes ved 12 måneders horisont; fila er reserve for dem og eneste kilde for RBNZ. Hver post har `as_of` og `valid_until` (neste rapportdato), og anslaget merkes «utdatert» etter den.
 
 
-Rentemøtedatoene i [data/meetings.json](data/meetings.json) må oppdateres når sentralbankene publiserer neste års kalender (typisk én gang i året). Datoer i fortiden ignoreres automatisk.
+Rentemøtedatoene i [data/meetings.json](data/meetings.json) må oppdateres når sentralbankene publiserer neste års kalender (typisk én gang i året). Datoer i fortiden ignoreres automatisk. Alle fire filene har `as_of` og vises som egen gruppe «Manuelt vedlikeholdt» i kildestatus: kalenderen varsler 45 dager før en bank går tom for oppførte møter (og gir rød kjøring når den er tom), registrerte vedtak merkes «kan fjernes» når serien har bekreftet dem, utgåtte møteodds og utløpte bankbaner merkes.
 
 ## Videre arbeid
 
