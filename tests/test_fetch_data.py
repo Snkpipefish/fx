@@ -396,6 +396,42 @@ class SnbCurveTest(unittest.TestCase):
         self.assertTrue(m["synthetic_anchor"])
 
 
+class NzFuturesTest(unittest.TestCase):
+    def test_parse_asx_bb_skips_illiquid(self):
+        payload = {"data": {"items": [
+            {"symbol": "BBZ2026", "dateExpiry": "2026-12-14", "datePreviousSettlement": "2026-09-25", "pricePreviousSettlement": 96.49, "priceLastTrade": 96.48},
+            {"symbol": "BBH2027", "dateExpiry": "2027-03-08", "datePreviousSettlement": "2026-09-25", "pricePreviousSettlement": 96.09, "priceLastTrade": 96.09},
+            {"symbol": "BBH2028", "dateExpiry": "2028-03-13", "datePreviousSettlement": "2026-09-25", "pricePreviousSettlement": 95.64, "priceLastTrade": None}]}}
+        out = fd.parse_asx_bb(payload)
+        self.assertEqual(out, {"2026-09-25": [["2026-12-14", "2027-03-14", 3.51], ["2027-03-08", "2027-06-06", 3.91]]})
+
+    def test_add_monthly_front(self):
+        fut = {"2026-09-25": [["2026-12-14", "2027-03-14", 3.51]], "2026-07-10": [["2026-09-14", "2026-12-13", 3.2]]}
+        out = fd.add_monthly_front(fut, {"2026-06": 3.05, "2026-08": 3.10, "2026-10": None})
+        self.assertEqual(out["2026-09-25"], [["2026-12-14", "2027-03-14", 3.51], ["2026-09-01", "2026-09-30", 3.10]])
+        self.assertEqual(out["2026-07-10"][-1], ["2026-07-01", "2026-07-31", 3.05])
+        self.assertEqual(fd.add_monthly_front(fut, {})["2026-09-25"], fut["2026-09-25"])
+
+    def test_build_curve_from_futures_only(self):
+        from datetime import date as d
+        policy = {"2026-01-01": 2.75}
+        fut = fd.add_monthly_front({"2026-09-25": [["2026-12-14", "2027-03-14", 3.51], ["2027-03-08", "2027-06-06", 3.91], ["2027-06-14", "2027-09-12", 4.2]]},
+                                   {"2026-08": 3.05})
+        curve = fd.build_curve("nz", {}, policy, fut)
+        self.assertEqual(curve["kind"], "futures")
+        self.assertEqual(curve["date"], "2026-09-25")
+        self.assertEqual(curve["points"], {})
+        self.assertIsNone(curve["govt_source"])
+        self.assertIn("flat etter", curve["source"])
+        # basis = OECD-månedsrente − styringsrente = 0,30; front renset → bane starter på styringsrenten
+        self.assertAlmostEqual(curve["anchor"]["basis"], 0.30)
+        self.assertAlmostEqual(curve["path"][0], 2.75)
+        self.assertAlmostEqual(curve["path"][6], 3.91 - 0.30)  # mars 2027-kontrakten dekker midten av mars
+        self.assertEqual(curve["repricing"], {})
+        self.assertIsNone(fd.build_curve("nz", {}, policy, {}))
+        self.assertIsNone(fd.build_curve("nz", {}, {}, fut))
+
+
 if __name__ == "__main__":
     unittest.main()
 

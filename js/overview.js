@@ -92,7 +92,7 @@ export function renderRates(countries) {
     <div id="dumbbell"></div>
     ${gapText}
     <details class="more"><summary>Vis som liste</summary><ul class="plain">${list}</ul></details>
-    <p class="note">Én heving eller ett kutt = 0,25 prosentpoeng. Lest ut av futures på styringsrenten (USD, AUD, CAD), OIS (GBP), swapkurven (NZD) eller statskurven (øvrige, med terminpremie), oppdatert hver ukedag.
+    <p class="note">Én heving eller ett kutt = 0,25 prosentpoeng. Lest ut av futures (USD, AUD, CAD, NZD), OIS (GBP) eller statskurven (øvrige, med terminpremie), oppdatert hver ukedag.
       ${missing.length ? `Ingen kurve tilgjengelig for ${missing.join(" og ")}.` : ""}</p>`;
   // Kompakt graf på smale skjermer; tegnes på nytt når bredden krysser grensen
   const mq = window.matchMedia("(max-width: 640px)");
@@ -231,7 +231,7 @@ export function renderSources(sources, updated) {
     brent_fut: "Brent-futures (Yahoo)", ttf: "TTF-gass (Yahoo)", curve_us: "Kurve USD", curve_ea: "Kurve EUR", curve_jp: "Kurve JPY", curve_gb: "Kurve GBP",
     curve_ca: "Kurve CAD", curve_au: "Kurve AUD", curve_se: "Kurve SEK", curve_no: "Kurve NOK",
     curve_nz: "Kurve NZD", curve_ch: "Kurve CHF",
-    futures_us: "Fed funds-futures (CME/Yahoo)", futures_au: "Cash rate-futures (ASX)", futures_ca: "CORRA-futures (TMX)" };
+    futures_us: "Fed funds-futures (CME/Yahoo)", futures_au: "Cash rate-futures (ASX)", futures_ca: "CORRA-futures (TMX)", futures_nz: "Bankvekselfutures NZ (ASX)" };
   const today = new Date(updated);
   const age = (iso) => (iso ? Math.round((today - new Date(iso.length === 4 ? `${iso}-12-31` : iso.length === 7 ? `${iso}-28` : iso)) / 86400000) : null);
   const limit = (k) => (k === "ppp" ? 800 : k === "cot" ? 14 : ["irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "ssb_kpi_jae", "scb_kpif", "unemployment"].includes(k) ? 75 : 10);
