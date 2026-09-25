@@ -594,6 +594,41 @@ class CoreInflationTest(unittest.TestCase):
         self.assertEqual(fd.boc_core_average(payload), {"2026-05": 1.9, "2026-06": 1.9})
 
 
+class DecisionReactionTest(unittest.TestCase):
+    def test_dovish_hike_lowers_forwards(self):
+        # Heving 4,00 → 4,25 den 15. sep; 3 mnd følger, men 1–2 år faller: banken signaliserte pause
+        before = {"0.25": 4.20, "0.5": 4.35, "1": 4.60, "2": 4.80, "5": 4.90}
+        after = {"0.25": 4.27, "0.5": 4.30, "1": 4.40, "2": 4.55, "5": 4.70}
+        series = {"2026-09-01": dict(before), "2026-09-14": dict(before), "2026-09-16": dict(after), "2026-09-25": dict(after)}
+        policy = {"2026-01-01": 4.0, "2026-09-15": 4.25}
+        curve = fd.build_curve("no", series, policy)
+        r = fd.decision_reaction(curve, series, None, policy, "2026-09-15")
+        self.assertEqual(r["measured"], ["2026-09-14", "2026-09-16"])
+        self.assertEqual(r["tone"], "duete")
+        self.assertLessEqual(r["path12_change_bp"], -fd.DECISION_TONE_BP)
+        # Uendrede forwarder gjennom vedtaket: nøytral
+        flat = {"2026-09-14": dict(before), "2026-09-16": dict(before)}
+        curve2 = fd.build_curve("no", flat, policy)
+        self.assertEqual(fd.decision_reaction(curve2, flat, None, policy, "2026-09-15")["tone"], "nøytral")
+        # Ingen kurvedag etter vedtaket innen vinduet
+        self.assertIsNone(fd.decision_reaction(curve, {"2026-09-14": dict(before), "2026-09-30": dict(after)}, None, policy, "2026-09-15"))
+
+    def test_reaction_for_futures_curve(self):
+        from datetime import date as d, timedelta as td
+        # Futures-kurver uten statskurve krever ferske data (siste uke), så datoene settes relativt til i dag
+        today = d.today()
+        before, decision, after = str(today - td(days=3)), str(today - td(days=2)), str(today - td(days=1))
+        policy = {"2026-01-01": 4.0, decision: 4.25}
+        def monthly(rates):
+            return [[*fd.month_span(today.year + (today.month - 1 + i) // 12, (today.month - 1 + i) % 12 + 1), r] for i, r in enumerate(rates)]
+        fut = {before: monthly([4.0, 4.25, 4.5, 4.75] + [5.0] * 10),   # før: hevinger videre
+               after: monthly([4.1, 4.25, 4.3, 4.3] + [4.3] * 10)}      # etter: levert, men banen flatet ut
+        curve = fd.build_curve("us", {}, policy, fut)
+        r = fd.decision_reaction(curve, {}, fut, policy, decision)
+        self.assertEqual(r["tone"], "duete")
+        self.assertEqual(r["measured"], [before, after])
+
+
 if __name__ == "__main__":
     unittest.main()
 

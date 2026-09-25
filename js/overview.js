@@ -207,13 +207,20 @@ export function renderIdeas(countries, market) {
         inflasjon${which} på bare ${nb1.format(cpi)} %. Uteblir hevingene, er ${c.currency} sårbar.` });
     }
   }
+  // Heving levert, men kursen (målt mot handelspartnerne, I-44-justert) har falt. Hva banken
+  // signaliserte leses ut av markedet: renten ventet om 12 mnd før og etter vedtaket.
   const delivered = countries.filter((c) => c.policy_change && c.policy_change.to > c.policy_change.from && c.policy_change.fx_since != null && c.policy_change.fx_since < 0)
     .sort((a, b) => a.policy_change.fx_since - b.policy_change.fx_since);
   for (const c of delivered.slice(0, 1)) {
     const pc = c.policy_change;
     const carry = c.fwd_fx_1y && c.fwd_fx_1y.diff > 0 ? ` Renteforskjellen mot kronen er likevel ${signed(c.fwd_fx_1y.diff, nb2)} pp i ${c.currency}s favør.` : "";
-    ideas.push({ tag: "Heving levert, kurs ikke fulgt", text: `${c.bank} hevet til <b>${rate(pc.to)}</b> ${shortDate(pc.date)}, men ${c.currency} er
-      <b>${pct1(pc.fx_since)}</b> mot handelspartnerne siden. Enten var hevingen alt i kursen, eller så la banken vekt på pause videre.${carry}` });
+    const head = `${c.bank} hevet til <b>${rate(pc.to)}</b> ${shortDate(pc.date)}, men ${c.currency} er <b>${pct1(pc.fx_since)}</b> mot handelspartnerne siden.`;
+    if (pc.tone === "duete") ideas.push({ tag: "Duete heving", text: `${head} Markedet leste vedtaket som duete: renten ventet om 12 mnd falt
+      ${pp(Math.abs(pc.path12_change_bp))} gjennom vedtaket. Kursen fulgte signalet om pause, ikke hevingen.${carry}` });
+    else if (pc.tone === "haukete") ideas.push({ tag: "Haukete heving, kurs ikke fulgt", text: `${head} Forwardene steg ${pp(pc.path12_change_bp)} gjennom vedtaket,
+      så signalet var haukete – kursfallet handler om noe annet enn renten.${carry}` });
+    else ideas.push({ tag: "Heving levert, kurs ikke fulgt", text: `${head} Forwardene flyttet seg ${pc.path12_change_bp != null ? `bare ${pp(pc.path12_change_bp)}` : "lite"}
+      gjennom vedtaket: hevingen var alt i kursen – «selg på nyheten».${carry}` });
   }
   const carry = countries.filter((c) => c.fwd_fx_1y).sort((a, b) => b.fwd_fx_1y.diff - a.fwd_fx_1y.diff);
   if (carry.length >= 2) {

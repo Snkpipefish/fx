@@ -1797,6 +1797,48 @@ def repricing_breakdown(level_bp, policy_series, past_day, day):
     return {"level": level_bp, "delivered": delivered, "remaining": level_bp - delivered}
 
 
+DECISION_TONE_BP = 8  # endring i renten ventet om 12 mnd gjennom vedtaket som skiller duete/haukete fra nøytral
+
+
+def path12_at(curve, series, futures_series, policy_series, day):
+    """Renten markedet priset om 12 mnd på en gitt dag, regnet med samme basis som dagens kurve
+    (markedsanker), for futures- og statskurveland. None uten data den dagen."""
+    policy = value_at_or_before(policy_series, day) if policy_series else None
+    if policy is None:
+        return None
+    if curve.get("kind") == "futures":
+        periods = (futures_series or {}).get(day)
+        if not periods:
+            return None
+        govt_pts = curve_at(series, day) if series else None
+        govt = curve_metrics(govt_pts, policy, curve.get("govt_basis")) if govt_pts else None
+        fut = futures_metrics(periods, policy, curve["anchor"]["basis"], date.fromisoformat(day), govt["path"] if govt else None, policy_series)
+        return fut["path"][12] if fut else None
+    pts = (series or {}).get(day)
+    m = curve_metrics(pts, policy, curve["anchor"]["basis"]) if pts else None
+    return m["path"][12] if m else None
+
+
+def decision_reaction(curve, series, futures_series, policy_series, decision_day, window=7):
+    """Klassifiserer et vedtak datadrevet: endringen i renten markedet priser om 12 mnd fra
+    siste kurvedag før vedtaket til første kurvedag etter (inntil `window` dager; MoF og andre
+    kilder har hull rundt helligdager). Falt
+    forwardene: «duete» (banken signaliserte pause/kutt); steg de: «haukete»; ellers «nøytral»."""
+    days = sorted(futures_series or {}) if curve.get("kind") == "futures" else sorted(series or {})
+    d = date.fromisoformat(decision_day)
+    before = [x for x in days if x < decision_day]
+    after = [x for x in days if x > decision_day and x <= str(d + timedelta(days=window))]
+    if not before or not after:
+        return None
+    b, a = before[-1], after[0]
+    p_before, p_after = path12_at(curve, series, futures_series, policy_series, b), path12_at(curve, series, futures_series, policy_series, a)
+    if p_before is None or p_after is None:
+        return None
+    change = round((p_after - p_before) * 100)
+    tone = "duete" if change <= -DECISION_TONE_BP else "haukete" if change >= DECISION_TONE_BP else "nøytral"
+    return {"path12_change_bp": change, "tone": tone, "measured": [b, a]}
+
+
 def curve_at(series, target_day):
     """Kurvepunktene på eller like før en dato."""
     days = [d for d in series if d <= target_day]
@@ -1888,6 +1930,7 @@ def build_curve(cid, series, policy_series, futures_series=None):
                 "repricing": fut_rep,
                 "repricing_detail": fut_detail,
                 "path_w1": fut_w1,
+                "govt_basis": basis,
                 **fut,
             })
     return out
@@ -2295,6 +2338,11 @@ def main():
             base, now = world(policy_change["date"]), world(fx_day)
             if base and now:
                 policy_change["fx_since"] = round((now / base - 1) * 100, 2)
+        # Hva sa banken? Lest ut av markedet: forwardene før og etter vedtaket
+        if policy_change and curve:
+            reaction = decision_reaction(curve, curve_series, futures_series, policy_series, policy_change["date"])
+            if reaction:
+                policy_change.update(reaction)
 
         # Sentralbankens egen bane: automatisk der den finnes, ellers manuell fil (med gyldighetsdato)
         horizon_day = str(add_months(date.today(), 12))
