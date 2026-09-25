@@ -22,7 +22,7 @@ Redaksjonell «brief» over G10-valutaene (USD, EUR, JPY, GBP, CHF, CAD, AUD, NZ
 ## Tester og kildeovervåking
 
 ```bash
-python3 -m unittest discover -s tests -v   # terminrenter, interpolasjon, xlsx-leser
+python3 -m unittest discover -s tests -v   # terminrenter, markedsanker, interpolasjon, xlsx-leser
 node --test tests/*.test.mjs               # korrelasjon, volatilitet, signal, motpost-rangering
 ```
 
@@ -39,6 +39,10 @@ Tre små JSON-filer i `data/` holdes ved like for hånd:
 
 
 Rentemøtedatoene i [data/meetings.json](data/meetings.json) må oppdateres når sentralbankene publiserer neste års kalender (typisk én gang i året). Datoer i fortiden ignoreres automatisk.
+
+## Videre arbeid
+
+Kjente svakheter og avtalt løsning per punkt ligger i [docs/PLAN.md](docs/PLAN.md).
 
 ## Kjør lokalt
 

@@ -27,6 +27,7 @@ import io
 import json
 import math
 import re
+import statistics
 import sys
 import time
 import urllib.error
@@ -742,46 +743,87 @@ def fetch_curve_au():
     return out
 
 
-def curve_metrics(points, policy):
+BASIS_WINDOW = 250  # handledager i medianen for basis 3 mnd-rente − styringsrente
+
+
+def curve_points(points, policy):
+    """Sorterte (løpetid, rente)-punkter, med syntetisk 3-mnd-punkt lik styringsrenten
+    når kurven mangler alt under 6 mnd (statsobligasjonskurver som starter på 1–2 år)."""
+    pts = sorted((float(t), v) for t, v in points.items() if v is not None)
+    synthetic = bool(pts) and pts[0][0] > 0.5
+    if synthetic and policy is not None:
+        pts.insert(0, (0.25, policy))
+    return pts, synthetic
+
+
+def spot_rate(pts, T):
+    """Spotrente ved løpetid T, lineært interpolert mellom punktene (flat utenfor)."""
+    if T <= pts[0][0]:
+        return pts[0][1]
+    for (t0, r0), (t1, r1) in zip(pts, pts[1:]):
+        if T <= t1:
+            return r0 + (r1 - r0) * (T - t0) / (t1 - t0)
+    return pts[-1][1]
+
+
+def front_rate(points, policy):
+    """3-mnd spotrenten fra kurven (markedets frontrente), None hvis kurven er ubrukelig."""
+    pts, _ = curve_points(points, policy)
+    return spot_rate(pts, 0.25) if pts else None
+
+
+def curve_basis(series, policy_series, day, window=BASIS_WINDOW):
+    """Basis s = median over siste `window` kurvedager t.o.m. `day` av
+    (3-mnd-rente − styringsrente). Fanger terminpremie/kredittpåslag i instrumentet
+    uten å følge dagens vedtak. None hvis ingen dager kan regnes."""
+    values = []
+    for d in sorted((d for d in series if d <= day), reverse=True):
+        policy = value_at_or_before(policy_series, d) if policy_series else None
+        front = front_rate(series[d], policy) if policy is not None else None
+        if front is not None:
+            values.append(front - policy)
+        if len(values) >= window:
+            break
+    return statistics.median(values) if values else None
+
+
+def curve_metrics(points, policy, basis=None):
     """Implisert bane for den korte renten fra en spotkurve.
 
     points: {tenor_år: rente %}. Spotrenten interpoleres lineært mellom kjente
     løpetider (flat utenfor). 3-mnd terminrenten ved horisont h (år) er
     f(h) = (r(h+0,25)·(h+0,25) − r(h)·h) / 0,25, dvs. den korte renten markedet
-    priser for perioden som starter om h. Priset endring = f(h) − r(0,25), og
-    nivået = styringsrente + priset endring, slik at et konstant basis-avvik
-    mellom statspapirer og styringsrente faller bort. Mangler kurven punkter
-    under 6 mnd, antas 3-mnd-renten lik styringsrenten (synthetic_anchor).
+    priser for perioden som starter om h. Banen ankres på markedets frontrente:
+    path[m] = f(m/12) − s, der s (basis) er medianen av 3-mnd-rente − styringsrente
+    over det siste året (curve_basis). Da flytter nivået seg bare når markedet
+    flytter seg, ikke når styringsrenteserien oppdateres etter et vedtak. Uten
+    historikk (basis=None) brukes dagens avvik, dvs. path[0] = styringsrenten.
+    Priset endring (implied) = path[m] − styringsrenten, så et fullt priset vedtak
+    innenfor 3-måneders-vinduet telles med. Mangler kurven punkter under 6 mnd,
+    settes 3-mnd-renten lik styringsrenten (synthetic_anchor).
     """
-    pts = sorted((float(t), v) for t, v in points.items() if v is not None)
-    # Krever minst tre punkter, ett på 2 år eller lenger, og et korteste punkt på høyst 2 år
-    # (statsobligasjonskurver som starter på 2 år får syntetisk 3-mnd-anker = styringsrenten)
-    if policy is None or len(pts) < 3 or pts[-1][0] < 2 or pts[0][0] > 2:
+    pts, synthetic = curve_points(points, policy)
+    # Krever minst tre ekte punkter, ett på 2 år eller lenger, og et korteste punkt på høyst 2 år
+    raw = pts[1:] if synthetic else pts
+    if policy is None or len(raw) < 3 or raw[-1][0] < 2 or raw[0][0] > 2:
         return None
-    synthetic = pts[0][0] > 0.5
-    if synthetic:
-        pts.insert(0, (0.25, policy))
-
-    def r(T):
-        if T <= pts[0][0]:
-            return pts[0][1]
-        for (t0, r0), (t1, r1) in zip(pts, pts[1:]):
-            if T <= t1:
-                return r0 + (r1 - r0) * (T - t0) / (t1 - t0)
-        return pts[-1][1]
 
     def fwd(h):
-        return (r(h + 0.25) * (h + 0.25) - r(h) * h) / 0.25
+        return (spot_rate(pts, h + 0.25) * (h + 0.25) - spot_rate(pts, h) * h) / 0.25
 
-    anchor = fwd(0)
-    path = [round(policy + fwd(m / 12) - anchor, 3) for m in range(25)]
-    implied = {f"{m}m": round((fwd(m / 12) - anchor) * 100) for m in (3, 6, 12, 24)}
+    front = fwd(0)  # = 3-mnd spotrenten
+    if basis is None:
+        basis = front - policy
+    path = [round(fwd(m / 12) - basis, 3) for m in range(25)]
+    implied = {f"{m}m": round((path[m] - policy) * 100) for m in (3, 6, 12, 24)}
     extreme_m = max(range(1, 25), key=lambda m: abs(path[m] - path[0]))
     return {
         "implied": implied,
         "path": path,
         "extreme": {"months": extreme_m, "level": path[extreme_m],
                     "bp": round((path[extreme_m] - path[0]) * 100)},
+        "anchor": {"rate_3m": round(front, 3), "basis": round(basis, 3),
+                   "kind": "syntetisk" if synthetic else "marked"},
         "synthetic_anchor": synthetic,
     }
 
@@ -801,12 +843,14 @@ def build_curve(cid, series, policy_series):
     # bruk nyeste dag (inntil en uke tilbake) der kurven er komplett nok.
     day, metrics = None, None
     for candidate in sorted(series, reverse=True)[:7]:
-        metrics = curve_metrics(series[candidate], policy)
-        if metrics:
+        if curve_metrics(series[candidate], policy):
             day = candidate
             break
-    if not metrics:
+    if not day:
         return None
+    # Samme basis for dagens og tidligere baner, så reprising er rent forventningsskift
+    basis = curve_basis(series, policy_series, day)
+    metrics = curve_metrics(series[day], policy, basis)
     kind, source = CURVE_SOURCES[cid]
     repricing, y2_change, path_w1 = {}, {}, None
     for label, days in (("w1", 7), ("m1", 30)):
@@ -815,10 +859,10 @@ def build_curve(cid, series, policy_series):
         if not past:
             continue
         past_policy = value_at_or_before(policy_series, past_day) if policy_series else policy
-        past_metrics = curve_metrics(past, past_policy if past_policy is not None else policy)
+        past_metrics = curve_metrics(past, past_policy if past_policy is not None else policy, basis)
         if past_metrics:
-            # Nivåbasert: renten markedet priser om 12 mnd nå minus det samme for en uke/måned
-            # siden. Endring i «implied» ville hoppet 25 bp ved hvert vedtak fordi ankeret flytter seg.
+            # Nivåbasert med felles basis: renten markedet priser om 12 mnd nå minus det samme
+            # for en uke/måned siden – uavhengig av om styringsrenten ble endret i mellomtiden.
             repricing[label] = round((metrics["path"][12] - past_metrics["path"][12]) * 100)
             if label == "w1":
                 path_w1 = past_metrics["path"]
