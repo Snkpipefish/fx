@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-25T14:20:05+00:00",
+ "updated": "2026-09-25T14:32:55+00:00",
  "countries": [
   {
    "id": "us",
@@ -81,8 +81,8 @@
      "10": 5.11
     },
     "repricing": {
-     "w1": 11,
-     "m1": 72
+     "w1": 12,
+     "m1": 73
     },
     "y2_change": {
      "w1": 11,
@@ -117,27 +117,27 @@
     ],
     "implied": {
      "3m": 32,
-     "6m": 59,
-     "12m": 91,
+     "6m": 58,
+     "12m": 92,
      "24m": 84
     },
     "path": [
      3.884,
-     3.898,
+     3.903,
      4.048,
      4.193,
      4.263,
      4.378,
-     4.463,
+     4.458,
      4.558,
      4.648,
      4.718,
      4.753,
      4.783,
-     4.788,
+     4.793,
      4.813,
-     4.823,
-     4.799,
+     4.813,
+     4.794,
      4.773,
      4.833,
      4.893,
@@ -170,7 +170,7 @@
      [
       "2026-10-01",
       "2026-10-31",
-      3.895
+      3.9
      ],
      [
       "2026-11-01",
@@ -195,7 +195,7 @@
      [
       "2027-03-01",
       "2027-03-31",
-      4.46
+      4.455
      ],
      [
       "2027-04-01",
@@ -225,7 +225,7 @@
      [
       "2027-09-01",
       "2027-09-30",
-      4.785
+      4.79
      ],
      [
       "2027-10-01",
@@ -235,7 +235,7 @@
      [
       "2027-11-01",
       "2027-11-30",
-      4.82
+      4.81
      ],
      [
       "2028-01-01",
@@ -1432,11 +1432,99 @@
     "pct_oi": 7.8,
     "date": "2026-09-15"
    },
-   "curve": null,
+   "curve": {
+    "date": "2026-09-25",
+    "kind": "futures",
+    "source": "90-dagers bankvekselfutures (ASX) med OECDs 3-mnd-rente som front, flat etter 17 mnd",
+    "points": {},
+    "repricing": {},
+    "y2_change": {},
+    "path_w1": null,
+    "govt_source": null,
+    "futures_date": "2026-09-25",
+    "futures": [
+     [
+      "2026-12-14",
+      "2027-03-14",
+      3.51
+     ],
+     [
+      "2027-03-08",
+      "2027-06-06",
+      3.91
+     ],
+     [
+      "2027-06-14",
+      "2027-09-12",
+      4.2
+     ],
+     [
+      "2027-09-13",
+      "2027-12-12",
+      4.31
+     ],
+     [
+      "2027-12-13",
+      "2028-03-12",
+      4.35
+     ],
+     [
+      "2026-09-01",
+      "2026-09-30",
+      2.98
+     ]
+    ],
+    "implied": {
+     "3m": 51,
+     "6m": 91,
+     "12m": 131,
+     "24m": 135
+    },
+    "path": [
+     2.75,
+     2.85,
+     2.972,
+     3.263,
+     3.263,
+     3.263,
+     3.663,
+     3.663,
+     3.663,
+     3.953,
+     3.953,
+     3.953,
+     4.063,
+     4.063,
+     4.063,
+     4.103,
+     4.103,
+     4.103,
+     4.103,
+     4.103,
+     4.103,
+     4.103,
+     4.103,
+     4.103,
+     4.103
+    ],
+    "extreme": {
+     "months": 15,
+     "level": 4.103,
+     "bp": 135
+    },
+    "anchor": {
+     "rate_front": 2.997,
+     "basis": 0.247,
+     "kind": "futures"
+    },
+    "synthetic_anchor": false
+   },
    "vol30": 6.3,
    "meeting": "2026-10-28",
    "next_meeting": {
-    "date": "2026-10-28"
+    "date": "2026-10-28",
+    "bp_3m": 51,
+    "source": "rentekurven (3 mnd)"
    },
    "fwd_fx_1y": {
     "rate": 5.4799,
@@ -1779,13 +1867,13 @@
    }
   },
   "brent_fut": {
-   "value": 105.81,
+   "value": 105.68,
    "date": "2026-09-25",
    "changes": {
-    "d1": -0.74,
-    "w1": 1.87,
-    "m1": 21.7,
-    "y1": 59.16
+    "d1": -0.86,
+    "w1": 1.74,
+    "m1": 21.56,
+    "y1": 58.97
    },
    "contract": "nov. 2026-kontrakten (BZX26)"
   },
@@ -1822,14 +1910,24 @@
   "brent_nok_corr": 0.25,
   "brent_premium": {
    "value": 15.64,
-   "date": "2026-09-22"
+   "date": "2026-09-22",
+   "avg90": 5.6
+  },
+  "brent_next": {
+   "value": 99.02,
+   "date": "2026-09-25",
+   "contract": "des. 2026-kontrakten (BZZ26)"
+  },
+  "brent_spread": {
+   "value": 6.66,
+   "date": "2026-09-25"
   }
  },
  "sources": {
-  "brent": {
+  "i44": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-22",
+   "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
   "brent_fut": {
@@ -1838,13 +1936,19 @@
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
+  "brent": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-22",
+   "fetched": "2026-09-25"
+  },
   "ttf": {
    "ok": true,
    "error": null,
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
-  "i44": {
+  "fx": {
    "ok": true,
    "error": null,
    "latest": "2026-09-25",
@@ -1854,12 +1958,6 @@
    "ok": true,
    "error": null,
    "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "fx": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
   "ssb_kpi_jae": {
@@ -1874,16 +1972,10 @@
    "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
-  "scb_kpif": {
+  "policy": {
    "ok": true,
    "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "ppp": {
-   "ok": true,
-   "error": null,
-   "latest": "2025",
+   "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
   "cot": {
@@ -1892,19 +1984,19 @@
    "latest": "2026-09-15",
    "fetched": "2026-09-25"
   },
-  "curve_us": {
+  "ppp": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-23",
+   "latest": "2025",
+   "fetched": "2026-09-25"
+  },
+  "scb_kpif": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
    "fetched": "2026-09-25"
   },
   "curve_jp": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "curve_gb": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
@@ -1916,16 +2008,22 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
+  "curve_gb": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
   "curve_ca": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "policy": {
+  "curve_us": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-22",
+   "latest": "2026-09-23",
    "fetched": "2026-09-25"
   },
   "curve_no": {
@@ -1934,16 +2032,22 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_nz": {
-   "ok": false,
-   "error": "/home/runner/work/_temp/rbnz-b2.xlsx mangler – kjør scripts/fetch_rbnz.py først",
-   "latest": null,
-   "fetched": null
+  "cpi_core": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
   },
   "curve_au": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "irlt": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
    "fetched": "2026-09-25"
   },
   "curve_ch": {
@@ -1958,7 +2062,7 @@
    "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
-  "futures_us": {
+  "futures_nz": {
    "ok": true,
    "error": null,
    "latest": "2026-09-25",
@@ -1970,7 +2074,19 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "cpi_core": {
+  "futures_us": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-25",
+   "fetched": "2026-09-25"
+  },
+  "ir3": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "unemployment": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -1986,24 +2102,6 @@
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "ir3": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "irlt": {
-   "ok": false,
-   "error": "HTTP Error 500: Internal Server Error",
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "unemployment": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-07",
    "fetched": "2026-09-25"
   }
  }
