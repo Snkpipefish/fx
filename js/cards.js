@@ -45,11 +45,13 @@ export function card(c, market) {
     <div class="signal ${sig.dir}"><span class="pill">${sig.arrow} ${sig.word}</span><span class="muted">${sig.text}</span></div>
     <div class="details">
       <div class="rates">
-        <div><span>Styringsrente</span><b>${rate(c.rates.policy)}</b></div>
-        <div><span>3 mnd</span><b>${rate(c.rates.m3)}</b></div>
-        <div><span>10 år</span><b>${rate(c.rates.y10)}</b></div>
-        <div><span>Inflasjon</span><b>${c.cpi ? rate(Math.round(c.cpi.value * 10) / 10) : "–"}</b></div>
+        <div title="${c.rates.policy_source ?? ""}"><span>Styringsrente</span><b>${rate(c.rates.policy)}</b></div>
+        <div title="${c.rates.m3_source ?? ""}"><span>3 mnd${c.rates.m3_source === "kurve" ? "" : " (mnd.snitt)"}</span><b>${rate(c.rates.m3)}</b></div>
+        <div title="${c.rates.y10_source ?? ""}"><span>10 år${c.rates.y10_source === "kurve" ? "" : " (mnd.snitt)"}</span><b>${rate(c.rates.y10)}</b></div>
+        <div title="${c.cpi_core?.label ?? ""}"><span>Inflasjon${c.cpi_core ? " · kjerne" : ""}</span><b>${c.cpi ? rate(Math.round(c.cpi.value * 10) / 10) : "–"}${c.cpi_core ? ` <small>· ${nb1.format(c.cpi_core.value)} %</small>` : ""}</b></div>
       </div>
+      ${c.policy_change ? row(`${c.policy_change.to > c.policy_change.from ? "Hevet" : "Kuttet"} ${shortDate(c.policy_change.date)}: <b>${rate(c.policy_change.from)} → ${rate(c.policy_change.to)}</b>`,
+        c.policy_change.fx_since != null ? `${c.currency} siden: <b class="${cls(c.policy_change.fx_since)}">${pct1(c.policy_change.fx_since)}</b>` : "") : ""}
       <div class="spark-wrap sm" id="policy-${c.id}"></div>
       ${imp ? row("Priset inn", `<b class="${cls(imp["6m"], 9)}">6 mnd ${pp(imp["6m"])}</b> · <b class="${cls(imp["12m"], 9)}">12 mnd ${pp(imp["12m"])}</b> · <b class="${cls(imp["24m"], 9)}">2 år ${pp(imp["24m"])}</b>`) : ""}
       ${row(`Ledighet <b>${c.unemployment ? rate(c.unemployment.value) : "–"}</b>`, `${c.bank}: <b>${shortDate(c.meeting)}</b>`)}

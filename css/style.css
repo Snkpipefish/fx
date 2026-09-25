@@ -141,6 +141,8 @@ details.inline summary { display: inline; cursor: pointer; color: var(--accent);
 .legend-row i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 0.3rem; }
 .lg-now { border: 2px solid var(--muted); background: var(--surface); }
 .lg-exp { background: var(--up); }
+.db-bank { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+.lg-bank { width: 9px !important; height: 9px !important; border-radius: 1px !important; border: 2px solid var(--accent); background: var(--surface); transform: rotate(45deg); }
 .lg-six { width: 3px !important; height: 11px !important; border-radius: 1px !important; background: var(--text); opacity: 0.55; }
 
 /* ---------- Søyleliste ---------- */

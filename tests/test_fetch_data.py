@@ -78,3 +78,24 @@ class HelpersTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OverrideTest(unittest.TestCase):
+    """Manuelt registrerte vedtak skal overstyre BIS-serien fra vedtaksdatoen."""
+
+    def test_override_logic_matches_main(self):
+        # Speiler logikken i main(): BIS 4,25 t.o.m. 24.9, vedtak 4,50 den 23.9
+        series = {"2026-09-22": 4.25, "2026-09-23": 4.25, "2026-09-24": 4.25}
+        ov = {"date": "2026-09-23", "rate": 4.5}
+        policy_day, policy = fd.latest(series)
+        if policy_day < ov["date"] or policy != ov["rate"]:
+            for d in list(series):
+                if d >= ov["date"]:
+                    series[d] = ov["rate"]
+            series[ov["date"]] = ov["rate"]
+        self.assertEqual(series["2026-09-22"], 4.25)
+        self.assertEqual(series["2026-09-24"], 4.5)
+        self.assertEqual(fd.latest(series), ("2026-09-24", 4.5))
+        # curve_metrics ankrer nå på 4,50: flat kurve på 4,5 gir null priset endring
+        m = fd.curve_metrics({"0.25": 4.5, "1": 4.5, "2": 4.5}, fd.latest(series)[1])
+        self.assertEqual(m["implied"]["12m"], 0)

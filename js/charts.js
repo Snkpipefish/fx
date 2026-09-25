@@ -140,7 +140,7 @@ const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
  * rows: [{label, flag, now, expected, six, text, color, id}]
  */
 export function dumbbellChart(rows, { minX, maxX, compact = false } = {}) {
-  const vals = rows.flatMap((r) => [r.now, r.expected, r.six].filter((v) => v != null));
+  const vals = rows.flatMap((r) => [r.now, r.expected, r.six, r.bank].filter((v) => v != null));
   const lo = Math.floor((minX ?? Math.min(...vals)) * 2) / 2 - 0.5;
   const hi = Math.ceil((maxX ?? Math.max(...vals)) * 2) / 2 + 0.5;
   // Kompakt variant til smale skjermer: kortere etiketter, så teksten ikke skaleres ned
@@ -159,6 +159,7 @@ export function dumbbellChart(rows, { minX, maxX, compact = false } = {}) {
       <text x="${LABEL - 10}" y="${y + 4}" class="db-label" text-anchor="end">${esc(r.flag)} ${esc(compact ? r.short ?? r.label : r.label)}</text>
       <line x1="${x(r.now)}" x2="${x(r.expected)}" y1="${y}" y2="${y}" class="db-line"/>
       ${r.six != null ? `<line x1="${x(r.six)}" x2="${x(r.six)}" y1="${y - 5}" y2="${y + 5}" class="db-six"/>` : ""}
+      ${r.bank != null ? `<path d="M${x(r.bank)},${y - 7} l6,7 l-6,7 l-6,-7 z" class="db-bank"><title>${esc(r.bankTitle || "")}</title></path>` : ""}
       <circle cx="${x(r.now)}" cy="${y}" r="5.5" class="db-now"/>
       <circle cx="${x(r.expected)}" cy="${y}" r="6" class="db-exp"/>
       <text x="${W - RIGHT + 12}" y="${y + 4}" class="db-text">${esc(compact ? r.textShort ?? r.text : r.text)}</text>
@@ -166,7 +167,7 @@ export function dumbbellChart(rows, { minX, maxX, compact = false } = {}) {
   }).join("");
   return `<svg class="dumbbell" viewBox="0 0 ${W} ${H}" role="img" aria-label="Rente nå og ventet om 12 måneder per sentralbank">
     ${grid}${body}</svg>
-    <div class="legend-row"><span><i class="lg-now"></i> rente nå</span><span><i class="lg-six"></i> om 6 mnd</span><span><i class="lg-exp"></i> om 12 mnd</span></div>`;
+    <div class="legend-row"><span><i class="lg-now"></i> rente nå</span><span><i class="lg-six"></i> om 6 mnd</span><span><i class="lg-exp"></i> om 12 mnd</span>${rows.some((r) => r.bank != null) ? `<span><i class="lg-bank"></i> bankens eget anslag</span>` : ""}</div>`;
 }
 
 /**

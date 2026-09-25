@@ -61,15 +61,27 @@ export function renderRates(countries) {
     now: c.rates.policy, expected: c.curve.path[12], six: c.curve.path[6], color: color(c),
     text: moves(i12(c)), textShort: moves(i12(c)).replace("hevinger", "hev.").replace("heving", "hev."),
     title: `${c.bank}: ${rate(c.rates.policy)} nå, ${rate(c.curve.path[12])} ventet om 12 mnd (${pp(i12(c))})`,
+    bank: c.cb_path?.level ?? null,
+    bankTitle: c.cb_path ? `${c.bank}s eget anslag: ${rate(c.cb_path.level)} ${c.cb_path.horizon} (${c.cb_path.source})` : "",
   }));
+  // Hvor ligger markedet lengst fra sentralbankens egen bane?
+  const gaps = rows.filter((c) => c.cb_path?.level != null)
+    .map((c) => ({ c, gap: c.curve.path[12] - c.cb_path.level }))
+    .sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
+  const gapText = gaps.length ? `<p class="lead">Markedet ligger lengst fra sentralbankens eget anslag for
+    ${gaps.slice(0, 3).map(({ c, gap }) => `<b>${c.currency}</b> (${gap > 0 ? "over" : "under"} med ${nb2.format(Math.abs(gap))} pp)`).join(", ")}.
+    Der har kursen mest å tape hvis banken får rett.</p>` : "";
   const list = rows.map((c) => {
     const r = c.curve.repricing?.w1;
     const week = r == null || Math.abs(r) < 5 ? "" : ` <span class="${cls(r)}">${r > 0 ? "↑" : "↓"} ${r > 0 ? "høyere" : "lavere"} enn for en uke siden</span>`;
-    return `<li><b>${c.flag} ${c.bank}</b> · ${rate(c.rates.policy)} nå → <b>${moves(i12(c))}</b> neste 12 mnd
-      <span class="muted">(${pp(i12(c))}, ${extremeText(c.curve)})</span>${week}</li>`;
+    const src = c.rates.policy_source && c.rates.policy_source !== "BIS" ? ` <small>(${c.rates.policy_source})</small>` : "";
+    const bank = c.cb_path ? ` · banken selv: ${rate(c.cb_path.level)} ${c.cb_path.horizon}` : "";
+    return `<li><b>${c.flag} ${c.bank}</b> · ${rate(c.rates.policy)} nå${src} → <b>${moves(i12(c))}</b> neste 12 mnd
+      <span class="muted">(${pp(i12(c))}, ${extremeText(c.curve)}${bank})</span>${week}</li>`;
   }).join("");
   el.innerHTML = `
     <div id="dumbbell"></div>
+    ${gapText}
     <details class="more"><summary>Vis som liste</summary><ul class="plain">${list}</ul></details>
     <p class="note">Én heving eller ett kutt = 0,25 prosentpoeng. Lest ut av rentekurvene (OIS eller statspapirer), oppdatert hver ukedag.
       ${missing.length ? `Ingen kurve tilgjengelig for ${missing.join(" og ")}.` : ""}</p>`;
@@ -99,7 +111,20 @@ export function renderKrone(countries, market) {
     const word = score > 0 ? "høy" : score < 0 ? "lav" : "nøytral";
     return `Risikoappetitten er <b>${word}</b> (VIX ${nb1.format(v)}${aj != null ? `, AUD/JPY ${pct1(aj)} siste måned` : ""})${score > 0 ? ", som normalt støtter kronen" : score < 0 ? ", som normalt svekker kronen" : ""}.`;
   })();
-  const oil = market.brent ? ` Brent koster <b>${nb0.format(market.brent.value)} USD</b> (${pct1(market.brent.changes?.m1)} siste måned); kronen har fulgt oljen med korrelasjon ${market.brent_nok_corr != null ? nb2.format(market.brent_nok_corr) : "–"} siste 90 dager.` : "";
+  const oil = (() => {
+    if (!market.brent && !market.brent_fut) return "";
+    const parts = [];
+    if (market.brent_fut) parts.push(`Brent-futures koster <b>${nb0.format(market.brent_fut.value)} USD</b> (${pct1(market.brent_fut.changes?.m1)} siste måned)`);
+    if (market.brent) parts.push(`fysisk Brent (Dated) <b>${nb0.format(market.brent.value)} USD</b>`);
+    let premium = "";
+    if (market.brent && market.brent_fut) {
+      const d = market.brent.value - market.brent_fut.value;
+      premium = Math.abs(d) >= 3 ? ` – spotpremien på ${nb0.format(d)} USD er et ${d > 0 ? "tegn på stramt fysisk marked" : "tegn på slakt fysisk marked"}` : "";
+    }
+    const corr = market.brent_nok_corr != null ? ` Kronen har fulgt oljen med korrelasjon ${nb2.format(market.brent_nok_corr)} siste 90 dager.` : "";
+    const gas = market.ttf ? ` Gass (TTF) koster <b>${nb0.format(market.ttf.value)} EUR/MWh</b> (${pct1(market.ttf.changes?.m1)} siste måned).` : "";
+    return ` ${parts.join(", ")}${premium}.${corr}${gas}`;
+  })();
   el.innerHTML = `
     <p class="lead">${nokChange != null ? `Kronen er <b class="${cls(nokChange)}">${pct1(nokChange)}</b> mot handelspartnerne denne uken (I-44).` : ""}
       ${risk}${oil}</p>
@@ -135,6 +160,13 @@ export function renderIdeas(countries, market) {
         inflasjon på bare ${nb1.format(cpi)} %. Uteblir hevingene, er ${c.currency} sårbar.` });
     }
   }
+  const delivered = countries.filter((c) => c.policy_change && c.policy_change.to > c.policy_change.from && c.policy_change.fx_since != null && c.policy_change.fx_since < 0)
+    .sort((a, b) => a.policy_change.fx_since - b.policy_change.fx_since);
+  for (const c of delivered.slice(0, 1)) {
+    const pc = c.policy_change;
+    ideas.push({ tag: "Heving levert, kurs ikke fulgt", text: `${c.bank} hevet til <b>${rate(pc.to)}</b> ${shortDate(pc.date)}, men ${c.currency} er
+      <b>${pct1(pc.fx_since)}</b> mot kronen siden. Klassisk «selg på nyheten»${c.fwd_fx_1y ? ` – og renteforskjellen mot kronen er fortsatt ${signed(c.fwd_fx_1y.diff, nb2)} pp` : ""}.` });
+  }
   const carry = countries.filter((c) => c.fwd_fx_1y).sort((a, b) => b.fwd_fx_1y.diff - a.fwd_fx_1y.diff);
   if (carry.length >= 2) {
     const lo = carry[carry.length - 1];
@@ -147,7 +179,7 @@ export function renderIdeas(countries, market) {
     ideas.push({ tag: "Alle på samme side", text: `Spekulantene er tungt <b>${c.cot.net > 0 ? "long" : "short"} ${c.currency}</b> (${signed(c.cot.pct_oi)} % av åpen
       interesse). Når alle sitter likt, blir reverseringene brå – særlig rundt rentemøtet ${shortDate(c.meeting)}.` });
   }
-  document.getElementById("ideas").innerHTML = ideas.slice(0, 3).map((i, n) =>
+  document.getElementById("ideas").innerHTML = ideas.slice(0, 4).map((i, n) =>
     `<div class="idea"><div class="num">0${n + 1}</div><div><div class="tag">${i.tag}</div><p>${i.text}</p></div></div>`).join("")
     || `<p class="note">For lite data til å peke på noe ennå.</p>`;
 }

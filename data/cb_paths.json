@@ -1,0 +1,23 @@
+{
+  "_kommentar": "Sentralbankenes egne renteanslag (prognose/dot plot), oppdateres manuelt etter pengepolitiske rapporter. level = styringsrente ved horisonten, horizon = tekst.",
+  "us": {
+    "level": 4.125,
+    "horizon": "utgangen av 2026 og 2027",
+    "source": "FOMC dot plot, september 2026 (4,00–4,25 %)"
+  },
+  "se": {
+    "level": 2.3,
+    "horizon": "i løpet av 2027",
+    "source": "Riksbanken, september 2026: «omkring 2,3 % under 2027»"
+  },
+  "nz": {
+    "level": 3.28,
+    "horizon": "endepunkt i OCR-banen",
+    "source": "RBNZ Monetary Policy Statement"
+  },
+  "no": {
+    "level": 4.5,
+    "horizon": "neste år (nær dagens nivå, deretter noe ned)",
+    "source": "Norges Bank, Pengepolitisk rapport september 2026"
+  }
+}

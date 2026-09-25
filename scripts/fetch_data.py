@@ -228,6 +228,66 @@ def fetch_fred_series(series_id):
     return series
 
 
+def fetch_yahoo(symbol):
+    """Daglige sluttkurser for et Yahoo Finance-symbol (uoffisielt, men åpent endepunkt)."""
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol)}?range=1y&interval=1d"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (valuta-dashboard)", "Accept": "*/*"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        result = json.loads(resp.read().decode("utf-8"))["chart"]["result"][0]
+    closes = result["indicators"]["quote"][0]["close"]
+    out = {}
+    for ts, close in zip(result["timestamp"], closes):
+        value = to_float(close)
+        if value is not None:
+            out[str(date.fromtimestamp(ts))] = round(value, 2)
+    return out
+
+
+def fetch_ons_cpi():
+    """Britisk KPI å/å (ONS-serie D7G7) – ONS publiserer før OECD og uten revisjonslag."""
+    raw = json.loads(fetch("https://www.ons.gov.uk/economy/inflationandpriceindices/timeseries/d7g7/mm23/data", timeout=60))
+    months = {"January": "01", "February": "02", "March": "03", "April": "04", "May": "05", "June": "06",
+              "July": "07", "August": "08", "September": "09", "October": "10", "November": "11", "December": "12"}
+    out = {}
+    for row in raw.get("months", []):
+        value = to_float(row.get("value"))
+        if value is not None and row.get("month") in months:
+            out[f"{row['year']}-{months[row['month']]}"] = value
+    return out
+
+
+def fetch_cpi_core():
+    """KPI uten mat og energi å/å (OECD, begge klassifiseringer – nyeste observasjon vinner)."""
+    start = date.today() - timedelta(days=430)
+    result = {}
+    areas = "+".join(c["oecd"] for c in COUNTRIES)
+    for flow in ("DSD_PRICES@DF_PRICES_ALL,1.0", "DSD_PRICES_COICOP2018@DF_PRICES_C2018_ALL,1.0"):
+        url = (f"{OECD_BASE}/OECD.SDD.TPS,{flow}/{areas}.M.N.CPI.PA._TXCP01_NRG.N.GY"
+               f"?startPeriod={start:%Y-%m}&format=csvfilewithlabels")
+        try:
+            raw = fetch(url, timeout=90)
+        except Exception as exc:
+            print(f"  ADVARSEL: kjerne-KPI feilet for {flow}: {exc}", file=sys.stderr)
+            continue
+        for row in csv.DictReader(io.StringIO(raw)):
+            area, period = row.get("REF_AREA"), row.get("TIME_PERIOD")
+            value = to_float(row.get("OBS_VALUE"))
+            if area and period and value is not None:
+                result.setdefault(area, {})[period] = value
+    # Eurosonen: HICP uten energi og mat fra Eurostat (OECD mangler EA i 2026)
+    try:
+        raw = fetch("https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_minr"
+                    "?format=JSON&geo=EA21&coicop18=TOT_X_NRG_FOOD&unit=RCH_A&lastTimePeriod=4", timeout=60)
+        data = json.loads(raw)
+        periods = {v: k for k, v in data["dimension"]["time"]["category"]["index"].items()}
+        for i, v in data["value"].items():
+            if v is not None:
+                result.setdefault("EA20", {})[periods[int(i)]] = v
+    except Exception as exc:
+        print(f"  ADVARSEL: Eurostat kjerne-HICP feilet: {exc}", file=sys.stderr)
+    return result
+
+
 def fetch_cot():
     """Netto spekulativ posisjonering (non-commercial) fra CFTC, ukentlig 1 år.
 
@@ -335,13 +395,17 @@ CURVE_SOURCES = {
     "jp": ("govt", "japanske statsobligasjoner (MoF)"),
     "gb": ("ois", "OIS-kurve (Bank of England)"),
     "ca": ("govt", "kanadiske statspapirer (Bank of Canada)"),
-    "au": ("govt", "bankveksler + statsobligasjoner (RBA)"),
+    "au": ("govt", "australske statsobligasjoner (RBA)"),
     "se": ("govt", "svenske statspapirer (Riksbanken)"),
     "no": ("zero", "nullkupong statskurve (Norges Bank)"),
 }
 
 # Løpetider (år) som lagres i historikken. Nøkkel i JSON = f"{tenor:g}".
 CURVE_TENORS = (1 / 12, 0.25, 0.5, 1, 2, 3, 5, 10)
+
+# Korteste løpetid som beholdes per land (renser bort punkter fra kilder vi har sluttet å bruke,
+# f.eks. australske bankveksler som lå i historikken).
+CURVE_MIN_TENOR = {"au": 1}
 
 
 def tenor_key(years):
@@ -567,7 +631,10 @@ def fetch_curve_au():
     """
     start = str(curve_start())
     out = {}
-    for table in ("f1", "f2"):
+    # Kun F2 (statsobligasjoner). Bankvekslene i F1 (BABs) bærer en kredittpremie som
+    # stiger med løpetiden og ga en falsk «pukkel» i banen; RBAs OIS-serier opphørte
+    # i 2022. Med bare 2 år+ brukes styringsrenten som 3-mnd-anker (synthetic_anchor).
+    for table in ("f2",):
         raw = fetch(f"https://www.rba.gov.au/statistics/tables/csv/{table}-data.csv", timeout=120)
         rows = list(csv.reader(io.StringIO(raw)))
         titles = next((r for r in rows if r and r[0].strip().lower() == "title"), None)
@@ -612,7 +679,9 @@ def curve_metrics(points, policy):
     under 6 mnd, antas 3-mnd-renten lik styringsrenten (synthetic_anchor).
     """
     pts = sorted((float(t), v) for t, v in points.items() if v is not None)
-    if policy is None or len(pts) < 3 or pts[-1][0] < 2 or pts[0][0] > 1:
+    # Krever minst tre punkter, ett på 2 år eller lenger, og et korteste punkt på høyst 2 år
+    # (statsobligasjonskurver som starter på 2 år får syntetisk 3-mnd-anker = styringsrenten)
+    if policy is None or len(pts) < 3 or pts[-1][0] < 2 or pts[0][0] > 2:
         return None
     synthetic = pts[0][0] > 0.5
     if synthetic:
@@ -829,6 +898,10 @@ def main():
         "cpi": fetch_cpi,
         "unemployment": fetch_unemployment,
         "brent": lambda: fetch_fred_series("DCOILBRENTEU"),
+        "brent_fut": lambda: fetch_yahoo("BZ=F"),
+        "ttf": lambda: fetch_yahoo("TTF=F"),
+        "cpi_core": fetch_cpi_core,
+        "ons_cpi": fetch_ons_cpi,
         "vix": lambda: fetch_fred_series("VIXCLS"),
         "cot": fetch_cot,
         "ppp": fetch_ppp,
@@ -856,7 +929,13 @@ def main():
             st["fetched"] = prev.get("fetched")
 
     meetings = load_existing(DATA_DIR / "meetings.json")
+    overrides = {k: v for k, v in load_existing(DATA_DIR / "policy_overrides.json").items() if not k.startswith("_")}
+    cb_paths = {k: v for k, v in load_existing(DATA_DIR / "cb_paths.json").items() if not k.startswith("_")}
     today = str(date.today())
+
+    # Britisk KPI fra ONS overstyrer OECD når ONS er nyere
+    if sources.get("ons_cpi") and sources.get("cpi") is not None:
+        sources["cpi"].setdefault("GBR", {}).update(sources["ons_cpi"])
 
     # USD-kryss trengs for PPP-verdivurdering (lokal valuta per USD)
     usd_nok = (sources["fx"] or {}).get("USD") or old_history.get("fx", {}).get("USD", {})
@@ -895,17 +974,38 @@ def main():
         history["fx"][fx_key] = fx_series
 
         # Renter
-        policy_series = (sources["policy"] or {}).get(c["bis"]) or old_history.get("policy", {}).get(c["bis"], {})
+        policy_series = dict((sources["policy"] or {}).get(c["bis"]) or old_history.get("policy", {}).get(c["bis"], {}))
         policy_day, policy = latest(policy_series)
+        policy_source = "BIS"
+        # Manuelt registrert vedtak som BIS ikke har fanget opp ennå: gjelder fra vedtaksdatoen
+        ov = overrides.get(c["id"])
+        if ov and ov.get("date") and ov["date"] <= today and (policy_day is None or policy_day < ov["date"] or policy != ov["rate"]):
+            for d in list(policy_series):
+                if d >= ov["date"]:
+                    policy_series[d] = ov["rate"]
+            policy_series[ov["date"]] = ov["rate"]
+            policy_day, policy = ov["date"], ov["rate"]
+            policy_source = "vedtak (manuelt registrert)"
         history["policy"][c["bis"]] = policy_series
+        # Nylig renteendring (siste 30 dager): dato, fra, til
+        policy_change = None
+        if policy_series and policy_day:
+            past_day = str(date.fromisoformat(policy_day) - timedelta(days=30))
+            past_val = value_at_or_before(policy_series, past_day)
+            if past_val is not None and abs(past_val - policy) > 1e-9:
+                change_day = min(d for d in policy_series if d > past_day and abs(policy_series[d] - past_val) > 1e-9)
+                policy_change = {"date": change_day, "from": past_val, "to": policy}
         _, y10 = latest((sources["irlt"] or {}).get(c["oecd"], {}))
         _, m3 = latest((sources["ir3"] or {}).get(c["oecd"], {}))
         old_rates = old.get("rates", {})
         rates = {
             "policy": policy if policy is not None else old_rates.get("policy"),
             "policy_date": policy_day or old_rates.get("policy_date"),
+            "policy_source": policy_source,
             "m3": m3 if m3 is not None else old_rates.get("m3"),
             "y10": y10 if y10 is not None else old_rates.get("y10"),
+            "m3_source": "OECD (månedssnitt)",
+            "y10_source": "OECD (månedssnitt)",
         }
 
         # Endring i styringsrente siste 6 mnd (til retningsindikatoren)
@@ -916,6 +1016,10 @@ def main():
         # Inflasjon
         cpi_period, cpi_value = latest((sources["cpi"] or {}).get(c["oecd"], {}))
         cpi = {"value": cpi_value, "period": cpi_period} if cpi_period else old.get("cpi")
+
+        core_period, core_value = latest((sources["cpi_core"] or {}).get(c["oecd"], {}))
+        core_label = "HICP uten energi og mat (Eurostat)" if c["id"] == "ea" else "KPI uten mat og energi (OECD)"
+        cpi_core = {"value": core_value, "period": core_period, "label": core_label} if core_period else old.get("cpi_core")
 
         # Arbeidsledighet
         une_period, une_value = latest((sources["unemployment"] or {}).get(c["oecd"], {}))
@@ -961,10 +1065,27 @@ def main():
         for day, vals in (curves.get(c["id"]) or {}).items():
             curve_series.setdefault(day, {}).update(vals)
         cutoff = str(date.today() - timedelta(days=400))
-        curve_series = {d: v for d, v in curve_series.items() if d >= cutoff}
+        min_tenor = CURVE_MIN_TENOR.get(c["id"], 0)
+        curve_series = {d: {t: r for t, r in v.items() if float(t) >= min_tenor}
+                        for d, v in curve_series.items() if d >= cutoff}
+        curve_series = {d: v for d, v in curve_series.items() if v}
         curve = build_curve(c["id"], curve_series, policy_series) if c["id"] in CURVE_SOURCES else None
         if curve_series:
             curve_history[cur] = curve_series
+        if curve:
+            # Dagsferske kurvepunkter foran OECDs månedssnitt der kurven har dem
+            if curve["points"].get("0.25") is not None:
+                rates["m3"], rates["m3_source"] = curve["points"]["0.25"], "kurve"
+            if curve["points"].get("10") is not None:
+                rates["y10"], rates["y10_source"] = curve["points"]["10"], "kurve"
+            if curve["kind"] != "ois":
+                curve["source"] += " – inkl. terminpremie"
+        # Kursutvikling siden siste renteendring (til «heving levert, kurs ikke fulgt»)
+        if policy_change and fx_series:
+            base = value_at_or_before(fx_series, policy_change["date"])
+            if base:
+                since = (fx_value / base - 1) * 100
+                policy_change["fx_since"] = round(-since if invert else since, 2)
 
         # Neste rentemøte fra den statiske kalenderen
         upcoming = [d for d in meetings.get(c["id"], []) if d >= today]
@@ -973,6 +1094,9 @@ def main():
             "fx": fx,
             "rates": rates,
             "cpi": cpi,
+            "cpi_core": cpi_core,
+            "policy_change": policy_change,
+            "cb_path": cb_paths.get(c["id"]),
             "unemployment": unemployment,
             "ppp": ppp,
             "cot": cot,
@@ -1009,13 +1133,15 @@ def main():
     # Markedsindikatorer på tvers av landene
     fx_all = sources["fx"] or old_history.get("fx", {})
     brent = sources["brent"] or old_history.get("market", {}).get("brent", {})
+    brent_fut = sources["brent_fut"] or old_history.get("market", {}).get("brent_fut", {})
+    ttf = sources["ttf"] or old_history.get("market", {}).get("ttf", {})
     vix = sources["vix"] or old_history.get("market", {}).get("vix", {})
     audjpy = {}
     aud, jpy = fx_all.get("AUD", {}), fx_all.get("JPY", {})
     for day in sorted(set(aud) & set(jpy)):
         if jpy[day]:
             audjpy[day] = round(aud[day] / jpy[day], 3)
-    history["market"] = {"brent": brent, "vix": vix, "audjpy": audjpy}
+    history["market"] = {"brent": brent, "brent_fut": brent_fut, "ttf": ttf, "vix": vix, "audjpy": audjpy}
 
     def snapshot(series, decimals=2):
         day, value = latest(series)
@@ -1032,7 +1158,9 @@ def main():
     i44 = history["fx"].get("I44", {})
     nok_strength = {d: 1 / v for d, v in i44.items() if v}
     market = {
-        "brent": snapshot(brent),
+        "brent": snapshot(brent),          # Dated Brent (fysisk spot, FRED)
+        "brent_fut": snapshot(brent_fut),  # ICE Brent front-måned futures (Yahoo BZ=F)
+        "ttf": snapshot(ttf),              # TTF-gass front-måned, EUR/MWh (Yahoo TTF=F)
         "vix": snapshot(vix),
         "audjpy": snapshot(audjpy, 3),
         "brent_nok_corr": correlation(brent, nok_strength),

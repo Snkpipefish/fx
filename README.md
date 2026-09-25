@@ -30,6 +30,13 @@ Testene kjøres i GitHub Actions før innhentingen. Alle kilder hentes parallelt
 
 ## Manuelt vedlikehold
 
+Tre små JSON-filer i `data/` holdes ved like for hånd:
+
+- `meetings.json` – neste rentemøter per sentralbank.
+- `policy_overrides.json` – rentevedtak BIS-serien ennå ikke har fanget opp (BIS henger typisk noen dager etter). Posten brukes fra vedtaksdatoen og kan fjernes når BIS er à jour.
+- `cb_paths.json` – sentralbankenes egne renteanslag (dot plot, rentebane), som vises som en rombe i hantelgrafen og gir setningen «markedet ligger lengst fra bankens eget anslag for …».
+
+
 Rentemøtedatoene i [data/meetings.json](data/meetings.json) må oppdateres når sentralbankene publiserer neste års kalender (typisk én gang i året). Datoer i fortiden ignoreres automatisk.
 
 ## Kjør lokalt

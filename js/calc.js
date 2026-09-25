@@ -84,12 +84,13 @@ export function directionSignal(c) {
     else if (mom < -0.5) parts.push("valutaen har <b>svekket seg</b> siste 3 mnd");
   }
 
-  const cpi = c.cpi?.value;
+  // Realrente mot kjerneinflasjon der den finnes (nærmere det sentralbankene styrer etter)
+  const cpi = c.cpi_core?.value ?? c.cpi?.value;
   if (policy != null && cpi != null) {
     const real = policy - cpi;
     score += clamp(real / 2) * 0.2;
-    if (real > 0.5) parts.push("positiv realrente");
-    else if (real < -0.5) parts.push("negativ realrente");
+    if (real > 0.5) parts.push(`positiv realrente${c.cpi_core ? " (mot kjerne)" : ""}`);
+    else if (real < -0.5) parts.push(`negativ realrente${c.cpi_core ? " (mot kjerne)" : ""}`);
   }
 
   const dir = score > 0.12 ? "up" : score < -0.12 ? "down" : "flat";

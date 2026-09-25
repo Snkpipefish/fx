@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-25T10:27:20+00:00",
+ "updated": "2026-09-25T10:43:24+00:00",
  "countries": [
   {
    "id": "us",
@@ -23,13 +23,32 @@
    "rates": {
     "policy": 3.875,
     "policy_date": "2026-09-22",
-    "m3": 3.82,
-    "y10": 4.68,
+    "policy_source": "BIS",
+    "m3": 4.19,
+    "y10": 5.11,
+    "m3_source": "kurve",
+    "y10_source": "kurve",
     "policy_6m_change": 0.25
    },
    "cpi": {
     "value": 3.396548,
     "period": "2026-08"
+   },
+   "cpi_core": {
+    "value": 2.44598,
+    "period": "2026-08",
+    "label": "KPI uten mat og energi (OECD)"
+   },
+   "policy_change": {
+    "date": "2026-09-17",
+    "from": 3.625,
+    "to": 3.875,
+    "fx_since": 0.67
+   },
+   "cb_path": {
+    "level": 4.125,
+    "horizon": "utgangen av 2026 og 2027",
+    "source": "FOMC dot plot, september 2026 (4,00–4,25 %)"
    },
    "unemployment": {
     "value": 4.1,
@@ -50,7 +69,7 @@
    "curve": {
     "date": "2026-09-23",
     "kind": "govt",
-    "source": "amerikanske statspapirer (FRED)",
+    "source": "amerikanske statspapirer (FRED) – inkl. terminpremie",
     "points": {
      "0.083": 3.99,
      "0.25": 4.19,
@@ -167,14 +186,29 @@
    "rates": {
     "policy": 2.5,
     "policy_date": "2026-09-22",
-    "m3": 2.513143,
-    "y10": 3.664717,
+    "policy_source": "BIS",
+    "m3": 2.612,
+    "y10": 3.566,
+    "m3_source": "kurve",
+    "y10_source": "kurve",
     "policy_6m_change": 0.5
    },
    "cpi": {
     "value": 3.2,
     "period": "2026-08"
    },
+   "cpi_core": {
+    "value": 2.4,
+    "period": "2026-08",
+    "label": "HICP uten energi og mat (Eurostat)"
+   },
+   "policy_change": {
+    "date": "2026-09-16",
+    "from": 2.25,
+    "to": 2.5,
+    "fx_since": 0.01
+   },
+   "cb_path": null,
    "unemployment": {
     "value": 6.4,
     "period": "2026-07"
@@ -194,7 +228,7 @@
    "curve": {
     "date": "2026-09-24",
     "kind": "govt",
-    "source": "AAA-statskurve eurosonen (ECB)",
+    "source": "AAA-statskurve eurosonen (ECB) – inkl. terminpremie",
     "points": {
      "0.25": 2.612,
      "0.5": 2.793,
@@ -308,16 +342,31 @@
     }
    },
    "rates": {
-    "policy": 1.0,
-    "policy_date": "2026-09-22",
+    "policy": 1.25,
+    "policy_date": "2026-09-18",
+    "policy_source": "vedtak (manuelt registrert)",
     "m3": 1.45845,
-    "y10": 2.94,
-    "policy_6m_change": 0.25
+    "y10": 3.073,
+    "m3_source": "OECD (månedssnitt)",
+    "y10_source": "kurve",
+    "policy_6m_change": 0.5
    },
    "cpi": {
     "value": 1.9,
     "period": "2026-08"
    },
+   "cpi_core": {
+    "value": 1.7,
+    "period": "2026-08",
+    "label": "KPI uten mat og energi (OECD)"
+   },
+   "policy_change": {
+    "date": "2026-09-18",
+    "from": 1.0,
+    "to": 1.25,
+    "fx_since": 0.02
+   },
+   "cb_path": null,
    "unemployment": {
     "value": 2.4,
     "period": "2026-07"
@@ -337,7 +386,7 @@
    "curve": {
     "date": "2026-09-24",
     "kind": "govt",
-    "source": "japanske statsobligasjoner (MoF)",
+    "source": "japanske statsobligasjoner (MoF) – inkl. terminpremie",
     "points": {
      "1": 1.627,
      "2": 1.912,
@@ -346,8 +395,8 @@
      "10": 3.073
     },
     "repricing": {
-     "w1": 4,
-     "m1": 24
+     "w1": -21,
+     "m1": -1
     },
     "y2_change": {
      "w1": 4,
@@ -381,24 +430,24 @@
      2.167
     ],
     "implied": {
-     "3m": 42,
-     "6m": 84,
-     "12m": 98,
-     "24m": 126
+     "3m": 25,
+     "6m": 50,
+     "12m": 73,
+     "24m": 101
     },
     "path": [
-     1.0,
-     1.093,
-     1.232,
-     1.418,
-     1.557,
-     1.697,
+     1.25,
+     1.306,
+     1.39,
+     1.501,
+     1.585,
+     1.669,
+     1.753,
      1.836,
-     1.975,
-     2.115,
-     2.254,
-     2.194,
-     2.104,
+     1.92,
+     2.004,
+     2.009,
+     2.002,
      1.983,
      2.031,
      2.078,
@@ -416,7 +465,7 @@
     "extreme": {
      "months": 21,
      "level": 2.411,
-     "bp": 141
+     "bp": 116
     },
     "synthetic_anchor": true
    },
@@ -451,14 +500,24 @@
    "rates": {
     "policy": 3.75,
     "policy_date": "2026-09-21",
-    "m3": 3.62,
-    "y10": 4.9886,
+    "policy_source": "BIS",
+    "m3": 3.859,
+    "y10": 4.851,
+    "m3_source": "kurve",
+    "y10_source": "kurve",
     "policy_6m_change": 0.0
    },
    "cpi": {
-    "value": 3.3,
+    "value": 3.1,
     "period": "2026-08"
    },
+   "cpi_core": {
+    "value": 2.9,
+    "period": "2026-08",
+    "label": "KPI uten mat og energi (OECD)"
+   },
+   "policy_change": null,
+   "cb_path": null,
    "unemployment": {
     "value": 4.9,
     "period": "2026-05"
@@ -595,14 +654,24 @@
    "rates": {
     "policy": 0.0,
     "policy_date": "2026-09-22",
+    "policy_source": "BIS",
     "m3": -0.045,
     "y10": 0.47,
+    "m3_source": "OECD (månedssnitt)",
+    "y10_source": "OECD (månedssnitt)",
     "policy_6m_change": 0.0
    },
    "cpi": {
     "value": 0.807246,
     "period": "2026-08"
    },
+   "cpi_core": {
+    "value": 0.5380723,
+    "period": "2026-08",
+    "label": "KPI uten mat og energi (OECD)"
+   },
+   "policy_change": null,
+   "cb_path": null,
    "unemployment": {
     "value": 5.032409,
     "period": "2026-Q2"
@@ -621,7 +690,7 @@
    },
    "curve": null,
    "vol30": 4.9,
-   "meeting": "2026-12-17",
+   "meeting": "2026-12-10",
    "fwd_fx_1y": {
     "rate": 12.0089,
     "pct": 4.73,
@@ -651,14 +720,24 @@
    "rates": {
     "policy": 2.25,
     "policy_date": "2026-09-21",
-    "m3": 2.28,
-    "y10": 3.675,
+    "policy_source": "BIS",
+    "m3": 2.35,
+    "y10": 3.96,
+    "m3_source": "kurve",
+    "y10_source": "kurve",
     "policy_6m_change": 0.0
    },
    "cpi": {
     "value": 3.033981,
     "period": "2026-08"
    },
+   "cpi_core": {
+    "value": 1.895633,
+    "period": "2026-08",
+    "label": "KPI uten mat og energi (OECD)"
+   },
+   "policy_change": null,
+   "cb_path": null,
    "unemployment": {
     "value": 6.4,
     "period": "2026-08"
@@ -678,7 +757,7 @@
    "curve": {
     "date": "2026-09-23",
     "kind": "govt",
-    "source": "kanadiske statspapirer (Bank of Canada)",
+    "source": "kanadiske statspapirer (Bank of Canada) – inkl. terminpremie",
     "points": {
      "0.083": 2.25,
      "0.25": 2.35,
@@ -764,7 +843,7 @@
     "synthetic_anchor": false
    },
    "vol30": 4.2,
-   "meeting": "2026-10-21",
+   "meeting": "2026-10-28",
    "fwd_fx_1y": {
     "rate": 6.8341,
     "pct": 1.64,
@@ -794,14 +873,24 @@
    "rates": {
     "policy": 4.35,
     "policy_date": "2026-09-17",
+    "policy_source": "BIS",
     "m3": 4.51,
-    "y10": 5.015,
+    "y10": 5.245,
+    "m3_source": "OECD (månedssnitt)",
+    "y10_source": "kurve",
     "policy_6m_change": 0.25
    },
    "cpi": {
     "value": 3.452775,
     "period": "2026-07"
    },
+   "cpi_core": {
+    "value": 3.644784,
+    "period": "2026-07",
+    "label": "KPI uten mat og energi (OECD)"
+   },
+   "policy_change": null,
+   "cb_path": null,
    "unemployment": {
     "value": 4.461825,
     "period": "2026-07"
@@ -821,19 +910,16 @@
    "curve": {
     "date": "2026-09-23",
     "kind": "govt",
-    "source": "bankveksler + statsobligasjoner (RBA)",
+    "source": "australske statsobligasjoner (RBA) – inkl. terminpremie",
     "points": {
-     "0.083": 4.46,
-     "0.25": 4.71,
-     "0.5": 5.09,
      "2": 4.947,
      "3": 4.934,
      "5": 4.965,
      "10": 5.245
     },
     "repricing": {
-     "w1": -10,
-     "m1": 19
+     "w1": -6,
+     "m1": 45
     },
     "y2_change": {
      "w1": -5,
@@ -841,77 +927,77 @@
     },
     "path_w1": [
      4.35,
-     4.609,
-     4.862,
-     5.11,
-     5.06,
-     4.923,
-     4.7,
-     4.693,
-     4.687,
-     4.68,
-     4.673,
-     4.667,
+     4.391,
+     4.453,
+     4.536,
+     4.598,
      4.66,
-     4.653,
-     4.647,
-     4.64,
-     4.633,
-     4.627,
-     4.62,
-     4.613,
-     4.607,
-     4.6,
-     4.614,
-     4.63,
-     4.648
+     4.721,
+     4.783,
+     4.845,
+     4.907,
+     4.969,
+     5.031,
+     5.093,
+     5.155,
+     5.217,
+     5.279,
+     5.34,
+     5.402,
+     5.464,
+     5.526,
+     5.588,
+     5.65,
+     5.447,
+     5.223,
+     4.978
     ],
     "implied": {
-     "3m": 76,
-     "6m": 31,
-     "12m": 21,
-     "24m": 21
+     "3m": 17,
+     "6m": 34,
+     "12m": 68,
+     "24m": 57
     },
     "path": [
      4.35,
-     4.602,
-     4.855,
-     5.11,
-     5.049,
-     4.899,
-     4.658,
-     4.643,
-     4.627,
-     4.611,
-     4.595,
-     4.579,
-     4.563,
-     4.547,
-     4.531,
-     4.515,
-     4.5,
-     4.484,
-     4.468,
-     4.452,
-     4.436,
-     4.42,
-     4.461,
-     4.507,
-     4.558
+     4.388,
+     4.445,
+     4.521,
+     4.577,
+     4.634,
+     4.691,
+     4.748,
+     4.805,
+     4.862,
+     4.919,
+     4.975,
+     5.032,
+     5.089,
+     5.146,
+     5.203,
+     5.26,
+     5.317,
+     5.373,
+     5.43,
+     5.487,
+     5.544,
+     5.355,
+     5.146,
+     4.918
     ],
     "extreme": {
-     "months": 3,
-     "level": 5.11,
-     "bp": 76
+     "months": 21,
+     "level": 5.544,
+     "bp": 119
     },
-    "synthetic_anchor": false
+    "synthetic_anchor": true
    },
    "vol30": 5.0,
    "meeting": "2026-09-29",
    "fwd_fx_1y": {
-    "rate": 6.6469,
-    "pct": -0.34,
-    "diff": 0.36,
+    "rate": 6.653,
+    "pct": -0.25,
+    "diff": 0.26,
     "from_curve": true
    }
   },
@@ -937,13 +1023,28 @@
    "rates": {
     "policy": 2.75,
     "policy_date": "2026-09-18",
+    "policy_source": "BIS",
     "m3": 2.98,
     "y10": 4.71,
+    "m3_source": "OECD (månedssnitt)",
+    "y10_source": "OECD (månedssnitt)",
     "policy_6m_change": 0.5
    },
    "cpi": {
     "value": 4.058193,
     "period": "2026-Q2"
+   },
+   "cpi_core": null,
+   "policy_change": {
+    "date": "2026-09-03",
+    "from": 2.5,
+    "to": 2.75,
+    "fx_since": -1.5
+   },
+   "cb_path": {
+    "level": 3.28,
+    "horizon": "endepunkt i OCR-banen",
+    "source": "RBNZ Monetary Policy Statement"
    },
    "unemployment": {
     "value": 5.6,
@@ -963,7 +1064,7 @@
    },
    "curve": null,
    "vol30": 6.3,
-   "meeting": "2026-10-07",
+   "meeting": "2026-10-28",
    "fwd_fx_1y": {
     "rate": 5.4704,
     "pct": 1.65,
@@ -993,13 +1094,27 @@
    "rates": {
     "policy": 1.75,
     "policy_date": "2026-09-22",
-    "m3": 1.96805,
-    "y10": 3.02314,
+    "policy_source": "BIS",
+    "m3": 1.908,
+    "y10": 3.252,
+    "m3_source": "kurve",
+    "y10_source": "kurve",
     "policy_6m_change": 0.0
    },
    "cpi": {
     "value": 0.3052945,
     "period": "2026-08"
+   },
+   "cpi_core": {
+    "value": 1.260299,
+    "period": "2026-08",
+    "label": "KPI uten mat og energi (OECD)"
+   },
+   "policy_change": null,
+   "cb_path": {
+    "level": 2.3,
+    "horizon": "i løpet av 2027",
+    "source": "Riksbanken, september 2026: «omkring 2,3 % under 2027»"
    },
    "unemployment": {
     "value": 8.6,
@@ -1015,7 +1130,7 @@
    "curve": {
     "date": "2026-09-24",
     "kind": "govt",
-    "source": "svenske statspapirer (Riksbanken)",
+    "source": "svenske statspapirer (Riksbanken) – inkl. terminpremie",
     "points": {
      "0.25": 1.908,
      "0.5": 2.234,
@@ -1127,15 +1242,34 @@
     }
    },
    "rates": {
-    "policy": 4.25,
-    "policy_date": "2026-09-16",
-    "m3": 4.51,
-    "y10": 4.28635,
-    "policy_6m_change": 0.25
+    "policy": 4.5,
+    "policy_date": "2026-09-23",
+    "policy_source": "vedtak (manuelt registrert)",
+    "m3": 4.449,
+    "y10": 4.451,
+    "m3_source": "kurve",
+    "y10_source": "kurve",
+    "policy_6m_change": 0.5
    },
    "cpi": {
     "value": 3.293413,
     "period": "2026-08"
+   },
+   "cpi_core": {
+    "value": 3.493282,
+    "period": "2026-08",
+    "label": "KPI uten mat og energi (OECD)"
+   },
+   "policy_change": {
+    "date": "2026-09-23",
+    "from": 4.25,
+    "to": 4.5,
+    "fx_since": 0.04
+   },
+   "cb_path": {
+    "level": 4.5,
+    "horizon": "neste år (nær dagens nivå, deretter noe ned)",
+    "source": "Norges Bank, Pengepolitisk rapport september 2026"
    },
    "unemployment": {
     "value": 4.2,
@@ -1151,7 +1285,7 @@
    "curve": {
     "date": "2026-09-24",
     "kind": "zero",
-    "source": "nullkupong statskurve (Norges Bank)",
+    "source": "nullkupong statskurve (Norges Bank) – inkl. terminpremie",
     "points": {
      "0.25": 4.449,
      "0.5": 4.541,
@@ -1203,35 +1337,35 @@
      "24m": 19
     },
     "path": [
-     4.25,
-     4.291,
-     4.352,
-     4.434,
-     4.479,
-     4.518,
-     4.554,
-     4.601,
-     4.647,
-     4.694,
-     4.66,
-     4.612,
-     4.552,
-     4.561,
-     4.57,
-     4.579,
-     4.588,
-     4.598,
-     4.607,
-     4.616,
-     4.625,
-     4.634,
-     4.575,
-     4.51,
-     4.439
+     4.5,
+     4.541,
+     4.602,
+     4.684,
+     4.729,
+     4.768,
+     4.804,
+     4.851,
+     4.897,
+     4.944,
+     4.91,
+     4.862,
+     4.802,
+     4.811,
+     4.82,
+     4.829,
+     4.838,
+     4.848,
+     4.857,
+     4.866,
+     4.875,
+     4.884,
+     4.825,
+     4.76,
+     4.689
     ],
     "extreme": {
      "months": 9,
-     "level": 4.694,
+     "level": 4.944,
      "bp": 44
     },
     "synthetic_anchor": false
@@ -1249,6 +1383,26 @@
     "w1": -12.16,
     "m1": 18.54,
     "y1": 71.81
+   }
+  },
+  "brent_fut": {
+   "value": 98.89,
+   "date": "2026-09-25",
+   "changes": {
+    "d1": -7.23,
+    "w1": -4.79,
+    "m1": 12.58,
+    "y1": 42.45
+   }
+  },
+  "ttf": {
+   "value": 75.11,
+   "date": "2026-09-24",
+   "changes": {
+    "d1": 4.3,
+    "w1": -1.62,
+    "m1": 12.79,
+    "y1": null
    }
   },
   "vix": {
@@ -1274,16 +1428,10 @@
   "brent_nok_corr": 0.25
  },
  "sources": {
-  "ir3": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "irlt": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
+  "brent": {
+   "ok": false,
+   "error": "FRED hoppet over lokalt (DCOILBRENTEU)",
+   "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
   "i44": {
@@ -1292,28 +1440,10 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "ppp": {
+  "brent_fut": {
    "ok": true,
    "error": null,
-   "latest": "2025",
-   "fetched": "2026-09-25"
-  },
-  "vix": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-22",
-   "fetched": "2026-09-25"
-  },
-  "cot": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-15",
-   "fetched": "2026-09-25"
-  },
-  "unemployment": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
+   "latest": "2026-09-25",
    "fetched": "2026-09-25"
   },
   "fx": {
@@ -1322,13 +1452,55 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_ca": {
+  "irlt": {
    "ok": true,
    "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "vix": {
+   "ok": false,
+   "error": "FRED hoppet over lokalt (VIXCLS)",
+   "latest": "2026-09-22",
+   "fetched": "2026-09-25"
+  },
+  "ttf": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "ons_cpi": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "curve_us": {
+   "ok": false,
+   "error": "FRED hoppet over lokalt (DGS1MO)",
    "latest": "2026-09-23",
    "fetched": "2026-09-25"
   },
-  "curve_jp": {
+  "ppp": {
+   "ok": true,
+   "error": null,
+   "latest": "2025",
+   "fetched": "2026-09-25"
+  },
+  "unemployment": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "ir3": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "curve_ea": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
@@ -1340,16 +1512,10 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_ea": {
+  "curve_ca": {
    "ok": true,
    "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "brent": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-22",
+   "latest": "2026-09-23",
    "fetched": "2026-09-25"
   },
   "curve_no": {
@@ -1358,16 +1524,28 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_au": {
+  "cot": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-15",
+   "fetched": "2026-09-25"
+  },
+  "curve_jp": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_us": {
+  "curve_au": {
    "ok": true,
    "error": null,
    "latest": "2026-09-23",
+   "fetched": "2026-09-25"
+  },
+  "cpi_core": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
    "fetched": "2026-09-25"
   },
   "policy": {
