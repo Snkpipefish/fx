@@ -11,12 +11,26 @@
 <body>
   <header class="topbar">
     <h1>💱 G10 Valutadashboard</h1>
-    <p class="subtitle">Kurser mot norske kroner · renter · inflasjon · datadrevet retningssignal</p>
+    <p class="subtitle">Kurser mot norske kroner · hva rentemarkedet har priset inn · inflasjon · datadrevet retningssignal</p>
     <p class="updated" id="updated"></p>
   </header>
 
   <section class="overview">
     <div id="movers" class="movers"></div>
+    <div class="panel-row priced-row">
+      <div class="panel" id="pricedPanel">
+        <h3>Hva er priset inn? <small>· renteendringer markedet har priset, og hvor langt frem</small></h3>
+        <div id="pricedTable"></div>
+      </div>
+      <div class="panel" id="pathPanel">
+        <h3>Implisert rentebane <small>· styringsrenten markedet priser, måneder frem</small></h3>
+        <div class="chart-wrap-md"><canvas id="pathChart"></canvas></div>
+      </div>
+    </div>
+    <div class="panel" id="ideasPanel">
+      <h3>Idéer fra dataene <small>· automatisk genererte observasjoner til videre graving – ikke anbefalinger</small></h3>
+      <div class="ideas" id="ideas"></div>
+    </div>
     <div class="panel">
       <h3>Relativ utvikling mot NOK <small>· rebasert til 100 for ett år siden · klikk i tegnforklaringen for å slå av/på</small></h3>
       <div class="chart-wrap-lg"><canvas id="comparisonChart"></canvas></div>
@@ -40,7 +54,10 @@
   <footer class="footer">
     <p><strong>Retningssignalet er en enkel heuristikk</strong> basert på rentedifferanser, kursmomentum og realrente
       – ikke en prognose og ikke investeringsråd.</p>
-    <p>Kilder: ECB/Frankfurter (valutakurser), Norges Bank (I-44), BIS (styringsrenter), OECD (statsrenter og KPI).
+    <p><strong>«Priset inn»</strong> er regnet fra terminrenter i OIS- og statskurver (FRED, ECB, Japans finansdepartement,
+      Bank of England, Bank of Canada, Riksbanken, Norges Bank). Terminrenter inneholder terminpremie og viser derfor retning
+      og størrelse på markedets prising, ikke sannsynligheter. Idéene er automatisk genererte observasjoner – ikke investeringsråd.</p>
+    <p>Kilder: ECB/Frankfurter (valutakurser), Norges Bank (I-44), BIS (styringsrenter), OECD (statsrenter og KPI), CFTC (posisjonering).
       Data oppdateres automatisk hver ukedag via GitHub Actions.</p>
   </footer>
 

@@ -12,6 +12,9 @@ Kilder (alle gratis, uten API-nøkkel):
   - COT-posisjonering: CFTC Socrata (legacy futures-only, datasett 6dca-aqww;
                        samme kilde som bedrock-prosjektets cot_cftc-modul)
   - PPP (kjøpekraft):  World Bank (PA.NUS.PPP; Tyskland som proxy for eurosonen)
+  - Rentekurver:       FRED (USA), ECB (eurosonen), MoF (Japan), Bank of England
+                       (OIS), Bank of Canada, RBA, Riksbanken, Norges Bank
+                       (nullkupong) – grunnlag for «hva er priset inn»
 
 Kjøres uten argumenter. Feiler én kilde beholdes forrige verdi fra eksisterende
 JSON-filer, slik at en enkelt nede-tjeneste ikke velter hele oppdateringen.
@@ -21,10 +24,13 @@ import csv
 import io
 import json
 import math
+import re
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -64,13 +70,13 @@ PPP_ISO = {"us": "USA", "ea": "DEU", "jp": "JPN", "gb": "GBR", "ch": "CHE",
            "ca": "CAN", "au": "AUS", "nz": "NZL", "se": "SWE", "no": "NOR"}
 
 
-def fetch(url, timeout=60, attempts=4):
+def fetch(url, timeout=60, attempts=4, errors="strict"):
     # Accept-headeren er nødvendig: FRED (Akamai) lar forespørsler uten den henge til timeout
     req = urllib.request.Request(url, headers={"User-Agent": "valuta-dashboard/1.0", "Accept": "*/*"})
     for attempt in range(attempts):
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return resp.read().decode("utf-8")
+                return resp.read().decode("utf-8", errors=errors)
         except Exception:
             if attempt == attempts - 1:
                 raise
@@ -309,6 +315,387 @@ def fetch_unemployment():
     return series
 
 
+# ---------------------------------------------------------------------------
+# Rentekurver: hva markedet har priset inn av renteendringer, og hvor langt frem
+# ---------------------------------------------------------------------------
+#
+# Per land hentes en daglig rentekurve (OIS der det finnes, ellers statspapirer)
+# med løpetider fra 1 mnd til 10 år. Fra kurven regnes terminrenter, som viser
+# hvilken kort rente markedet «forventer» på ulike tidspunkt fremover.
+# Terminrenter inneholder også terminpremie, så tallene er en indikasjon på
+# prising – ikke sannsynligheter.
+
+CURVE_SOURCES = {
+    "us": ("govt", "amerikanske statspapirer (FRED)"),
+    "ea": ("govt", "AAA-statskurve eurosonen (ECB)"),
+    "jp": ("govt", "japanske statsobligasjoner (MoF)"),
+    "gb": ("ois", "OIS-kurve (Bank of England)"),
+    "ca": ("govt", "kanadiske statspapirer (Bank of Canada)"),
+    "au": ("govt", "bankveksler + statsobligasjoner (RBA)"),
+    "se": ("govt", "svenske statspapirer (Riksbanken)"),
+    "no": ("zero", "nullkupong statskurve (Norges Bank)"),
+}
+
+# Løpetider (år) som lagres i historikken. Nøkkel i JSON = f"{tenor:g}".
+CURVE_TENORS = (1 / 12, 0.25, 0.5, 1, 2, 3, 5, 10)
+
+
+def tenor_key(years):
+    return f"{round(years, 3):g}"
+
+
+def curve_start():
+    return date.today() - timedelta(days=400)
+
+
+def xlsx_sheet_rows(xlsx_bytes, sheet_name):
+    """Minimal xlsx-leser med kun standardbiblioteket.
+
+    Returnerer [(radnr, {kolonnebokstav: verdi})] der verdi er float for tall,
+    str for delte tekststrenger og None for feil/tomme celler.
+    """
+    z = zipfile.ZipFile(io.BytesIO(xlsx_bytes))
+    workbook = z.read("xl/workbook.xml").decode("utf-8")
+    rid = None
+    for tag in re.findall(r"<sheet [^>]*>", workbook):
+        name = re.search(r'name="([^"]*)"', tag)
+        ref = re.search(r'r:id="([^"]*)"', tag)
+        if name and ref and name.group(1).strip().lower() == sheet_name.lower():
+            rid = ref.group(1)
+    if not rid:
+        raise ValueError(f"fant ikke arket {sheet_name!r}")
+    rels = z.read("xl/_rels/workbook.xml.rels").decode("utf-8")
+    target = None
+    for tag in re.findall(r"<Relationship [^>]*>", rels):
+        if re.search(rf'Id="{re.escape(rid)}"', tag):
+            target = re.search(r'Target="([^"]*)"', tag).group(1)
+    sheet_xml = z.read("xl/" + target.lstrip("/").removeprefix("xl/")).decode("utf-8")
+    shared = []
+    if "xl/sharedStrings.xml" in z.namelist():
+        for si in re.findall(r"<si>(.*?)</si>", z.read("xl/sharedStrings.xml").decode("utf-8"), re.S):
+            shared.append("".join(re.findall(r"<t[^>]*>([^<]*)</t>", si)))
+    rows = []
+    for rownum, body in re.findall(r'<row r="(\d+)"[^>]*>(.*?)</row>', sheet_xml, re.S):
+        cells = {}
+        for col, attrs, inner in re.findall(r'<c r="([A-Z]+)\d+"([^>]*?)(?:/>|>(.*?)</c>)', body, re.S):
+            v = re.search(r"<v>([^<]*)</v>", inner or "")
+            if not v:
+                cells[col] = None
+            elif 't="s"' in attrs:
+                cells[col] = shared[int(v.group(1))]
+            elif 't="' in attrs:  # t="e" (feil), t="str" (formeltekst) o.l.
+                cells[col] = None
+            else:
+                cells[col] = to_float(v.group(1))
+        rows.append((int(rownum), cells))
+    return rows
+
+
+def excel_date(serial):
+    return str(date(1899, 12, 30) + timedelta(days=int(serial)))
+
+
+def parse_boe_ois(xlsx_bytes, start):
+    """Spotrenter fra BoEs OIS-arbeidsbok: 1–60 mnd fra kortende-arket, 10 år fra hele kurven."""
+    def grid(sheet, header_label, to_years):
+        header, data = None, {}
+        for _, cells in xlsx_sheet_rows(xlsx_bytes, sheet):
+            a = cells.get("A")
+            if isinstance(a, str) and a.strip().lower().startswith(header_label):
+                header = {col: to_years(v) for col, v in cells.items() if col != "A" and isinstance(v, float)}
+            elif isinstance(a, float) and a > 30000 and header:
+                day = excel_date(a)
+                if day < start:
+                    continue
+                for col, v in cells.items():
+                    if col in header and isinstance(v, float):
+                        data.setdefault(day, {})[header[col]] = v
+        return data
+
+    out = {}
+    for day, vals in grid("3. spot, short end", "months", lambda m: round(m) / 12).items():
+        for years in (1 / 12, 0.25, 0.5, 1, 2, 3, 5):
+            for t, v in vals.items():
+                if abs(t - years) < 1e-6:
+                    out.setdefault(day, {})[tenor_key(years)] = round(v, 4)
+    for day, vals in grid("4. spot curve", "years", lambda y: round(y * 2) / 2).items():
+        if 10.0 in vals:
+            out.setdefault(day, {})[tenor_key(10)] = round(vals[10.0], 4)
+    return out
+
+
+def fetch_curve_gb(existing_days):
+    """BoE OIS-kurve. Inneværende måned fra 'latest'-zip; hele arkivet ved første kjøring."""
+    start = str(curve_start())
+    base = "https://www.bankofengland.co.uk/-/media/boe/files/statistics/yield-curves/"
+    urls = [base + "latest-yield-curve-data.zip"]
+    if existing_days < 150:
+        urls.append(base + "oisddata.zip")
+    out = {}
+    for url in urls:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (valuta-dashboard)"})
+        with urllib.request.urlopen(req, timeout=180) as resp:
+            archive = zipfile.ZipFile(io.BytesIO(resp.read()))
+        for name in archive.namelist():
+            if not name.lower().startswith("ois") or not name.endswith(".xlsx"):
+                continue
+            if "to present" not in name and "current month" not in name:
+                continue
+            for day, vals in parse_boe_ois(archive.read(name), start).items():
+                out.setdefault(day, {}).update(vals)
+    return out
+
+
+def fetch_curve_us():
+    """Amerikanske statsrenter (constant maturity) fra FRED."""
+    ids = {"DGS1MO": 1 / 12, "DGS3MO": 0.25, "DGS6MO": 0.5, "DGS1": 1,
+           "DGS2": 2, "DGS3": 3, "DGS5": 5, "DGS10": 10}
+    out = {}
+    for sid, years in ids.items():
+        for day, v in fetch_fred_series(sid).items():
+            out.setdefault(day, {})[tenor_key(years)] = v
+    return out
+
+
+def fetch_curve_ea():
+    """ECBs AAA-statskurve for eurosonen (Svensson-modell), daglig."""
+    tenors = {"SR_3M": 0.25, "SR_6M": 0.5, "SR_1Y": 1, "SR_2Y": 2, "SR_3Y": 3, "SR_5Y": 5, "SR_10Y": 10}
+    url = (
+        "https://data-api.ecb.europa.eu/service/data/YC/B.U2.EUR.4F.G_N_A.SV_C_YM."
+        + "+".join(tenors) + f"?format=csvdata&detail=dataonly&startPeriod={curve_start()}"
+    )
+    out = {}
+    for row in csv.DictReader(io.StringIO(fetch(url, timeout=120))):
+        years = tenors.get(row.get("DATA_TYPE_FM"))
+        value = to_float(row.get("OBS_VALUE"))
+        if years and value is not None:
+            out.setdefault(row["TIME_PERIOD"], {})[tenor_key(years)] = round(value, 4)
+    return out
+
+
+def fetch_curve_jp(existing_days):
+    """Japanske statsobligasjonsrenter fra finansdepartementet (MoF)."""
+    base = "https://www.mof.go.jp/english/policy/jgbs/reference/interest_rate/"
+    urls = [base + "jgbcme.csv"]
+    if existing_days < 150:
+        urls.append(base + "historical/jgbcme_all.csv")
+    start = str(curve_start())
+    tenors = {"1Y": 1, "2Y": 2, "3Y": 3, "5Y": 5, "10Y": 10}
+    out = {}
+    for url in urls:
+        # Filene har en japansk (Shift-JIS) fotnote; ugyldige byte erstattes
+        lines = fetch(url, timeout=120, errors="replace").splitlines()
+        header_idx = next(i for i, line in enumerate(lines) if line.startswith("Date,"))
+        for row in csv.DictReader(io.StringIO("\n".join(lines[header_idx:]))):
+            try:
+                day = str(datetime.strptime(row["Date"], "%Y/%m/%d").date())
+            except (ValueError, KeyError):
+                continue
+            if day < start:
+                continue
+            for col, years in tenors.items():
+                value = to_float(row.get(col))
+                if value is not None:
+                    out.setdefault(day, {})[tenor_key(years)] = value
+    return out
+
+
+def fetch_curve_ca():
+    """Statskasseveksler og referanseobligasjoner fra Bank of Canada (Valet)."""
+    ids = {"V80691342": 1 / 12, "V80691344": 0.25, "V80691345": 0.5, "V80691346": 1,
+           "BD.CDN.2YR.DQ.YLD": 2, "BD.CDN.3YR.DQ.YLD": 3, "BD.CDN.5YR.DQ.YLD": 5, "BD.CDN.10YR.DQ.YLD": 10}
+    url = f"https://www.bankofcanada.ca/valet/observations/{','.join(ids)}/json?start_date={curve_start()}"
+    out = {}
+    for obs in json.loads(fetch(url, timeout=120)).get("observations", []):
+        for sid, years in ids.items():
+            value = to_float((obs.get(sid) or {}).get("v"))
+            if value is not None:
+                out.setdefault(obs["d"], {})[tenor_key(years)] = value
+    return out
+
+
+def fetch_curve_se():
+    """Statsskuldväxlar og statsobligasjoner fra Riksbanken. API-et tillater få kall
+    per minutt, derfor pause mellom seriene."""
+    ids = {"SETB3MBENCH": 0.25, "SETB6MBENCH": 0.5, "SEGVB2YC": 2, "SEGVB5YC": 5, "SEGVB10YC": 10}
+    out = {}
+    for i, (sid, years) in enumerate(ids.items()):
+        if i:
+            time.sleep(16)
+        url = f"https://api.riksbank.se/swea/v1/Observations/{sid}/{curve_start()}"
+        try:
+            raw = fetch(url, timeout=60, attempts=1)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 429:
+                raise
+            time.sleep(65)
+            raw = fetch(url, timeout=60, attempts=1)
+        for obs in json.loads(raw):
+            value = to_float(obs.get("value"))
+            if value is not None:
+                out.setdefault(obs["date"], {})[tenor_key(years)] = value
+    return out
+
+
+def fetch_curve_no():
+    """Nullkupongrenter (6 mnd–10 år) og 3-mnd statskasseveksel fra Norges Bank."""
+    start = curve_start()
+    tenors = {"3M": 0.25, "6M": 0.5, "12M": 1, "2Y": 2, "3Y": 3, "5Y": 5, "10Y": 10}
+    out = {}
+    for url in (
+        f"https://data.norges-bank.no/api/data/GOVT_ZEROCOUPON/B.6M+12M+2Y+3Y+5Y+10Y?startPeriod={start}&format=csv",
+        f"https://data.norges-bank.no/api/data/GOVT_GENERIC_RATES/B.3M.TBIL?startPeriod={start}&format=csv",
+    ):
+        for row in csv.DictReader(io.StringIO(fetch(url, timeout=120)), delimiter=";"):
+            years = tenors.get(row.get("TENOR"))
+            value = to_float(row.get("OBS_VALUE"))
+            if years and value is not None:
+                out.setdefault(row["TIME_PERIOD"], {})[tenor_key(years)] = value
+    return out
+
+
+def fetch_curve_au():
+    """RBA-tabellene F1 (pengemarked) og F2 (statsobligasjoner), daglige CSV-er.
+
+    Kolonner velges ut fra tittelen («3-month OIS», «2 year bond»). RBAs
+    OIS-serier opphørte i 2022, så per rad brukes første kolonne med verdi:
+    OIS hvis den finnes, ellers bankveksler (BABs/NCDs), ellers statskasseveksler.
+    """
+    start = str(curve_start())
+    out = {}
+    for table in ("f1", "f2"):
+        raw = fetch(f"https://www.rba.gov.au/statistics/tables/csv/{table}-data.csv", timeout=120)
+        rows = list(csv.reader(io.StringIO(raw)))
+        titles = next((r for r in rows if r and r[0].strip().lower() == "title"), None)
+        if not titles:
+            continue
+        candidates = {}  # løpetid (år) -> [kolonneindekser i prioritert rekkefølge]
+        for idx, title in enumerate(titles):
+            m = re.search(r"(\d+)-?\s*(month|year)", title, re.I)
+            if not m or idx == 0 or "indexed" in title.lower():
+                continue
+            years = int(m.group(1)) / (12 if m.group(2).lower() == "month" else 1)
+            if table == "f1" and years >= 1:
+                continue
+            low = title.lower()
+            priority = 0 if "ois" in low else 1 if "bab" in low or "ncd" in low else 2
+            candidates.setdefault(years, []).append((priority, idx))
+        for row in rows:
+            try:
+                day = str(datetime.strptime(row[0].strip(), "%d-%b-%Y").date())
+            except (ValueError, IndexError):
+                continue
+            if day < start:
+                continue
+            for years, cols in candidates.items():
+                for _, idx in sorted(cols):
+                    value = to_float(row[idx]) if idx < len(row) else None
+                    if value is not None:
+                        out.setdefault(day, {})[tenor_key(years)] = value
+                        break
+    return out
+
+
+def curve_metrics(points, policy):
+    """Implisert bane for den korte renten fra en spotkurve.
+
+    points: {tenor_år: rente %}. Spotrenten interpoleres lineært mellom kjente
+    løpetider (flat utenfor). 3-mnd terminrenten ved horisont h (år) er
+    f(h) = (r(h+0,25)·(h+0,25) − r(h)·h) / 0,25, dvs. den korte renten markedet
+    priser for perioden som starter om h. Priset endring = f(h) − r(0,25), og
+    nivået = styringsrente + priset endring, slik at et konstant basis-avvik
+    mellom statspapirer og styringsrente faller bort. Mangler kurven punkter
+    under 6 mnd, antas 3-mnd-renten lik styringsrenten (synthetic_anchor).
+    """
+    pts = sorted((float(t), v) for t, v in points.items() if v is not None)
+    if policy is None or len(pts) < 3 or pts[-1][0] < 2 or pts[0][0] > 1:
+        return None
+    synthetic = pts[0][0] > 0.5
+    if synthetic:
+        pts.insert(0, (0.25, policy))
+
+    def r(T):
+        if T <= pts[0][0]:
+            return pts[0][1]
+        for (t0, r0), (t1, r1) in zip(pts, pts[1:]):
+            if T <= t1:
+                return r0 + (r1 - r0) * (T - t0) / (t1 - t0)
+        return pts[-1][1]
+
+    def fwd(h):
+        return (r(h + 0.25) * (h + 0.25) - r(h) * h) / 0.25
+
+    anchor = fwd(0)
+    path = [round(policy + fwd(m / 12) - anchor, 3) for m in range(25)]
+    implied = {f"{m}m": round((fwd(m / 12) - anchor) * 100) for m in (3, 6, 12, 24)}
+    extreme_m = max(range(1, 25), key=lambda m: abs(path[m] - path[0]))
+    return {
+        "implied": implied,
+        "path": path,
+        "extreme": {"months": extreme_m, "level": path[extreme_m],
+                    "bp": round((path[extreme_m] - path[0]) * 100)},
+        "synthetic_anchor": synthetic,
+    }
+
+
+def curve_at(series, target_day):
+    """Kurvepunktene på eller like før en dato."""
+    days = [d for d in series if d <= target_day]
+    return series[max(days)] if days else None
+
+
+def build_curve(cid, series, policy_series):
+    """Lager dashboard-objektet for et lands rentekurve, inkl. reprising siste uke/måned."""
+    if not series:
+        return None
+    policy_day, policy = latest(policy_series)
+    # Kilder med flere delserier kan mangle de korte punktene på siste dag;
+    # bruk nyeste dag (inntil en uke tilbake) der kurven er komplett nok.
+    day, metrics = None, None
+    for candidate in sorted(series, reverse=True)[:7]:
+        metrics = curve_metrics(series[candidate], policy)
+        if metrics:
+            day = candidate
+            break
+    if not metrics:
+        return None
+    kind, source = CURVE_SOURCES[cid]
+    repricing, y2_change = {}, {}
+    for label, days in (("w1", 7), ("m1", 30)):
+        past_day = str(date.fromisoformat(day) - timedelta(days=days))
+        past = curve_at(series, past_day)
+        if not past:
+            continue
+        past_policy = value_at_or_before(policy_series, past_day) if policy_series else policy
+        past_metrics = curve_metrics(past, past_policy if past_policy is not None else policy)
+        if past_metrics:
+            repricing[label] = metrics["implied"]["12m"] - past_metrics["implied"]["12m"]
+        if series[day].get("2") is not None and past.get("2") is not None:
+            y2_change[label] = round((series[day]["2"] - past["2"]) * 100)
+    return {
+        "date": day,
+        "kind": kind,
+        "source": source,
+        "points": {k: round(v, 3) for k, v in sorted(series[day].items(), key=lambda kv: float(kv[0]))},
+        "repricing": repricing,
+        "y2_change": y2_change,
+        **metrics,
+    }
+
+
+def rate_at_tenor(points, years):
+    """Spotrente ved en løpetid, lineært interpolert mellom nærmeste punkter."""
+    pts = sorted((float(t), v) for t, v in (points or {}).items() if v is not None)
+    if not pts:
+        return None
+    if years <= pts[0][0]:
+        return pts[0][1]
+    for (t0, r0), (t1, r1) in zip(pts, pts[1:]):
+        if years <= t1:
+            return r0 + (r1 - r0) * (years - t0) / (t1 - t0)
+    return pts[-1][1]
+
+
 def realized_vol(series, window=30):
     """Annualisert realisert volatilitet (%) fra daglige logavkastninger."""
     values = [v for _, v in sorted(series.items())][-(window + 1):]
@@ -398,6 +785,29 @@ def main():
             print(f"  ADVARSEL: {name} feilet ({exc}) – beholder forrige data", file=sys.stderr)
             sources[name] = None
 
+    # Rentekurver per land (grunnlag for «hva er priset inn»). BoE og MoF gir bare
+    # inneværende måned per fil, så historikken bygges opp over tid og backfylles
+    # fra arkivfiler første gang.
+    old_curves = old_history.get("curve", {})
+    curve_fetchers = {
+        "us": fetch_curve_us,
+        "ea": fetch_curve_ea,
+        "jp": lambda: fetch_curve_jp(len(old_curves.get("JPY", {}))),
+        "gb": lambda: fetch_curve_gb(len(old_curves.get("GBP", {}))),
+        "ca": fetch_curve_ca,
+        "au": fetch_curve_au,
+        "se": fetch_curve_se,
+        "no": fetch_curve_no,
+    }
+    curves = {}
+    for cid, fn in curve_fetchers.items():
+        print(f"Henter rentekurve {cid} ...")
+        try:
+            curves[cid] = fn()
+        except Exception as exc:
+            print(f"  ADVARSEL: rentekurve {cid} feilet ({exc}) – beholder forrige data", file=sys.stderr)
+            curves[cid] = None
+
     meetings = load_existing(DATA_DIR / "meetings.json")
     today = str(date.today())
 
@@ -406,7 +816,7 @@ def main():
     _, usd_nok_last = latest(usd_nok)
 
     countries = []
-    history = {"fx": {}, "policy": {}, "cot": {}, "market": {}}
+    history = {"fx": {}, "policy": {}, "cot": {}, "market": {}, "curve": {}}
     for c in COUNTRIES:
         cur, per = c["currency"], c.get("per", 1)
         old = old_dashboard.get(c["id"], {})
@@ -498,6 +908,16 @@ def main():
             }
             history["cot"][cur] = cot_series
 
+        # Rentekurve: nye observasjoner flettes inn i lagret historikk (maks 400 dager)
+        curve_series = {d: dict(v) for d, v in old_curves.get(cur, {}).items()}
+        for day, vals in (curves.get(c["id"]) or {}).items():
+            curve_series.setdefault(day, {}).update(vals)
+        cutoff = str(date.today() - timedelta(days=400))
+        curve_series = {d: v for d, v in curve_series.items() if d >= cutoff}
+        curve = build_curve(c["id"], curve_series, policy_series) if c["id"] in CURVE_SOURCES else None
+        if curve_series:
+            history["curve"][cur] = curve_series
+
         # Neste rentemøte fra den statiske kalenderen
         upcoming = [d for d in meetings.get(c["id"], []) if d >= today]
         countries.append({
@@ -508,9 +928,35 @@ def main():
             "unemployment": unemployment,
             "ppp": ppp,
             "cot": cot,
+            "curve": curve,
             "vol30": realized_vol(fx_series) if fx_series else None,
             "meeting": min(upcoming) if upcoming else None,
         })
+
+    # 1-års terminkurs mot NOK fra rentedifferansen (dekket renteparitet). Terminen
+    # er breakeven for en carry-handel – ikke en prognose for kursen.
+    norway = next(c for c in countries if c["id"] == "no")
+    nok_1y = rate_at_tenor((norway.get("curve") or {}).get("points"), 1)
+    nok_from_curve = nok_1y is not None
+    if nok_1y is None:
+        nok_1y = norway["rates"].get("m3")
+    for c in countries:
+        if c["id"] == "no" or not c.get("fx") or nok_1y is None:
+            continue
+        for_1y = rate_at_tenor((c.get("curve") or {}).get("points"), 1)
+        from_curve = nok_from_curve and for_1y is not None
+        if for_1y is None:
+            for_1y = c["rates"].get("m3")
+        if for_1y is None:
+            continue
+        spot = c["fx"]["value"]
+        fwd = spot * (1 + nok_1y / 100) / (1 + for_1y / 100)
+        c["fwd_fx_1y"] = {
+            "rate": round(fwd, 4),
+            "pct": round((fwd / spot - 1) * 100, 2),
+            "diff": round(for_1y - nok_1y, 2),
+            "from_curve": from_curve,
+        }
 
     # Markedsindikatorer på tvers av landene
     fx_all = sources["fx"] or old_history.get("fx", {})

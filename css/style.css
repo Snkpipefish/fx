@@ -76,16 +76,52 @@ body {
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 1rem 1.1rem;
+  min-width: 0; /* lar grid-kolonner krympe under innholdsbredden (tabellen ruller i stedet) */
 }
 .panel h3 { margin: 0 0 0.6rem; font-size: 0.95rem; }
 .panel h3 small { color: var(--muted); font-weight: 400; font-size: 0.75rem; }
 
 .chart-wrap-lg { height: 300px; }
+.chart-wrap-md { height: 340px; }
+
+.priced-row { grid-template-columns: 1.6fr 1fr; }
+.table-scroll { overflow-x: auto; }
+.priced-table { white-space: nowrap; }
+.priced-table td small { display: block; font-size: 0.66rem; font-weight: 400; color: var(--muted); }
+.priced-table td.extreme { color: var(--muted); font-size: 0.76rem; }
+.priced-table sup { color: var(--muted); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.4rem; vertical-align: middle; }
+
+.ideas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 0.6rem;
+}
+.idea {
+  background: var(--chip-bg);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.idea b { color: var(--text); }
+.idea .tag {
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  margin-bottom: 0.2rem;
+}
 
 .panel-row {
   display: grid;
   grid-template-columns: 1fr 1.4fr;
   gap: 1rem;
+}
+@media (max-width: 1100px) {
+  .priced-row { grid-template-columns: 1fr; }
 }
 @media (max-width: 900px) {
   .panel-row { grid-template-columns: 1fr; }
@@ -189,6 +225,8 @@ body {
   color: var(--muted);
 }
 .meta-row b { color: var(--text); }
+.meta-row b.pos { color: var(--up); }
+.meta-row b.neg { color: var(--down); }
 
 .signal {
   display: flex;
