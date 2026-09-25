@@ -47,7 +47,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **Sentralbankenes baner oppdateres ikke.**
   *Problem:* `cb_paths.json` finnes bare for Fed, Riksbanken, Norges Bank og RBNZ, og vedlikeholdes for hånd.
-  *Løsning:* Halvautomatisk: Fed SEP-tabellen (`fomcprojtabl{yyyymmdd}.htm`, median), Norges Bank PPR-xlsx («tabeller og figurer»), Riksbanken prognosetabell-xlsx, RBNZ MPS-xlsx (via Playwright). Parse-feil gir varsel, ikke krasj. Legg `valid_until` = neste rapportdato i `cb_paths.json`.
+  *Løsning:* ✅ *(PR «cb-baner», 25. sep 2026)* Halvautomatisk: Fed SEP-tabellen (nyeste `fomcprojtabl{yyyymmdd}.htm` fra FOMC-kalenderen, median fed funds per år), Norges Bank PPR-tallsett (nyeste `ppr-N/YYYY`-side i publikasjonslisten → `tallsett-ppr-*.xlsx`, ark «Data A», kolonnen «Styringsrenten (nivå)», kvartalsvis til 2030), Riksbanken «utfall och prognoser» (fast lenke `…/statistik/makro/sve/utfall-och-prognoser.xlsx`, ark `SEQRATENAYNA`, kolonne B = nyeste rapport, kvartalssnitt). RBNZ er bak Cloudflare og forblir manuell. Horisonten velges som første punkt på/etter i dag + 12 mnd («3. kvartal 2027», «utgangen av 2027»); hele banen fremover ligger i `cb_path.path`. Parse-feil gir feilet kilde + manuell reserve fra `cb_paths.json`, som nå har `as_of`/`valid_until` og merkes «utdatert» etter datoen (kort, liste, kildestatus). Kildestatus-grense 120 dager for banene.
 
 - [ ] **COT JPY er ikke verifisert.**
   *Problem:* +212k netto på to uker med +130k i åpen interesse. Kontraktsrullen 16. sep kan blåse opp åpen interesse; ikke sjekket mot kombinert-rapporten.
