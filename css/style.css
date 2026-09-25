@@ -209,8 +209,8 @@ details.inline summary { display: inline; cursor: pointer; color: var(--accent);
 .card .details { display: flex; flex-direction: column; gap: 0.55rem; border-top: 1px solid var(--rule); padding-top: 0.7rem; font-size: 0.84rem; color: var(--muted); }
 .card .details b { color: var(--text); }
 .grid.compact .card .details { display: none; }
-.rates { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
-.rates div { background: var(--chip); border-radius: 10px; padding: 0.4rem 0.3rem; text-align: center; display: flex; flex-direction: column; }
+.rates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+.rates div { background: var(--chip); border-radius: 10px; padding: 0.4rem 0.3rem; text-align: center; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .rates span { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .rates b { font-size: 0.95rem; white-space: nowrap; }
 .row { display: flex; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
@@ -241,7 +241,6 @@ details.inline summary { display: inline; cursor: pointer; color: var(--accent);
   .kicker { font-size: 0.72rem; letter-spacing: 0.08em; }
   .chapter-head { position: relative; padding-right: 0; }
   .chapter-head .btn { width: 100%; margin-top: 0.6rem; }
-  .rates { grid-template-columns: 1fr 1fr; }
   .rates span { font-size: 0.62rem; }
   .pc-why { min-height: 0; }
   .hero-stats { grid-template-columns: 1fr 1fr; gap: 0.8rem; }
