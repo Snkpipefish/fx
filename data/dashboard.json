@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-25T11:25:34+00:00",
+ "updated": "2026-09-25T11:29:39+00:00",
  "countries": [
   {
    "id": "us",
@@ -157,6 +157,11 @@
    },
    "vol30": 6.4,
    "meeting": "2026-10-28",
+   "next_meeting": {
+    "date": "2026-10-28",
+    "bp_3m": 24,
+    "source": "rentekurven (3 mnd)"
+   },
    "fwd_fx_1y": {
     "rate": 9.5096,
     "pct": 0.18,
@@ -315,6 +320,11 @@
    },
    "vol30": 3.5,
    "meeting": "2026-10-29",
+   "next_meeting": {
+    "date": "2026-10-29",
+    "bp_3m": 36,
+    "source": "rentekurven (3 mnd)"
+   },
    "fwd_fx_1y": {
     "rate": 10.9628,
     "pct": 1.6,
@@ -471,6 +481,11 @@
    },
    "vol30": 8.5,
    "meeting": "2026-10-30",
+   "next_meeting": {
+    "date": "2026-10-30",
+    "bp_3m": 25,
+    "source": "rentekurven (3 mnd)"
+   },
    "fwd_fx_1y": {
     "rate": 6.1546,
     "pct": 3.01,
@@ -625,6 +640,11 @@
    },
    "vol30": 4.0,
    "meeting": "2026-11-05",
+   "next_meeting": {
+    "date": "2026-11-05",
+    "bp_3m": 37,
+    "source": "rentekurven (3 mnd)"
+   },
    "fwd_fx_1y": {
     "rate": 12.589,
     "pct": 0.32,
@@ -691,6 +711,9 @@
    "curve": null,
    "vol30": 4.9,
    "meeting": "2026-12-10",
+   "next_meeting": {
+    "date": "2026-12-10"
+   },
    "fwd_fx_1y": {
     "rate": 12.0089,
     "pct": 4.73,
@@ -845,6 +868,12 @@
    },
    "vol30": 4.2,
    "meeting": "2026-10-28",
+   "next_meeting": {
+    "date": "2026-10-28",
+    "bp": 13,
+    "move": "heving",
+    "source": "CORRA-futures"
+   },
    "fwd_fx_1y": {
     "rate": 6.8341,
     "pct": 1.64,
@@ -996,6 +1025,13 @@
    },
    "vol30": 5.0,
    "meeting": "2026-09-29",
+   "next_meeting": {
+    "date": "2026-09-29",
+    "bp": 23,
+    "prob": 0.9,
+    "move": "heving",
+    "source": "ASX RBA Rate Tracker"
+   },
    "fwd_fx_1y": {
     "rate": 6.6691,
     "pct": -0.01,
@@ -1067,6 +1103,9 @@
    "curve": null,
    "vol30": 6.3,
    "meeting": "2026-10-28",
+   "next_meeting": {
+    "date": "2026-10-28"
+   },
    "fwd_fx_1y": {
     "rate": 5.4704,
     "pct": 1.65,
@@ -1217,6 +1256,11 @@
    },
    "vol30": 4.7,
    "meeting": "2026-11-04",
+   "next_meeting": {
+    "date": "2026-11-04",
+    "bp_3m": 65,
+    "source": "rentekurven (3 mnd)"
+   },
    "fwd_fx_1y": {
     "rate": 0.979,
     "pct": 2.21,
@@ -1373,7 +1417,12 @@
     "synthetic_anchor": false
    },
    "vol30": 3.9,
-   "meeting": "2026-11-05"
+   "meeting": "2026-11-05",
+   "next_meeting": {
+    "date": "2026-11-05",
+    "bp_3m": 18,
+    "source": "rentekurven (3 mnd)"
+   }
   }
  ],
  "market": {
@@ -1388,13 +1437,13 @@
    }
   },
   "brent_fut": {
-   "value": 104.99,
+   "value": 104.85,
    "date": "2026-09-25",
    "changes": {
-    "d1": -1.51,
-    "w1": 1.08,
-    "m1": 20.76,
-    "y1": 57.93
+    "d1": -1.64,
+    "w1": 0.94,
+    "m1": 20.6,
+    "y1": 57.72
    },
    "contract": "nov. 2026-kontrakten (BZX26)"
   },
@@ -1436,36 +1485,18 @@
  },
  "sources": {
   "brent": {
-   "ok": true,
-   "error": null,
+   "ok": false,
+   "error": "FRED hoppet over lokalt (DCOILBRENTEU)",
    "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
-  "brent_fut": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-25",
-   "fetched": "2026-09-25"
-  },
-  "i44": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "ttf": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "ir3": {
+  "irlt": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
    "fetched": "2026-09-25"
   },
-  "irlt": {
+  "ir3": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -1477,19 +1508,31 @@
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "vix": {
+  "i44": {
    "ok": true,
    "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "brent_fut": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-25",
+   "fetched": "2026-09-25"
+  },
+  "ttf": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-24",
+   "fetched": "2026-09-25"
+  },
+  "vix": {
+   "ok": false,
+   "error": "FRED hoppet over lokalt (VIXCLS)",
    "latest": "2026-09-22",
    "fetched": "2026-09-25"
   },
   "ons_cpi": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
-   "fetched": "2026-09-25"
-  },
-  "cpi_core": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
@@ -1501,10 +1544,10 @@
    "latest": "2025",
    "fetched": "2026-09-25"
   },
-  "scb_kpif": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-08",
+  "curve_us": {
+   "ok": false,
+   "error": "FRED hoppet over lokalt (DGS1MO)",
+   "latest": "2026-09-23",
    "fetched": "2026-09-25"
   },
   "unemployment": {
@@ -1513,13 +1556,19 @@
    "latest": "2026-08",
    "fetched": "2026-09-25"
   },
-  "ssb_kpi_jae": {
+  "cpi_core": {
    "ok": true,
    "error": null,
    "latest": "2026-08",
    "fetched": "2026-09-25"
   },
-  "curve_jp": {
+  "scb_kpif": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "curve_gb": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
@@ -1531,16 +1580,22 @@
    "latest": "2026-09-23",
    "fetched": "2026-09-25"
   },
-  "curve_gb": {
+  "ssb_kpi_jae": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-08",
+   "fetched": "2026-09-25"
+  },
+  "policy": {
+   "ok": true,
+   "error": null,
+   "latest": "2026-09-22",
+   "fetched": "2026-09-25"
+  },
+  "curve_ea": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "curve_us": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-23",
    "fetched": "2026-09-25"
   },
   "curve_no": {
@@ -1555,13 +1610,13 @@
    "latest": "2026-09-15",
    "fetched": "2026-09-25"
   },
-  "curve_au": {
+  "curve_jp": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
    "fetched": "2026-09-25"
   },
-  "curve_ea": {
+  "curve_au": {
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
@@ -1577,12 +1632,6 @@
    "ok": true,
    "error": null,
    "latest": "2026-09-24",
-   "fetched": "2026-09-25"
-  },
-  "policy": {
-   "ok": true,
-   "error": null,
-   "latest": "2026-09-22",
    "fetched": "2026-09-25"
   }
  }

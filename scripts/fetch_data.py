@@ -1010,6 +1010,7 @@ def main():
     meetings = load_existing(DATA_DIR / "meetings.json")
     overrides = {k: v for k, v in load_existing(DATA_DIR / "policy_overrides.json").items() if not k.startswith("_")}
     cb_paths = {k: v for k, v in load_existing(DATA_DIR / "cb_paths.json").items() if not k.startswith("_")}
+    meeting_odds = {k: v for k, v in load_existing(DATA_DIR / "meeting_odds.json").items() if not k.startswith("_")}
     today = str(date.today())
 
     # Britisk KPI fra ONS overstyrer OECD når ONS er nyere
@@ -1184,8 +1185,17 @@ def main():
             if base and now:
                 policy_change["fx_since"] = round((now / base - 1) * 100, 2)
 
-        # Neste rentemøte fra den statiske kalenderen
+        # Neste rentemøte fra den statiske kalenderen, og hva markedet priser for det
         upcoming = [d for d in meetings.get(c["id"], []) if d >= today]
+        odds = meeting_odds.get(c["id"])
+        next_meeting = None
+        if upcoming:
+            next_meeting = {"date": min(upcoming)}
+            if odds and odds.get("date") == next_meeting["date"]:
+                next_meeting.update({k: odds[k] for k in ("bp", "prob", "move", "source") if k in odds})
+            elif curve:
+                # Kurven har bare månedsoppløsning: bruk prisingen for de neste 3 månedene som indikasjon
+                next_meeting.update({"bp_3m": curve["implied"]["3m"], "source": "rentekurven (3 mnd)"})
         countries.append({
             **{k: c[k] for k in ("id", "name", "currency", "bank", "flag")},
             "fx": fx,
@@ -1200,6 +1210,7 @@ def main():
             "curve": curve,
             "vol30": realized_vol(fx_series) if fx_series else None,
             "meeting": min(upcoming) if upcoming else None,
+            "next_meeting": next_meeting,
         })
 
     # 1-års terminkurs mot NOK fra rentedifferansen (dekket renteparitet). Terminen

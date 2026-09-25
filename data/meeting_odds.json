@@ -1,0 +1,16 @@
+{
+  "_kommentar": "Hva markedet priser for NESTE rentemøte, fra kilder med møtedato-oppløsning (ASX RBA Rate Tracker, CORRA-/SOFR-futures, OIS). Oppdateres manuelt; posten ignoreres når møtedatoen er passert. bp = priset endring i basispunkter, prob = sannsynlighet for 25 bp-bevegelse (valgfri).",
+  "au": {
+    "date": "2026-09-29",
+    "bp": 23,
+    "prob": 0.9,
+    "move": "heving",
+    "source": "ASX RBA Rate Tracker"
+  },
+  "ca": {
+    "date": "2026-10-28",
+    "bp": 13,
+    "move": "heving",
+    "source": "CORRA-futures"
+  }
+}

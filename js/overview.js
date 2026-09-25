@@ -11,10 +11,9 @@ const i12 = (c) => c.curve.implied["12m"];
 function headline(rows) {
   if (!rows.length) return "Rentekurvene er ikke tilgjengelige ennå.";
   const up = rows.filter((c) => i12(c) >= 13), down = rows.filter((c) => i12(c) <= -13);
-  const most = [...rows].sort((a, b) => Math.abs(i12(b)) - Math.abs(i12(a)))[0];
   const who = (list) => list.map((c) => c.name).join(", ").replace(/, ([^,]*)$/, " og $1");
-  if (up.length === rows.length) return `Markedet venter høyere renter fra alle sentralbankene – mest fra ${most.name}.`;
-  if (down.length === rows.length) return `Markedet venter lavere renter fra alle sentralbankene – mest fra ${most.name}.`;
+  if (up.length === rows.length) return "Markedet venter høyere renter fra alle sentralbankene det neste året.";
+  if (down.length === rows.length) return "Markedet venter lavere renter fra alle sentralbankene det neste året.";
   if (up.length && down.length) return `Markedet venter hevinger i ${who(up)}, og kutt i ${who(down)}.`;
   if (up.length) return `Markedet venter hevinger i ${who(up)} – og uendret rente ellers.`;
   if (down.length) return `Markedet venter kutt i ${who(down)} – og uendret rente ellers.`;
@@ -27,24 +26,31 @@ export function renderHero(countries, market, updated) {
   document.getElementById("headline").textContent = headline(rows);
 
   const stats = [];
+  // 1) Nærmest et vedtak: banken med neste møte der markedet priser en bevegelse
+  const soon = countries.filter((c) => c.next_meeting && (c.next_meeting.bp != null ? Math.abs(c.next_meeting.bp) >= 10 : Math.abs(c.next_meeting.bp_3m ?? 0) >= 13))
+    .sort((a, b) => a.next_meeting.date.localeCompare(b.next_meeting.date))[0];
+  if (soon) {
+    const nm = soon.next_meeting, d = daysUntil(nm.date);
+    const what = nm.prob != null ? `~${Math.round(nm.prob * 100)} % for ${nm.move ?? "bevegelse"} (${nm.source})`
+      : nm.bp != null ? `${pp(nm.bp)} priset (${nm.source})` : `kurven priser ${moves(nm.bp_3m)} innen 3 mnd`;
+    stats.push([`<span class="text">${soon.flag} ${soon.bank.replace("Reserve Bank of ", "RB ")}</span>`, `nærmest et vedtak: ${shortDate(nm.date)} (${d === 0 ? "i dag" : `om ${d} dager`}) · ${what}`]);
+  }
+  // 2) Mest priset på 12 mnd, som nivå fra → til
+  if (rows.length) {
+    const most = [...rows].sort((a, b) => Math.abs(i12(b)) - Math.abs(i12(a)))[0];
+    stats.push([`<span class="text nowrap">${rate(most.rates.policy)} → ${rate(most.curve.path[12])}</span>`, `mest priset på 12 mnd: ${most.bank} (${moves(i12(most))} – fra lavt nivå, ikke nødvendigvis snart)`]);
+  }
+  // 3) Størst uenighet med bankens eget anslag
+  const gaps = rows.filter((c) => c.cb_path?.level != null).map((c) => ({ c, gap: c.curve.path[12] - c.cb_path.level })).sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
+  if (gaps.length) {
+    const { c, gap } = gaps[0];
+    stats.push([`<span class="${cls(gap)}">${signed(gap, nb2)} pp</span>`, `størst uenighet med banken selv: ${c.currency} ligger ${gap > 0 ? "over" : "under"} ${c.bank}s eget anslag – der har kursen mest å tape`]);
+  }
+  // 4) Ukens sterkeste mot kronen
   const movers = countries.filter((c) => c.fx && !c.fx.index && c.fx.changes?.w1 != null).sort((a, b) => b.fx.changes.w1 - a.fx.changes.w1);
   if (movers.length) {
     const b = movers[0];
     stats.push([`<span class="${cls(b.fx.changes.w1)}">${pct1(b.fx.changes.w1)}</span>`, `${b.currency} er sterkest mot kronen denne uken`]);
-  }
-  if (rows.length) {
-    const most = [...rows].sort((a, b) => Math.abs(i12(b)) - Math.abs(i12(a)))[0];
-    stats.push([moves(i12(most)).replace("≈ ", "≈"), `ventet fra ${most.bank} de neste 12 månedene`]);
-  }
-  const rep = rows.filter((c) => c.curve.repricing?.w1 != null).sort((a, b) => Math.abs(b.curve.repricing.w1) - Math.abs(a.curve.repricing.w1))[0];
-  if (rep) {
-    const r = rep.curve.repricing.w1;
-    stats.push([`<span class="${cls(r)}">${r > 0 ? "↑" : "↓"} ${nb2.format(Math.abs(r) / 100)} pp</span>`, `${rep.currency}: ${r > 0 ? "høyere" : "lavere"} rente ventet enn for en uke siden`]);
-  }
-  const next = countries.filter((c) => c.meeting).sort((a, b) => a.meeting.localeCompare(b.meeting))[0];
-  if (next) {
-    const d = daysUntil(next.meeting);
-    stats.push([d === 0 ? "i dag" : `${d} dager`, `til neste rentemøte: ${next.bank}, ${shortDate(next.meeting)}`]);
   }
   document.getElementById("heroStats").innerHTML = stats.slice(0, 4).map(([big, lbl]) =>
     `<div class="stat"><div class="big">${big}</div><div class="lbl">${lbl}</div></div>`).join("");
@@ -59,7 +65,7 @@ export function renderRates(countries) {
   const chartRows = rows.map((c) => ({
     id: c.id, flag: c.flag, label: c.bank.replace("Reserve Bank of ", "RB ").replace("Swiss National Bank", "SNB"), short: c.currency,
     now: c.rates.policy, expected: c.curve.path[12], six: c.curve.path[6], color: color(c),
-    text: moves(i12(c)), textShort: moves(i12(c)).replace("hevinger", "hev.").replace("heving", "hev."),
+    text: `${rate(c.curve.path[12])} (${moves(i12(c))})`, textShort: rate(c.curve.path[12]),
     title: `${c.bank}: ${rate(c.rates.policy)} nå, ${rate(c.curve.path[12])} ventet om 12 mnd (${pp(i12(c))})`,
     bank: c.cb_path?.level ?? null,
     bankTitle: c.cb_path ? `${c.bank}s eget anslag: ${rate(c.cb_path.level)} ${c.cb_path.horizon} (${c.cb_path.source})` : "",
@@ -142,9 +148,21 @@ export function renderIdeas(countries, market) {
   if (withCurve.length >= 2) {
     const by12 = [...withCurve].sort((a, b) => i12(a) - i12(b));
     const dove = by12[0], hawk = by12[by12.length - 1], gap = i12(hawk) - i12(dove);
-    if (gap >= 25) ideas.push({ tag: "Størst sprik", text:
-      `Markedet venter <b>${moves(i12(hawk))}</b> fra ${hawk.bank}, men bare <b>${moves(i12(dove))}</b> fra ${dove.bank}. Renteforskjellen
-       ${hawk.currency}–${dove.currency} ventes altså å øke med ${nb2.format(gap / 100)} pp. Tror du markedet tar feil, er ${hawk.currency}/${dove.currency} paret å se på.` });
+    if (gap >= 25) {
+      const side = (c) => {
+        const nm = c.next_meeting, pc = c.policy_change;
+        const soonBp = nm?.bp ?? nm?.bp_3m ?? null;
+        const bits = [];
+        if (pc && pc.to > pc.from && daysUntil(pc.date) > -45) bits.push(`hevet nettopp (${shortDate(pc.date)})`);
+        if (nm && soonBp != null) bits.push(Math.abs(soonBp) < 10 ? `lite priset for ${shortDate(nm.date)} – syklusen ligger lenger ut` : `${pp(soonBp)} priset for ${shortDate(nm.date)}`);
+        if (c.cb_path) bits.push(`banken selv: ${rate(c.cb_path.level)} ${c.cb_path.horizon}`);
+        return bits.length ? ` (${bits.join("; ")})` : "";
+      };
+      ideas.push({ tag: "Størst sprik", text:
+        `Markedet venter <b>${moves(i12(hawk))}</b> fra ${hawk.bank}${side(hawk)}, men bare <b>${moves(i12(dove))}</b> fra ${dove.bank}${side(dove)}.
+         Renteforskjellen ${hawk.currency}–${dove.currency} ventes altså å øke med ${nb2.format(gap / 100)} pp. Tror du markedet tar feil, er
+         ${hawk.currency}/${dove.currency} paret å se på.` });
+    }
     const rep = withCurve.filter((c) => c.curve.repricing?.w1 != null).sort((a, b) => Math.abs(b.curve.repricing.w1) - Math.abs(a.curve.repricing.w1));
     if (rep.length && Math.abs(rep[0].curve.repricing.w1) >= 8) {
       const r = rep[0].curve.repricing.w1;

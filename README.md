@@ -8,7 +8,7 @@ Redaksjonell «brief» over G10-valutaene (USD, EUR, JPY, GBP, CHF, CAD, AUD, NZ
 4. **Finn motparten til en handel.** Velg valuta (chips) og retning, få tre forslag («Beste match», «Mest betalt for å vente», «Renest rentesyn») med begrunnelse, og hele kandidattabellen bak «Vis alle». Bygger på ideen om at én posisjon alltid er to, og at motparten bør velges bevisst.
 5. **Land for land.** Kort per land med kurs, utvikling, sparkline og én setning om hva markedet venter av sentralbanken; «Vis detaljer» åpner renter, inflasjon, ledighet, kjøpekraft, terminkurs og posisjonering.
 
-Øverst står en overskrift som oppsummerer dagen («Markedet venter høyere renter fra alle sentralbankene – mest fra Canada») med fire nøkkeltall. Nederst ligger ordliste, kilder og kildestatus. Designet bruker Fraunces (overskrifter) og Inter (brødtekst), varme nøytrale farger og egne SVG-grafer; Chart.js brukes bare til de to linjegrafene.
+Øverst står en overskrift som oppsummerer dagen med fire bokser som måler ulike ting: banken som er nærmest et vedtak, mest priset på 12 måneder (som nivå fra → til, siden antall hevinger belønner lavt utgangspunkt), størst uenighet med bankens eget anslag (det som gir kursutslag), og ukens sterkeste valuta mot kronen. Nederst ligger ordliste, kilder og kildestatus. Designet bruker Fraunces (overskrifter) og Inter (brødtekst), varme nøytrale farger og egne SVG-grafer; Chart.js brukes bare til de to linjegrafene.
 
 ## Slik virker det
 
@@ -34,6 +34,7 @@ Tre små JSON-filer i `data/` holdes ved like for hånd:
 
 - `meetings.json` – neste rentemøter per sentralbank.
 - `policy_overrides.json` – rentevedtak BIS-serien ennå ikke har fanget opp (BIS henger typisk noen dager etter). Posten brukes fra vedtaksdatoen og kan fjernes når BIS er à jour.
+- `meeting_odds.json` – hva markedet priser for neste rentemøte der det finnes kilder med møtedato-oppløsning (ASX RBA Rate Tracker, CORRA-/SOFR-futures). Brukes i «nærmest et vedtak»-boksen og i «Størst sprik»; ellers brukes kurvens 3-måneders prising som indikasjon.
 - `cb_paths.json` – sentralbankenes egne renteanslag (dot plot, rentebane), som vises som en rombe i hantelgrafen og gir setningen «markedet ligger lengst fra bankens eget anslag for …».
 
 

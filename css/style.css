@@ -72,6 +72,8 @@ a { color: var(--accent); }
   border-top: 1px solid var(--rule); padding-top: 1.4rem;
 }
 .stat .big { font-family: var(--font-display); font-size: 1.9rem; line-height: 1.1; font-weight: 600; }
+.stat .big .text { font-size: 1.35rem; }
+.stat .big .nowrap { white-space: nowrap; }
 .stat .lbl { font-size: 0.84rem; color: var(--muted); margin-top: 0.3rem; line-height: 1.35; }
 .updated { margin-top: 1.6rem; font-size: 0.78rem; color: var(--muted); }
 
@@ -244,6 +246,7 @@ details.inline summary { display: inline; cursor: pointer; color: var(--accent);
   .pc-why { min-height: 0; }
   .hero-stats { grid-template-columns: 1fr 1fr; gap: 0.8rem; }
   .stat .big { font-size: 1.5rem; }
+  .stat .big .text { font-size: 1.15rem; }
   .flow, .footer { padding-left: 1rem; padding-right: 1rem; }
   .chapter { padding: 2.2rem 0; }
   .chapter-head { flex-wrap: wrap; }
