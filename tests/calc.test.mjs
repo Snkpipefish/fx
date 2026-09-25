@@ -30,12 +30,27 @@ test("rate1y interpolerer kurven og faller tilbake på 3 mnd", () => {
   assert.equal(rate1y({}), null);
 });
 
-test("directionSignal bruker kurven når den finnes", () => {
+test("directionSignal teller drivere: minst to må peke samme vei", () => {
   const up = directionSignal({ curve: { implied: { "6m": 60 } }, fx: { changes: { m3: 3 } }, rates: { policy: 4 }, cpi: { value: 2 } });
   assert.equal(up.dir, "up");
+  assert.equal(up.word, "3 av 3 drivere styrker");
+  assert.deepEqual(up.drivers.map((d) => d.dir), ["up", "up", "up"]);
   const down = directionSignal({ rates: { policy: 4, m3: 3.2 }, fx: { changes: { m3: -3 } }, cpi: { value: 5 } });
   assert.equal(down.dir, "down");
+  assert.equal(down.word, "3 av 3 drivere svekker");
   assert.match(down.text, /rentekutt/);
+  // To mot én: retningen følger flertallet, ordlyden sier «2 av 3»
+  const two = directionSignal({ curve: { implied: { "6m": 60 } }, fx: { changes: { m3: 3 } }, rates: { policy: 2 }, cpi: { value: 4 } });
+  assert.equal(two.dir, "up");
+  assert.equal(two.word, "2 av 3 drivere styrker");
+  // Én opp, én ned, én flat: delt bilde, ikke en vektet sum som vipper
+  const split = directionSignal({ curve: { implied: { "6m": 60 } }, fx: { changes: { m3: -3 } }, rates: { policy: 4 }, cpi: { value: 4 } });
+  assert.equal(split.dir, "flat");
+  assert.equal(split.word, "Delt bilde");
+  // I-44 inverteres: fallende indeks = sterkere krone
+  const nok = directionSignal({ fx: { index: true, changes: { m3: -3 } }, curve: { implied: { "6m": 30 } }, rates: { policy: 4.5 }, cpi: { value: 3 } });
+  assert.equal(nok.drivers.find((d) => d.key === "momentum").dir, "up");
+  assert.equal(directionSignal({}).word, "For lite data");
 });
 
 test("pairCandidates rangerer etter treff og setter riktige merkelapper", () => {
