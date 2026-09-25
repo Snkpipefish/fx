@@ -1311,7 +1311,9 @@ DATE_RE = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")  # ÅÅÅÅ, ÅÅÅÅ-MM elle
 
 def newest_date(obj):
     """Nyeste periode (YYYY, YYYY-MM eller YYYY-MM-DD) som forekommer som nøkkel eller som
-    første element i en tuppel (World Bank-PPP lagres som {iso: (år, verdi)})."""
+    første element i et par (World Bank-PPP lagres som {iso: (år, verdi)}). Lister som
+    begynner med en dato er kontraktsperioder [start, slutt, rente] og teller ikke –
+    de peker fremover i tid, observasjonsdagen er nøkkelen."""
     best = None
     stack = [obj]
     while stack:
@@ -1322,8 +1324,10 @@ def newest_date(obj):
                     best = k
                 stack.append(v)
         elif isinstance(cur, (list, tuple)):
-            if cur and isinstance(cur[0], str) and DATE_RE.match(cur[0]) and (best is None or cur[0] > best):
-                best = cur[0]
+            if cur and isinstance(cur[0], str) and DATE_RE.match(cur[0]):
+                if len(cur) == 2 and (best is None or cur[0] > best):
+                    best = cur[0]
+                continue
             stack.extend(cur)
     return best
 

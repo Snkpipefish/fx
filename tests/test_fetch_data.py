@@ -60,6 +60,9 @@ class HelpersTest(unittest.TestCase):
     def test_newest_date(self):
         self.assertEqual(fd.newest_date({"a": {"2026-01-05": 1, "2026-02": 2}, "b": [{"2025-12-31": 3}]}), "2026-02")
         self.assertIsNone(fd.newest_date({"x": 1}))
+        self.assertEqual(fd.newest_date({"2025-01-01": ("2023", 1.2)}), "2025-01-01")  # PPP: (år, verdi) teller ikke over nøkkelen
+        # Futures: kontraktsperioder peker fremover; observasjonsdagen er nyeste dato
+        self.assertEqual(fd.newest_date({"2026-09-25": [["2026-10-01", "2026-10-31", 4.0], ["2028-01-01", "2028-01-31", 4.2]]}), "2026-09-25")
 
     def test_xlsx_sheet_rows_minimal_workbook(self):
         buf = io.BytesIO()
