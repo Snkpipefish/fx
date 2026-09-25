@@ -496,9 +496,9 @@ def fetch_cpi():
     return result
 
 
-def fetch_fred_series(series_id):
-    """Daglig serie fra FREDs offentlige CSV-endepunkt (Brent, VIX)."""
-    start = date.today() - timedelta(days=400)
+def fetch_fred_series(series_id, days=400):
+    """Serie fra FREDs offentlige CSV-endepunkt (Brent, VIX, PCE), siste `days` dager."""
+    start = date.today() - timedelta(days=days)
     url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}&cosd={start}"
     raw = fetch(url, timeout=120)
     series = {}
@@ -672,6 +672,70 @@ def fetch_cpi_core():
     except Exception as exc:
         print(f"  ADVARSEL: Eurostat kjerne-HICP feilet: {exc}", file=sys.stderr)
     return result
+
+
+# Sentralbankenes egne kjernemål der OECDs «uten mat og energi» ikke er målvariabelen
+def yoy_from_index(index):
+    """{«ÅÅÅÅ-MM»: å/å-endring i %} fra en månedlig indeks {«ÅÅÅÅ-MM-DD»: nivå}."""
+    out = {}
+    for day, value in index.items():
+        prev = f"{int(day[:4]) - 1}{day[4:]}"
+        if prev in index and index[prev]:
+            out[day[:7]] = round((value / index[prev] - 1) * 100, 2)
+    return out
+
+
+def fetch_pce_core():
+    """Kjerne-PCE å/å (FRED PCEPILFE, indeks 2017=100) – Feds målvariabel."""
+    return yoy_from_index(fetch_fred_series("PCEPILFE", days=800))
+
+
+def parse_abs_csv(csv_text):
+    out = {}
+    for row in csv.DictReader(io.StringIO(csv_text)):
+        value = to_float(row.get("OBS_VALUE"))
+        if row.get("TIME_PERIOD") and value is not None:
+            out[row["TIME_PERIOD"]] = value
+    return out
+
+
+def fetch_abs_trimmed_mean():
+    """Trimmet gjennomsnitt å/å, månedlig, sesongjustert (ABS CPI: mål 3, indeks 999902,
+    justering 20, Australia 50) – RBAs foretrukne kjernemål."""
+    start = (date.today() - timedelta(days=430)).strftime("%Y-%m")
+    url = f"https://data.api.abs.gov.au/rest/data/ABS,CPI/3.999902.20.50.M?startPeriod={start}"
+    req = urllib.request.Request(url, headers={"User-Agent": "valuta-dashboard/1.0", "Accept": "application/vnd.sdmx.data+csv;labels=id"})
+    with urllib.request.urlopen(req, timeout=90) as resp:
+        return parse_abs_csv(resp.read().decode("utf-8"))
+
+
+def boc_core_average(payload):
+    """Snitt av CPI-trim og CPI-median (å/å) per måned fra Valet-svaret."""
+    trim, median = parse_valet(payload, "CPI_TRIM"), parse_valet(payload, "CPI_MEDIAN")
+    return {d[:7]: round((trim[d] + median[d]) / 2, 2) for d in trim if d in median}
+
+
+def fetch_boc_core():
+    """Bank of Canadas foretrukne kjernemål: snittet av CPI-trim og CPI-median (Valet)."""
+    start = date.today() - timedelta(days=430)
+    payload = json.loads(fetch(f"https://www.bankofcanada.ca/valet/observations/CPI_TRIM,CPI_MEDIAN/json?start_date={start}", timeout=60))
+    return boc_core_average(payload)
+
+
+# Målvariabel per bank: (kilde-nøkkel, etikett). Øvrige viser OECDs «uten mat og energi» som visning.
+CORE_TARGETS = {
+    "us": ("pce_core", "Kjerne-PCE (FRED)"),
+    "au": ("abs_trimmed", "Trimmet gjennomsnitt (ABS, sesongjustert)"),
+    "ca": ("boc_core", "CPI-trim/median (Bank of Canada)"),
+    "no": ("ssb_kpi_jae", "KPI-JAE (SSB)"),
+    "se": ("scb_kpif", "KPIF (SCB)"),
+}
+CORE_NOTES = {
+    "jp": "KPI uten mat og energi (OECD) – BoJ styrer etter KPI uten fersk mat",
+    "gb": "KPI uten mat og energi (OECD) – målet er samlet KPI",
+    "ch": "KPI uten mat og energi (OECD) – målet er samlet KPI",
+    "nz": "KPI uten mat og energi (OECD) – målet er samlet KPI",
+}
 
 
 COT_DATASETS = {
@@ -1965,6 +2029,9 @@ def main():
         "ons_cpi": fetch_ons_cpi,
         "ssb_kpi_jae": fetch_ssb_kpi_jae,
         "scb_kpif": fetch_scb_kpif,
+        "pce_core": fetch_pce_core,
+        "abs_trimmed": fetch_abs_trimmed_mean,
+        "boc_core": fetch_boc_core,
         "vix": lambda: fetch_fred_series("VIXCLS"),
         "cot": fetch_cot,
         "ppp": fetch_ppp,
@@ -2120,13 +2187,17 @@ def main():
         cpi = {"value": cpi_value, "period": cpi_period} if cpi_period else old.get("cpi")
 
         core_period, core_value = latest((sources["cpi_core"] or {}).get(c["oecd"], {}))
-        core_label = "HICP uten energi og mat (Eurostat)" if c["id"] == "ea" else "KPI uten mat og energi (OECD)"
-        # Sentralbankens egen målvariabel der den finnes (KPI-JAE fra SSB, KPIF fra SCB)
-        target = {"no": ("ssb_kpi_jae", "KPI-JAE (SSB)"), "se": ("scb_kpif", "KPIF (SCB)")}.get(c["id"])
+        core_label = "HICP uten energi og mat (Eurostat)" if c["id"] == "ea" else CORE_NOTES.get(c["id"], "KPI uten mat og energi (OECD)")
+        is_target = False  # ECB, BoE, SNB, BoJ og RBNZ styrer etter samlet KPI/HICP; kjernen er visning
+        # Sentralbankens egen målvariabel der den finnes (kjerne-PCE, trimmet gjennomsnitt, CPI-trim/median, KPI-JAE, KPIF)
+        target = CORE_TARGETS.get(c["id"])
         if target and sources.get(target[0]):
             core_period, core_value = latest(sources[target[0]])
-            core_label = target[1]
-        cpi_core = {"value": core_value, "period": core_period, "label": core_label} if core_period else old.get("cpi_core")
+            core_label, is_target = target[1], True
+        elif target:
+            core_label += " – målvariabelen kunne ikke hentes"
+        cpi_core = ({"value": core_value, "period": core_period, "label": core_label, "is_target": is_target}
+                    if core_period else old.get("cpi_core"))
 
         # Arbeidsledighet
         une_period, une_value = latest((sources["unemployment"] or {}).get(c["oecd"], {}))

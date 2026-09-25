@@ -55,7 +55,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **Kjerneinflasjon er ikke bankens målvariabel.**
   *Problem:* USD, GBP, CAD, AUD, CHF, JPY bruker OECDs «uten mat og energi» (Fed: PCE, RBA: trimmet gjennomsnitt).
-  *Løsning:* USD: FRED `PCEPILFE` (regn å/å). AUD: ABS Data API, månedlig CPI-indikator, «annual trimmed mean». CAD: Valet CPI-trim/median. SEK: SCB PxWeb KPIF. NOK: SSB API KPI-JAE. JPY: e-Stat ex fersk mat (gratis appId), ellers behold OECD med etikett. GBP/CHF: headline er målet, kjerne kun visning.
+  *Løsning:* ✅ *(PR «kjerneinflasjon», 25. sep 2026)* USD: FRED `PCEPILFE` (indeks, å/å regnet med 800 dagers historikk). AUD: ABS Data API – den månedlige CPI-indikatoren (`CPI_M`) ble avviklet med data til sep. 2025; trimmet gjennomsnitt ligger nå i den fulle månedlige `CPI`-dataflowen som `3.999902.20.50.M` (å/å, sesongjustert, Australia). CAD: Valet `CPI_TRIM`/`CPI_MEDIAN`, snitt. SEK/NOK som før. JPY: e-Stat krever appId-registrering, så OECD beholdes med etikett «BoJ styrer etter KPI uten fersk mat». GBP/CHF/NZD: OECD-kjerne kun visning, etikett «målet er samlet KPI». `cpi_core.is_target` sier om tallet er målvariabelen; retningssignalet (`targetInflation` i calc.js) og idéen «kutt/hevinger tross inflasjon» bruker målvariabelen der den finnes, ellers samlet KPI. Merk: kjerne-PCE (3,3 %) ligger langt over OECDs «KPI uten mat og energi» for USA (2,4 %).
 
 ## Modell og tekst
 

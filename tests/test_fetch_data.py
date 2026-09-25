@@ -570,6 +570,25 @@ class CotFlagsTest(unittest.TestCase):
         self.assertEqual(fd.cot_flags({"2026-09-15": {"net": 1, "oi": 1}}), {})
 
 
+class CoreInflationTest(unittest.TestCase):
+    def test_yoy_from_index(self):
+        idx = {"2025-07-01": 125.0, "2025-08-01": 125.5, "2026-07-01": 130.0, "2026-08-01": 128.638}
+        self.assertEqual(fd.yoy_from_index(idx), {"2026-07": 4.0, "2026-08": 2.5})
+        self.assertEqual(fd.yoy_from_index({"2026-07-01": 130.0}), {})
+
+    def test_parse_abs_csv(self):
+        text = ("DATAFLOW,MEASURE,INDEX,TSEST,REGION,FREQ,TIME_PERIOD,OBS_VALUE,UNIT_MEASURE\n"
+                "ABS:CPI(1.2.0),3,999902,20,50,M,2026-06,3.6,PCT\nABS:CPI(1.2.0),3,999902,20,50,M,2026-07,3.6,PCT\n"
+                "ABS:CPI(1.2.0),3,999902,20,50,M,2026-08,,PCT\n")
+        self.assertEqual(fd.parse_abs_csv(text), {"2026-06": 3.6, "2026-07": 3.6})
+
+    def test_boc_core_average(self):
+        payload = {"observations": [{"d": "2026-05-01", "CPI_TRIM": {"v": "2.0"}, "CPI_MEDIAN": {"v": "1.8"}},
+                                    {"d": "2026-06-01", "CPI_TRIM": {"v": "1.9"}, "CPI_MEDIAN": {"v": "1.9"}},
+                                    {"d": "2026-07-01", "CPI_TRIM": {"v": "2.1"}}]}
+        self.assertEqual(fd.boc_core_average(payload), {"2026-05": 1.9, "2026-06": 1.9})
+
+
 if __name__ == "__main__":
     unittest.main()
 

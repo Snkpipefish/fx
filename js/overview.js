@@ -1,6 +1,6 @@
 /* Redaksjonell oversikt: hero, renteforventninger (hantelgraf), kronen (søyleliste), tre ting, kildestatus. */
 import { nb0, nb1, nb2, pct1, rate, signed, pp, moves, cls, shortDate, daysUntil, color, name } from "./format.js";
-import { extremeText } from "./calc.js";
+import { extremeText, targetInflation } from "./calc.js";
 import { dumbbellChart, barList } from "./charts.js";
 
 const longDate = new Intl.DateTimeFormat("nb-NO", { weekday: "long", day: "numeric", month: "long" });
@@ -183,10 +183,10 @@ export function renderIdeas(countries, market) {
         ventet (${pp(r)}). Slike skift smitter ofte over på valutaen – sjekk om ${rep[0].currency} har hengt med.` });
     }
     for (const c of withCurve) {
-      // Målvariabelen der den finnes (KPIF, KPI-JAE, kjerne), ellers KPI
-      const cpi = c.cpi_core?.value ?? c.cpi?.value;
+      // Det banken styrer etter: målvariabelen der vi har den (kjerne-PCE, trimmet gjennomsnitt, KPIF …), ellers samlet KPI
+      const t = targetInflation(c), cpi = t.value;
       if (cpi == null) continue;
-      const which = c.cpi_core ? ` (${c.cpi_core.label.split(" (")[0]})` : "";
+      const which = t.label && t.label !== "KPI" ? ` (${t.label})` : "";
       if (i12(c) <= -25 && cpi >= 3) ideas.push({ tag: "Kutt tross høy inflasjon", text: `Markedet venter <b>${moves(i12(c))}</b> fra ${c.bank} selv om
         inflasjonen${which} er ${nb1.format(cpi)} %. Faller ikke inflasjonen, kan kuttene forsvinne fra kursen – det ville støtte ${c.currency}.` });
       else if (i12(c) >= 25 && cpi <= 1.5) ideas.push({ tag: "Hevinger tross lav inflasjon", text: `Markedet venter <b>${moves(i12(c))}</b> fra ${c.bank} med en
@@ -229,7 +229,7 @@ export function renderSources(sources, updated) {
   if (!el || !sources) return;
   const labels = { fx: "Valutakurser (ECB)", i44: "I-44 (Norges Bank)", policy: "Styringsrenter (BIS)", irlt: "10-års renter (OECD)",
     ir3: "3-mnd renter (OECD)", cpi: "KPI (OECD/Eurostat)", unemployment: "Ledighet (OECD/Eurostat)", brent: "Brent (FRED)", vix: "VIX (FRED)",
-    cot: "COT (CFTC)", ppp: "PPP (World Bank)", cpi_core: "Kjerne-KPI (OECD/Eurostat)", ons_cpi: "KPI Storbritannia (ONS)", ssb_kpi_jae: "KPI-JAE (SSB)", scb_kpif: "KPIF (SCB)",
+    cot: "COT (CFTC)", ppp: "PPP (World Bank)", cpi_core: "Kjerne-KPI (OECD/Eurostat)", ons_cpi: "KPI Storbritannia (ONS)", ssb_kpi_jae: "KPI-JAE (SSB)", scb_kpif: "KPIF (SCB)", pce_core: "Kjerne-PCE (FRED)", abs_trimmed: "Trimmet gjennomsnitt (ABS)", boc_core: "CPI-trim/median (BoC)",
     brent_fut: "Brent-futures (Yahoo)", ttf: "TTF-gass (Yahoo)", curve_us: "Kurve USD", curve_ea: "Kurve EUR", curve_jp: "Kurve JPY", curve_gb: "Kurve GBP",
     curve_ca: "Kurve CAD", curve_au: "Kurve AUD", curve_se: "Kurve SEK", curve_no: "Kurve NOK",
     curve_nz: "Kurve NZD", curve_ch: "Kurve CHF",
@@ -240,7 +240,7 @@ export function renderSources(sources, updated) {
     futures_us: "Fed funds-futures (CME/Yahoo)", futures_au: "Cash rate-futures (ASX)", futures_ca: "CORRA-futures (TMX)", futures_nz: "Bankvekselfutures NZ (ASX)" };
   const today = new Date(updated);
   const age = (iso) => (iso ? Math.round((today - new Date(iso.length === 4 ? `${iso}-12-31` : iso.length === 7 ? `${iso}-28` : iso)) / 86400000) : null);
-  const limit = (k) => (k === "ppp" ? 800 : k.startsWith("cb_path_") ? 120 : k === "cot" || k === "policy_ch" ? 14 : ["irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "ssb_kpi_jae", "scb_kpif", "unemployment"].includes(k) ? 75 : 10);
+  const limit = (k) => (k === "ppp" ? 800 : k.startsWith("cb_path_") ? 120 : k === "cot" || k === "policy_ch" ? 14 : ["irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "ssb_kpi_jae", "scb_kpif", "pce_core", "abs_trimmed", "boc_core", "unemployment"].includes(k) ? 75 : 10);
   const items = Object.entries(sources).map(([k, s]) => {
     const a = age(s.latest);
     return { label: labels[k] || k, ok: s.ok, latest: s.latest, stale: !s.ok || a == null || a > limit(k) || !!s.warn, error: s.error, warn: s.warn };
