@@ -42,10 +42,10 @@ export function renderPairs(dashboard, history) {
         <td class="tags">${r.tags.map(([t, why]) => `<span class="tag-chip ${t === "allerede priset" ? "warn" : ""}" title="${why}">${t}</span>`).join("")}</td>
       </tr>`).join("");
     const best = rows[0];
-    const bestTags = best.tags.filter(([t]) => t !== "allerede priset").map(([t]) => t);
-    const summary = best && bestTags.length
-      ? `<p class="pair-best">Flest treff: <b>long ${best.L.flag} ${best.L.currency} / short ${best.S.flag} ${best.S.currency}</b>
-          (${bestTags.join(", ")}${best.carry != null ? `, carry ${signed(best.carry, nb2)} pp` : ""}).</p>` : "";
+    const bestTags = best.tags.filter(([t]) => t !== "allerede priset" && t !== "carry").map(([t]) => t);
+    const bits = [...bestTags, ...(best.carry != null ? [`carry ${signed(best.carry, nb2)} pp`] : [])];
+    const summary = best && bits.length
+      ? `<p class="pair-best">Flest treff: <b>long ${best.L.flag} ${best.L.currency} / short ${best.S.flag} ${best.S.currency}</b> (${bits.join(", ")}).</p>` : "";
     const legWord = isLong ? "Long" : "Short";
     const cashNote = chosen.id === "no"
       ? `Å sitte i NOK er også en posisjon: lang olje (korrelasjon ${corrWord(info.no.oilCorr)}), ${riskLabel(info.no.riskCorr)} og Norges Banks bane.`

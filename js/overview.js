@@ -63,7 +63,7 @@ export function renderPriced(countries) {
   const body = sorted.map((c) => {
     const i = c.curve.implied, rep = c.curve.repricing?.w1;
     return `<tr>
-      <td title="${c.curve.source} · ${c.curve.date}"><span class="dot" style="background:${color(c)}"></span>${c.flag} ${c.bank}${c.curve.synthetic_anchor ? "<sup>*</sup>" : ""}</td>
+      <td title="${c.curve.source} · ${c.curve.date}"><span class="dot" style="background:${color(c)}"></span>${c.flag} <span class="long">${c.bank}</span><span class="short">${c.currency}</span>${c.curve.synthetic_anchor ? "<sup>*</sup>" : ""}</td>
       <td>${rate(c.rates.policy)}</td>
       ${cell(i["3m"])}${cell(i["6m"])}${cell(i["12m"])}${cell(i["24m"])}
       <td class="extreme">${extremeText(c.curve)}</td>
@@ -157,10 +157,10 @@ export function renderDiffs(countries) {
       <td>${name(c)}</td>${cell(c.rates.policy, norway.rates.policy)}${cell(c.rates.m3, norway.rates.m3)}${cell(c.rates.y10, norway.rates.y10)}
       <td class="${cls(c.fwd_fx_1y?.pct)}">${c.fwd_fx_1y ? pct(c.fwd_fx_1y.pct) : "–"}</td></tr>`).join("");
   document.getElementById("diffTable").innerHTML = `
-    <table class="diff-table">
-      <thead><tr><th>Valuta</th><th>Styringsrente</th><th>3 mnd</th><th>10 år</th><th>1å termin vs. spot</th></tr></thead>
+    <div class="table-scroll"><table class="diff-table">
+      <thead><tr><th>Valuta</th><th>Styring</th><th>3 mnd</th><th>10 år</th><th>1å termin</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>
+    </table></div>
     <p class="risk-note">Positiv differanse = høyere rente enn Norge → isolert sett støtte for valutaen mot NOK.</p>
     <details class="method"><summary>Slik regnes det</summary><p>Terminkursen følger av rentedifferansen for 1 år (dekket renteparitet)
       og er breakeven for en carry-handel, ikke en prognose.</p></details>`;
