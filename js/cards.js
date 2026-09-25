@@ -61,6 +61,7 @@ export function card(c, market) {
       ${c.policy_change ? row(`${c.policy_change.to > c.policy_change.from ? "Hevet" : "Kuttet"} ${shortDate(c.policy_change.date)}: <b>${rate(c.policy_change.from)} → ${rate(c.policy_change.to)}</b>`,
         c.policy_change.fx_since != null ? `<span title="Målt mot handelspartnerne (I-44-justert)">${c.currency} siden: <b class="${cls(c.policy_change.fx_since)}">${pct1(c.policy_change.fx_since)}</b></span>` : "") : ""}
       <div class="spark-wrap sm" id="policy-${c.id}"></div>
+      <div class="spark-legend" id="policy-legend-${c.id}"></div>
       ${imp ? row("Priset inn", `<b class="${cls(imp["6m"], 9)}">6 mnd ${pp(imp["6m"])}</b> · <b class="${cls(imp["12m"], 9)}">12 mnd ${pp(imp["12m"])}</b> · <b class="${cls(imp["24m"], 9)}">2 år ${pp(imp["24m"])}</b>`) : ""}
       ${row(`Ledighet <b>${c.unemployment ? rate(c.unemployment.value) : "–"}</b>`, `${c.bank}: <b>${shortDate(c.meeting)}</b>`)}
       ${row(pppLine(c), c.vol30 != null ? `Svingninger <b>${nb1.format(c.vol30)} %</b>` : "")}
@@ -81,9 +82,19 @@ export function fillSparklines(countries, history) {
     const fx = history.fx?.[c.fx?.index ? "I44" : c.currency];
     if (fx) document.getElementById(`spark-${c.id}`).innerHTML = sparkline(fx, { stroke: cssVar("--accent"), scale: c.fx?.per ?? 1,
       label: c.fx?.index ? "I-44 siste år" : `${c.fx.per} ${c.currency} i kroner siste år` });
+    // Styringsrenten (trapp) med renten markedet ventet om 12 mnd (stiplet) fra snapshots – reprisingen over tid
     const policy = history.policy?.[bis[c.id]];
-    if (policy) document.getElementById(`policy-${c.id}`).innerHTML = sparkline(policy, { stepped: true, stroke: cssVar("--muted"),
-      label: `${c.bank} styringsrente siste 2 år`, fmt: (v) => rate(v) });
+    const path12 = history.path12?.[c.currency];
+    if (policy) {
+      const from = path12 && Object.keys(path12).length >= 20 ? Object.keys(path12).sort()[0] : null;
+      const shown = from ? Object.fromEntries(Object.entries(policy).filter(([d]) => d >= from)) : policy;
+      document.getElementById(`policy-${c.id}`).innerHTML = sparkline(shown, { stepped: true, stroke: cssVar("--muted"),
+        label: `${c.bank} styringsrente ${from ? "siste år" : "siste 2 år"}`, fmt: (v) => rate(v),
+        overlay: from ? { series: path12, label: "renten markedet ventet om 12 mnd", stroke: cssVar("--accent") } : null });
+      document.getElementById(`policy-legend-${c.id}`).innerHTML = from
+        ? `<span><i class="leg step"></i>styringsrente</span><span><i class="leg dash"></i>ventet om 12 mnd (markedet, samme dag)</span>`
+        : `<span><i class="leg step"></i>styringsrente siste 2 år</span>`;
+    }
   }
 }
 

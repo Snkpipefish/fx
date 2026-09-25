@@ -1,19 +1,35 @@
 /* Grafer: SVG-sparklines for kortene (ingen bibliotek) og Chart.js for oversikten. */
 import { nb, nb1, nb2, bp, rate, cssVar, color, name, shortDate, sortedEntries } from "./format.js";
 
-/** Liten SVG-linjegraf med tekstalternativ. `fmt` formaterer verdier til aria-tekst. */
-export function sparkline(series, { stepped = false, stroke = "currentColor", label = "", fmt = (v) => nb.format(v), scale = 1 } = {}) {
+/**
+ * Liten SVG-linjegraf med tekstalternativ. `fmt` formaterer verdier til aria-tekst.
+ * `overlay` = {series, label, stroke} tegner en andre serie (stiplet) på samme tids- og
+ * verdiakse, f.eks. renten markedet ventet om 12 mnd over styringsrenten. Tidsaksen er
+ * datobasert så seriene kan ha ulike datoer.
+ */
+export function sparkline(series, { stepped = false, stroke = "currentColor", label = "", fmt = (v) => nb.format(v), scale = 1, overlay = null } = {}) {
   const e = sortedEntries(series).map(([d, v]) => [d, v * scale]);
   if (e.length < 2) return "";
-  const vals = e.map(([, v]) => v);
+  const o = overlay?.series ? sortedEntries(overlay.series).filter(([d]) => d >= e[0][0] && d <= e[e.length - 1][0]) : [];
+  const vals = e.map(([, v]) => v).concat(o.map(([, v]) => v));
   const min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1;
   const W = 100, H = 30;
-  const pts = e.map(([, v], i) => [+(i / (e.length - 1) * W).toFixed(2), +(H - 2 - (v - min) / span * (H - 4)).toFixed(2)]);
-  const d = pts.map((p, i) => (i === 0 ? `M${p[0]},${p[1]}` : stepped ? `H${p[0]}V${p[1]}` : `L${p[0]},${p[1]}`)).join("");
-  const text = `${label}: fra ${fmt(vals[0])} (${shortDate(e[0][0])}) til ${fmt(vals[vals.length - 1])} (${shortDate(e[e.length - 1][0])}), lavest ${fmt(min)}, høyest ${fmt(max)}`;
+  const t0 = new Date(e[0][0]).getTime(), t1 = new Date(e[e.length - 1][0]).getTime() || t0 + 1;
+  const x = (d) => +(((new Date(d).getTime() - t0) / (t1 - t0)) * W).toFixed(2);
+  const y = (v) => +(H - 2 - (v - min) / span * (H - 4)).toFixed(2);
+  const pathOf = (pts, step) => pts.map(([d, v], i) => (i === 0 ? `M${x(d)},${y(v)}` : step ? `H${x(d)}V${y(v)}` : `L${x(d)},${y(v)}`)).join("");
+  const d = pathOf(e, stepped);
+  const main = e.map(([, v]) => v);
+  let text = `${label}: fra ${fmt(main[0])} (${shortDate(e[0][0])}) til ${fmt(main[main.length - 1])} (${shortDate(e[e.length - 1][0])}), lavest ${fmt(Math.min(...main))}, høyest ${fmt(Math.max(...main))}`;
+  let over = "";
+  if (o.length >= 2) {
+    const ov = o.map(([, v]) => v);
+    text += `. ${overlay.label}: fra ${fmt(ov[0])} (${shortDate(o[0][0])}) til ${fmt(ov[ov.length - 1])} (${shortDate(o[o.length - 1][0])})`;
+    over = `<path class="spark-line spark-overlay" d="${pathOf(o, false)}" style="stroke:${overlay.stroke ?? stroke}"/>`;
+  }
   return `
     <svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${text}"><title>${text}</title>
-      <path class="spark-area" d="${d}L${W},${H}L0,${H}Z"/><path class="spark-line" d="${d}" style="stroke:${stroke}"/></svg>
+      <path class="spark-area" d="${d}L${W},${H}L0,${H}Z"/><path class="spark-line" d="${d}" style="stroke:${stroke}"/>${over}</svg>
     <div class="spark-labels"><span>${shortDate(e[0][0])}</span><span>lav ${fmt(min)} · høy ${fmt(max)}</span><span>${shortDate(e[e.length - 1][0])}</span></div>`;
 }
 
