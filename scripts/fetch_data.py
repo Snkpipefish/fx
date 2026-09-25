@@ -1962,6 +1962,17 @@ def path12_history(snapshot_dir, countries):
     return {k: v for k, v in out.items() if v}
 
 
+def rates_by_currency(oecd_series, previous=None):
+    """{valuta: {«ÅÅÅÅ-MM»: 3-mnd rente}} fra OECD-serien (nøklet på OECD-kode), flettet med
+    forrige historikk så serien vokser utover OECDs 430-dagers vindu."""
+    out = {k: dict(v) for k, v in (previous or {}).items()}
+    for c in COUNTRIES:
+        months = oecd_series.get(c["oecd"])
+        if months:
+            out.setdefault(c["currency"], {}).update(months)
+    return out
+
+
 def curve_at(series, target_day):
     """Kurvepunktene på eller like før en dato."""
     days = [d for d in series if d <= target_day]
@@ -2615,6 +2626,8 @@ def main():
     if filled:
         print(f"Fylte ut {filled} snapshots bakover")
     history["path12"] = path12_history(SNAPSHOT_DIR, countries)
+    # 3-mnd renter (OECD, månedlig) per valuta til totalavkastning med carry i sammenligningsgrafen
+    history["ir3"] = rates_by_currency(sources.get("ir3") or {}, old_history.get("ir3", {}))
 
     dashboard_path.write_text(json.dumps(
         {"updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),

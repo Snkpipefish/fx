@@ -668,6 +668,18 @@ class SnapshotTest(unittest.TestCase):
             self.assertEqual(hist["USD"]["2026-09-25"], curve["path"][12])
 
 
+class RatesByCurrencyTest(unittest.TestCase):
+    def test_maps_oecd_codes_and_merges_previous(self):
+        oecd = {"USA": {"2026-07": 4.2, "2026-08": 4.19}, "NOR": {"2026-08": 4.45}, "XXX": {"2026-08": 1.0}}
+        prev = {"USD": {"2025-01": 4.5}, "SEK": {"2026-06": 1.9}}
+        out = fd.rates_by_currency(oecd, prev)
+        self.assertEqual(out["USD"], {"2025-01": 4.5, "2026-07": 4.2, "2026-08": 4.19})
+        self.assertEqual(out["NOK"], {"2026-08": 4.45})
+        self.assertEqual(out["SEK"], {"2026-06": 1.9})
+        self.assertNotIn("XXX", out)
+        self.assertEqual(prev["USD"], {"2025-01": 4.5})  # urørt
+
+
 if __name__ == "__main__":
     unittest.main()
 

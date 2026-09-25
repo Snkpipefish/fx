@@ -177,3 +177,27 @@ export function pairCandidates({ countries, info, chosen, isLong, volOf }) {
   rows.sort((a, b) => positive(b) - positive(a) || (b.carry ?? -99) - (a.carry ?? -99));
   return rows;
 }
+
+
+/**
+ * Totalavkastning av å eie valuta X finansiert i kroner: kursendring pluss renteforskjellen
+ * dag for dag, TR_t = TR_{t−1} · S_t/S_{t−1} · (1 + (r_X − r_NOK)/100/360 · dager).
+ * Rentene er månedlige 3-mnd-renter ({«ÅÅÅÅ-MM»: %}); siste kjente måned brukes fremover.
+ * Returnerer {dato: indeks} rebasert til 100 på første dato, eller null uten renter.
+ */
+export function totalReturn(fxSeries, ratesX, ratesNok) {
+  const e = sortedEntries(fxSeries);
+  if (e.length < 2 || !ratesX || !ratesNok) return null;
+  const monthly = (rates) => { const m = Object.keys(rates).sort(); return (day) => { let v = null; for (const k of m) { if (k <= day.slice(0, 7)) v = rates[k]; else break; } return v; }; };
+  const rx = monthly(ratesX), rn = monthly(ratesNok);
+  const out = { [e[0][0]]: 100 };
+  let tr = 100;
+  for (let i = 1; i < e.length; i++) {
+    const [d0, s0] = e[i - 1], [d1, s1] = e[i];
+    const days = Math.round((new Date(d1) - new Date(d0)) / 86400000);
+    const carry = rx(d0) != null && rn(d0) != null ? (rx(d0) - rn(d0)) / 100 / 360 * days : 0;
+    tr = tr * (s1 / s0) * (1 + carry);
+    out[d1] = +tr.toFixed(3);
+  }
+  return out;
+}

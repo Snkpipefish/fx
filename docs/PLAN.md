@@ -78,7 +78,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **Totalavkastning i sammenligningsgrafen.**
   *Problem:* Grafen viser kurs mot NOK, ikke totalavkastning med carry.
-  *Løsning:* `TR_t = TR_{t−1} · S_t/S_{t−1} · (1 + (r_X − r_NOK)/360 · dager)` med OECD 3 mnd månedlig (hent full historikk av `ir3`). Toggle «kurs / med carry» i grafen.
+  *Løsning:* ✅ *(PR «totalavkastning», 25. sep 2026)* `TR_t = TR_{t−1} · S_t/S_{t−1} · (1 + (r_X − r_NOK)/100/360 · dager)` i `totalReturn` (calc.js, testet), med OECDs månedlige 3-mnd-renter per valuta i `history.ir3` (OECD gir 430 dager; historikken flettes med forrige kjøring så den vokser). Bryter «med carry (totalavkastning)» under sammenligningsgrafen bytter datasett og beholder hva som er slått av i tegnforklaringen; aria-teksten følger med. Uten renter for en valuta vises kursen.
 
 ## Teknisk
 
