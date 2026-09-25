@@ -674,36 +674,99 @@ def fetch_cpi_core():
     return result
 
 
-def fetch_cot():
-    """Netto spekulativ posisjonering (non-commercial) fra CFTC, ukentlig 1 år.
+COT_DATASETS = {
+    # Socrata-datasett hos CFTC: legacy futures-only, legacy futures+options, TFF futures-only (leveraged funds)
+    "legacy": ("6dca-aqww", "noncomm_positions_long_all", "noncomm_positions_short_all"),
+    "combined": ("jun7-fc8e", "noncomm_positions_long_all", "noncomm_positions_short_all"),
+    "tff": ("gpe5-46if", "lev_money_positions_long", "lev_money_positions_short"),
+}
+COT_SIGMA_WEEKS = 52
+COT_SIGMA_LIMIT = 3.0
+COT_OI_LIMIT_PCT = 25.0
 
-    Samme Socrata-datasett som bedrock-prosjektet bruker (6dca-aqww, legacy
-    futures-only). Netto = long − short; lagres sammen med open interest.
-    """
-    start = date.today() - timedelta(days=400)
+
+def fetch_cot_dataset(dataset, long_field, short_field, start):
     contracts = "','".join(COT_CONTRACTS.values())
     query = urllib.parse.urlencode({
-        "$select": "report_date_as_yyyy_mm_dd,contract_market_name,"
-                   "noncomm_positions_long_all,noncomm_positions_short_all,open_interest_all",
-        "$where": f"contract_market_name in('{contracts}') "
-                  f"AND report_date_as_yyyy_mm_dd >= '{start}'",
+        "$select": f"report_date_as_yyyy_mm_dd,contract_market_name,{long_field},{short_field},open_interest_all",
+        "$where": f"contract_market_name in('{contracts}') AND report_date_as_yyyy_mm_dd >= '{start}'",
         "$order": "report_date_as_yyyy_mm_dd ASC",
         "$limit": "5000",
     })
-    raw = fetch(f"https://publicreporting.cftc.gov/resource/6dca-aqww.json?{query}", timeout=120)
-    by_contract = {}
-    for row in json.loads(raw):
-        long_ = to_float(row.get("noncomm_positions_long_all"))
-        short = to_float(row.get("noncomm_positions_short_all"))
-        oi = to_float(row.get("open_interest_all"))
+    out = {}
+    for row in json.loads(fetch(f"https://publicreporting.cftc.gov/resource/{dataset}.json?{query}", timeout=120)):
+        long_, short = to_float(row.get(long_field)), to_float(row.get(short_field))
         if long_ is None or short is None:
             continue
-        day = row["report_date_as_yyyy_mm_dd"][:10]
-        by_contract.setdefault(row["contract_market_name"], {})[day] = {
-            "net": int(long_ - short),
-            "oi": int(oi) if oi else None,
-        }
+        oi = to_float(row.get("open_interest_all"))
+        out.setdefault(row["contract_market_name"], {})[row["report_date_as_yyyy_mm_dd"][:10]] = (int(long_ - short), int(oi) if oi else None)
+    return out
+
+
+def fetch_cot():
+    """Netto spekulativ posisjonering fra CFTC, ukentlig, ca. 1 år.
+
+    Hovedserien er legacy futures-only (non-commercial). I tillegg hentes legacy
+    futures+options (net_comb) og TFF leveraged funds (lev), så et stort ukesving kan
+    kontrolleres mot de andre rapportene. Netto = long − short."""
+    start = date.today() - timedelta(days=400)
+    legacy = fetch_cot_dataset(*COT_DATASETS["legacy"], start)
+    extra = {}
+    for key in ("combined", "tff"):
+        try:
+            extra[key] = fetch_cot_dataset(*COT_DATASETS[key], start)
+            time.sleep(1)
+        except Exception as exc:  # tilleggsrapportene er kontroll, ikke krav
+            print(f"  ADVARSEL: COT {key} feilet ({exc})", file=sys.stderr)
+            extra[key] = {}
+    by_contract = {}
+    for contract, days in legacy.items():
+        for day, (net, oi) in days.items():
+            entry = {"net": net, "oi": oi}
+            comb = extra.get("combined", {}).get(contract, {}).get(day)
+            lev = extra.get("tff", {}).get(contract, {}).get(day)
+            if comb:
+                entry["net_comb"] = comb[0]
+            if lev:
+                entry["lev"] = lev[0]
+            by_contract.setdefault(contract, {})[day] = entry
     return by_contract
+
+
+def is_roll_week(report_day):
+    """Rapportdato (tirsdag) i uka der valutafutures ruller: tredje onsdag i mar/jun/sep/des."""
+    d = date.fromisoformat(report_day)
+    if d.month not in (3, 6, 9, 12):
+        return False
+    imm = third_wednesday(d.year, d.month)
+    return -6 <= (imm - d).days <= 1
+
+
+def cot_flags(series, sigma_weeks=COT_SIGMA_WEEKS):
+    """Kontroll av siste ukesving: Δnet i standardavvik (siste 52 ukeendringer før denne),
+    ΔOI i prosent, rulleuke, og om svinget finnes med samme fortegn i futures+options og TFF.
+    unusual = |Δnet| > 3σ eller ΔOI > 25 %; confirmed = True/False når kontrollseriene finnes."""
+    days = sorted(series)
+    if len(days) < 2:
+        return {}
+    last, prev = series[days[-1]], series[days[-2]]
+    change = last["net"] - prev["net"]
+    nets = [series[d]["net"] for d in days]
+    diffs = [b - a for a, b in zip(nets, nets[1:])][:-1][-sigma_weeks:]
+    sigma = statistics.pstdev(diffs) if len(diffs) >= 8 else None
+    z = round(change / sigma, 1) if sigma else None
+    oi_pct = round((last["oi"] / prev["oi"] - 1) * 100, 1) if last.get("oi") and prev.get("oi") else None
+    unusual = (z is not None and abs(z) > COT_SIGMA_LIMIT) or (oi_pct is not None and oi_pct > COT_OI_LIMIT_PCT)
+    checks = []
+    for key in ("net_comb", "lev"):
+        if last.get(key) is not None and prev.get(key) is not None:
+            other = last[key] - prev[key]
+            checks.append(other != 0 and (other > 0) == (change > 0) and abs(other) >= abs(change) / 4)
+    out = {"z_w": z, "oi_change_pct": oi_pct, "roll_week": is_roll_week(days[-1]), "unusual": unusual,
+           "confirmed": all(checks) if len(checks) == 2 else None}
+    if last.get("lev") is not None:
+        out["lev_net"] = last["lev"]
+    return out
 
 
 def fetch_ppp():
@@ -2101,6 +2164,7 @@ def main():
                 "change_w": last["net"] - prev["net"] if prev else None,
                 "pct_oi": round(last["net"] / last["oi"] * 100, 1) if last.get("oi") else None,
                 "date": days[-1],
+                **cot_flags(cot_series),
             }
             history["cot"][cur] = cot_series
 

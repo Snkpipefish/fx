@@ -26,7 +26,15 @@ function pppLine(c) {
 function cotLine(c) {
   if (!c.cot) return c.currency === "NOK" || c.currency === "SEK" ? `Spekulanter: <small>ingen likvide futures for ${c.currency}</small>` : "";
   const oi = c.cot.pct_oi != null ? ` (${signed(c.cot.pct_oi)} % av åpen interesse)` : "";
-  return `Spekulanter: <b class="${cls(c.cot.net)}">${thousands(c.cot.net)}</b> netto${oi}`;
+  return `Spekulanter: <b class="${cls(c.cot.net)}">${thousands(c.cot.net)}</b> netto${oi}${cotCheck(c.cot)}`;
+}
+
+/** Stort ukesving: vis om det finnes i alle CFTC-rapportene, og om det var rulleuke. */
+function cotCheck(cot) {
+  if (!cot.unusual) return cot.roll_week ? ` <small class="muted">· rulleuke</small>` : "";
+  const size = cot.z_w != null ? `${nb1.format(Math.abs(cot.z_w))}σ` : `OI ${signed(cot.oi_change_pct)} %`;
+  const verdict = cot.confirmed === true ? `bekreftet i futures+opsjoner og TFF` : cot.confirmed === false ? `⚠ ubekreftet – andre rapporter viser noe annet` : `⚠ ubekreftet`;
+  return ` <small class="${cot.confirmed === true ? "muted" : "neg"}">· uvanlig stort sving (${size}), ${verdict}${cot.roll_week ? ", rulleuke" : ""}</small>`;
 }
 
 export function card(c, market) {
