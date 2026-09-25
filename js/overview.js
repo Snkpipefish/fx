@@ -6,6 +6,8 @@ import { dumbbellChart, barList } from "./charts.js";
 const longDate = new Intl.DateTimeFormat("nb-NO", { weekday: "long", day: "numeric", month: "long" });
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const i12 = (c) => c.curve.implied["12m"];
+/** Hva banen er lest ut av: futures på styringsrenten, OIS eller statskurve (inkl. terminpremie). */
+export const curveKind = (c) => ({ futures: "futures", ois: "OIS", govt: "statskurve", zero: "statskurve" })[c.curve?.kind] ?? "";
 
 /** Overskriften: hva markedet venter, i én setning. */
 function headline(rows) {
@@ -66,7 +68,7 @@ export function renderRates(countries) {
     id: c.id, flag: c.flag, label: c.bank.replace("Reserve Bank of ", "RB ").replace("Swiss National Bank", "SNB"), short: c.currency,
     now: c.rates.policy, expected: c.curve.path[12], six: c.curve.path[6], color: color(c),
     text: `${rate(c.curve.path[12])} (${moves(i12(c))})`, textShort: rate(c.curve.path[12]),
-    title: `${c.bank}: ${rate(c.rates.policy)} nå, ${rate(c.curve.path[12])} ventet om 12 mnd (${pp(i12(c))})`,
+    title: `${c.bank}: ${rate(c.rates.policy)} nå, ${rate(c.curve.path[12])} ventet om 12 mnd (${pp(i12(c))}) · ${c.curve.source}`,
     bank: c.cb_path?.level ?? null,
     bankTitle: c.cb_path ? `${c.bank}s eget anslag: ${rate(c.cb_path.level)} ${c.cb_path.horizon} (${c.cb_path.source})` : "",
   }));
@@ -82,14 +84,15 @@ export function renderRates(countries) {
     const week = r == null || Math.abs(r) < 5 ? "" : ` <span class="${cls(r)}">${r > 0 ? "↑" : "↓"} ${r > 0 ? "høyere" : "lavere"} enn for en uke siden</span>`;
     const src = c.rates.policy_source && c.rates.policy_source !== "BIS" ? ` <small>(${c.rates.policy_source})</small>` : "";
     const bank = c.cb_path ? ` · banken selv: ${rate(c.cb_path.level)} ${c.cb_path.horizon}` : "";
-    return `<li><b>${c.flag} ${c.bank}</b> · ${rate(c.rates.policy)} nå${src} → <b>${moves(i12(c))}</b> neste 12 mnd
+    const kind = curveKind(c) ? ` <small class="muted" title="${c.curve.source}">${curveKind(c)}</small>` : "";
+    return `<li><b>${c.flag} ${c.bank}</b>${kind} · ${rate(c.rates.policy)} nå${src} → <b>${moves(i12(c))}</b> neste 12 mnd
       <span class="muted">(${pp(i12(c))}, ${extremeText(c.curve)}${bank})</span>${week}</li>`;
   }).join("");
   el.innerHTML = `
     <div id="dumbbell"></div>
     ${gapText}
     <details class="more"><summary>Vis som liste</summary><ul class="plain">${list}</ul></details>
-    <p class="note">Én heving eller ett kutt = 0,25 prosentpoeng. Lest ut av rentekurvene (OIS eller statspapirer), oppdatert hver ukedag.
+    <p class="note">Én heving eller ett kutt = 0,25 prosentpoeng. Lest ut av futures på styringsrenten (USD, AUD, CAD), OIS (GBP) eller statskurven (øvrige, med terminpremie), oppdatert hver ukedag.
       ${missing.length ? `Ingen kurve tilgjengelig for ${missing.join(" og ")}.` : ""}</p>`;
   // Kompakt graf på smale skjermer; tegnes på nytt når bredden krysser grensen
   const mq = window.matchMedia("(max-width: 640px)");
@@ -219,7 +222,8 @@ export function renderSources(sources, updated) {
     ir3: "3-mnd renter (OECD)", cpi: "KPI (OECD/Eurostat)", unemployment: "Ledighet (OECD/Eurostat)", brent: "Brent (FRED)", vix: "VIX (FRED)",
     cot: "COT (CFTC)", ppp: "PPP (World Bank)", cpi_core: "Kjerne-KPI (OECD/Eurostat)", ons_cpi: "KPI Storbritannia (ONS)", ssb_kpi_jae: "KPI-JAE (SSB)", scb_kpif: "KPIF (SCB)",
     brent_fut: "Brent-futures (Yahoo)", ttf: "TTF-gass (Yahoo)", curve_us: "Kurve USD", curve_ea: "Kurve EUR", curve_jp: "Kurve JPY", curve_gb: "Kurve GBP",
-    curve_ca: "Kurve CAD", curve_au: "Kurve AUD", curve_se: "Kurve SEK", curve_no: "Kurve NOK" };
+    curve_ca: "Kurve CAD", curve_au: "Kurve AUD", curve_se: "Kurve SEK", curve_no: "Kurve NOK",
+    futures_us: "Fed funds-futures (CME/Yahoo)", futures_au: "Cash rate-futures (ASX)", futures_ca: "CORRA-futures (TMX)" };
   const today = new Date(updated);
   const age = (iso) => (iso ? Math.round((today - new Date(iso.length === 4 ? `${iso}-12-31` : iso.length === 7 ? `${iso}-28` : iso)) / 86400000) : null);
   const limit = (k) => (k === "ppp" ? 800 : k === "cot" ? 14 : ["irlt", "ir3", "cpi", "cpi_core", "ons_cpi", "ssb_kpi_jae", "scb_kpif", "unemployment"].includes(k) ? 75 : 10);

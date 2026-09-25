@@ -39,12 +39,13 @@
         <div class="chart-box"><canvas id="pathChart" role="img" aria-label="Styringsrente markedet priser per land, 0 til 24 måneder frem"></canvas></div>
       </details>
       <details class="more"><summary>Slik regnes det</summary>
-        <p class="note">Terminrentene leses ut av OIS-kurven (Storbritannia) eller statspapirkurven (øvrige): hva markedet betaler for tre måneders rente
-        som starter om 3, 6, 12 eller 24 måneder. Banen ankres på markedets egen 3-måneders rente, justert for det påslaget instrumentet normalt har
-        over styringsrenten (medianen siste år). Derfor flytter nivået seg bare når markedet flytter seg, ikke når et vedtak registreres, og et
-        møte som ligger innenfor de neste tre månedene telles med. «Priset endring» er banen minus dagens styringsrente. Terminrenter inneholder
-        også en risikopremie, så tallene viser retning og størrelse – ikke sannsynligheter. For Japan, som mangler korte punkter, er
-        3-måneders renten satt lik styringsrenten.</p></details>
+        <p class="note">For USD, AUD og CAD leses banen ut av futures på styringsrenten (fed funds, ASX cash rate, CORRA), én kontrakt per måned:
+        renten markedet venter i hver måned fremover, og dermed også hva som er priset for det enkelte rentemøtet. For Storbritannia brukes
+        OIS-kurven og for de øvrige statspapirkurven: hva markedet betaler for tre måneders rente som starter om 3, 6, 12 eller 24 måneder.
+        Alle baner ankres på markedets egen frontrente, justert for det påslaget instrumentet normalt har over styringsrenten (for statskurver
+        medianen siste år, for futures medianen siste 20 dager av kontrakten mot månedens faktiske styringsrente). Derfor flytter nivået seg
+        bare når markedet flytter seg, ikke når et vedtak registreres. «Priset endring» er banen minus dagens styringsrente. Statskurver inneholder også en terminpremie, så de tallene viser retning og størrelse – ikke sannsynligheter. For Japan,
+        som mangler korte punkter, er 3-måneders renten satt lik styringsrenten.</p></details>
     </section>
 
     <section class="chapter" id="kronen">
