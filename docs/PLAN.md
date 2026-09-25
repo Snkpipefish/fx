@@ -96,7 +96,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **Skrifter fra Google Fonts.**
   *Problem:* Siden er ikke uavhengig av tredjepart (`index.html` linje 8–10).
-  *Løsning:* Fraunces og Inter er OFL: last ned woff2, subset til latin med `pyftsubset`, `@font-face` + `font-display: swap` + `<link rel=preload>`. Fjern Google-lenkene.
+  *Løsning:* ✅ *(PR «skrifter», 25. sep 2026)* Fraunces og Inter er OFL. Googles CSS-API gir ferdige latin-subsett som variable woff2 når det hentes med nettleser-UA (én fil per familie: Fraunces vekt 500–600 + opsz, Inter 400–700), så `pyftsubset` var ikke nødvendig. Filene ligger i `css/fonts/` med OFL-tekstene og en README om opphav; `@font-face` med `font-display: swap` og samme `unicode-range` øverst i `style.css`, `<link rel=preload as=font>` for begge, Google-lenkene fjernet. Ingen tredjeparts-forespørsler igjen (Chart.js var alt lokalt).
 
 - [ ] **Skjermbilder.**
   *Problem:* Testnettleseren er upålitelig, mobilkontroll gjøres med DOM-målinger og enkeltbilder.
