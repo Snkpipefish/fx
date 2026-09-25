@@ -524,6 +524,52 @@ class CentralBankPathTest(unittest.TestCase):
         self.assertEqual(fd.horizon_text("2027-09-30"), "3. kvartal 2027")
 
 
+class CotFlagsTest(unittest.TestCase):
+    def series(self, nets, oi=400000, extra=None):
+        from datetime import date as d, timedelta as td
+        start = d(2025, 9, 16)
+        out = {}
+        for i, n in enumerate(nets):
+            day = str(start + td(weeks=i))
+            out[day] = {"net": n, "oi": oi}
+            if extra and i >= len(nets) - 2:
+                out[day].update(extra[i - (len(nets) - 2)])
+        return out
+
+    def test_roll_week(self):
+        self.assertTrue(fd.is_roll_week("2026-09-15"))   # tredje onsdag 16. sep
+        self.assertFalse(fd.is_roll_week("2026-09-08"))
+        self.assertFalse(fd.is_roll_week("2026-10-13"))
+        self.assertTrue(fd.is_roll_week("2026-12-15"))   # tredje onsdag 16. des
+
+    def test_flags_large_swing_confirmed(self):
+        # 52 rolige uker (±10k) og så +110k, bekreftet i futures+options og TFF med samme fortegn
+        nets = [(-1) ** i * 10000 for i in range(53)] + [120000]
+        s = self.series(nets, extra=[{"net_comb": 12000, "lev": -50000}, {"net_comb": 120000, "lev": 23000}])
+        f = fd.cot_flags(s)
+        self.assertTrue(f["unusual"])
+        self.assertGreater(f["z_w"], 3)
+        self.assertTrue(f["confirmed"])
+        self.assertEqual(f["lev_net"], 23000)
+        self.assertTrue(f["roll_week"])  # siste rapport 15. sep 2026
+
+    def test_flags_unconfirmed_and_oi_jump(self):
+        nets = [(-1) ** i * 10000 for i in range(53)] + [120000]
+        # TFF går motsatt vei: ikke bekreftet
+        f = fd.cot_flags(self.series(nets, extra=[{"net_comb": 12000, "lev": 50000}, {"net_comb": 120000, "lev": 20000}]))
+        self.assertFalse(f["confirmed"])
+        # Uten kontrollserier: confirmed er None
+        self.assertIsNone(fd.cot_flags(self.series(nets))["confirmed"])
+        # Rolig netto men åpen interesse +30 %: uvanlig
+        s = self.series([10000] * 20)
+        last = sorted(s)[-1]
+        s[last]["oi"] = 520000
+        f = fd.cot_flags(s)
+        self.assertTrue(f["unusual"])
+        self.assertEqual(f["oi_change_pct"], 30.0)
+        self.assertEqual(fd.cot_flags({"2026-09-15": {"net": 1, "oi": 1}}), {})
+
+
 if __name__ == "__main__":
     unittest.main()
 

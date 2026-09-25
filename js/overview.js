@@ -210,8 +210,9 @@ export function renderIdeas(countries, market) {
   const crowded = countries.filter((c) => c.cot?.pct_oi != null && Math.abs(c.cot.pct_oi) >= 25).sort((a, b) => Math.abs(b.cot.pct_oi) - Math.abs(a.cot.pct_oi));
   if (crowded.length) {
     const c = crowded[0];
+    const check = c.cot.unusual ? (c.cot.confirmed === true ? " Ukens sving er uvanlig stort, men finnes i alle CFTC-rapportene." : " Ukens sving er uvanlig stort og ikke bekreftet i de andre CFTC-rapportene.") : "";
     ideas.push({ tag: "Alle på samme side", text: `Spekulantene er tungt <b>${c.cot.net > 0 ? "long" : "short"} ${c.currency}</b> (${signed(c.cot.pct_oi)} % av åpen
-      interesse). Når alle sitter likt, blir reverseringene brå – særlig rundt rentemøtet ${shortDate(c.meeting)}.` });
+      interesse). Når alle sitter likt, blir reverseringene brå – særlig rundt rentemøtet ${shortDate(c.meeting)}.${check}` });
   }
   const shown = ideas.slice(0, 4);
   const words = ["Ingenting", "Én ting", "To ting", "Tre ting", "Fire ting"];

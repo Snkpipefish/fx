@@ -51,7 +51,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **COT JPY er ikke verifisert.**
   *Problem:* +212k netto på to uker med +130k i åpen interesse. Kontraktsrullen 16. sep kan blåse opp åpen interesse; ikke sjekket mot kombinert-rapporten.
-  *Løsning:* Hent legacy futures-only, futures+options combined og TFF; finnes svinget i alle tre er det reelt. Regel: `|Δnet| > 3σ (52 uker)` eller `ΔOI > 25 %` på én uke gir «ubekreftet». Marker rulleuker (3. onsdag mar/jun/sep/des).
+  *Løsning:* ✅ *(PR «cot-kontroll», 25. sep 2026)* Henter legacy futures-only (hovedserie), futures+options combined (`jun7-fc8e`) og TFF leveraged funds (`gpe5-46if`); `cot_flags` gir `z_w` (Δnet i σ av siste 52 ukeendringer), `oi_change_pct`, `roll_week` (rapportdato i uka med 3. onsdag mar/jun/sep/des), `unusual` (|z| > 3 eller ΔOI > 25 %) og `confirmed` (samme fortegn og minst ¼ av størrelsen i begge kontrollseriene). **Resultat for JPY 15. sep:** +110k (3,8σ), ΔOI +8,6 % (uka før +21 %), rulleuke, men bekreftet: combined +108k, TFF leveraged +72k (4,7σ). Svinget er reelt. Kortet viser «uvanlig stort sving (3,8σ), bekreftet i futures+opsjoner og TFF, rulleuke»; idéen «Alle på samme side» får en setning om det. Kontrollrapportene er valgfrie (feil gir advarsel, ikke stopp).
 
 - [ ] **Kjerneinflasjon er ikke bankens målvariabel.**
   *Problem:* USD, GBP, CAD, AUD, CHF, JPY bruker OECDs «uten mat og energi» (Fed: PCE, RBA: trimmet gjennomsnitt).
