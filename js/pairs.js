@@ -68,7 +68,8 @@ export function renderPairs(dashboard, history) {
       </tr>`).join("");
     document.getElementById("pairResult").innerHTML = `
       <p class="lead"><b>${isLong ? "Long" : "Short"} ${chosen.flag} ${chosen.currency}</b> betyr at du eier ${describeLeg(chosen)}.
-        ${isLong ? "Og du er samtidig short alt du ikke kjøpte." : "Og du er samtidig long alt annet."} ${cashNote}</p>
+        ${isLong ? "Og du er samtidig short alt du ikke kjøpte." : "Og du er samtidig long alt annet."}</p>
+      <p class="lead">${cashNote}</p>
       <div class="pair-cards">${cards.join("")}</div>
       <details class="more"><summary>Vis alle ${rows.length} kandidatene</summary>
         <div class="table-scroll"><table class="tbl">

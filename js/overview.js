@@ -114,20 +114,20 @@ export function renderKrone(countries, market) {
   const oil = (() => {
     if (!market.brent && !market.brent_fut) return "";
     const parts = [];
-    if (market.brent_fut) parts.push(`Brent-futures koster <b>${nb0.format(market.brent_fut.value)} USD</b> (${market.brent_fut.contract ?? "front-kontrakten"}, ${pct1(market.brent_fut.changes?.m1)} siste måned innenfor kontrakten)`);
+    if (market.brent_fut) parts.push(`Brent-futures koster <b>${nb0.format(market.brent_fut.value)} USD</b> (${pct1(market.brent_fut.changes?.m1)} siste måned, ${market.brent_fut.contract ?? "front-kontrakten"})`);
     if (market.brent) parts.push(`fysisk Brent (Dated, ${shortDate(market.brent.date)}) <b>${nb0.format(market.brent.value)} USD</b>`);
     let premium = "";
     if (market.brent_premium) {
       const d = market.brent_premium.value;
-      premium = Math.abs(d) >= 3 ? ` – spotpremien på ${nb0.format(d)} USD samme dag er et ${d > 0 ? "tegn på stramt fysisk marked" : "tegn på slakt fysisk marked"}` : "";
+      premium = Math.abs(d) >= 3 ? ` Spotpremien på ${nb0.format(d)} USD samme dag er et ${d > 0 ? "tegn på stramt fysisk marked" : "tegn på slakt fysisk marked"}.` : "";
     }
     const corr = market.brent_nok_corr != null ? ` Kronen har fulgt oljen med korrelasjon ${nb2.format(market.brent_nok_corr)} siste 90 dager.` : "";
-    const gas = market.ttf ? ` Gass (TTF) koster <b>${nb0.format(market.ttf.value)} EUR/MWh</b> (${pct1(market.ttf.changes?.m1)} siste måned).` : "";
-    return ` ${parts.join(", ")}${premium}.${corr}${gas}`;
+    return `<p class="lead">${parts.join(", ")}.${premium}${corr}</p>`;
   })();
+  const gas = market.ttf ? `<p class="lead">Gass (TTF) koster <b>${nb0.format(market.ttf.value)} EUR/MWh</b> (${pct1(market.ttf.changes?.m1)} siste måned).</p>` : "";
   el.innerHTML = `
     <p class="lead">${nokChange != null ? `Kronen er <b class="${cls(nokChange)}">${pct1(nokChange)}</b> mot handelspartnerne denne uken (I-44).` : ""}
-      ${risk}${oil}</p>
+      ${risk}</p>${oil}${gas}
     <div class="chips" id="kroneChips">${horizons.map(([h, l]) => `<button type="button" data-h="${h}">${l}</button>`).join("")}</div>
     <div id="kroneBars"></div>
     <p class="note">Positivt = valutaen har styrket seg mot kronen. Kilde: ECBs referansekurser.</p>`;
@@ -152,12 +152,14 @@ export function renderIdeas(countries, market) {
         ventet (${pp(r)}). Slike skift smitter ofte over på valutaen – sjekk om ${rep[0].currency} har hengt med.` });
     }
     for (const c of withCurve) {
-      const cpi = c.cpi?.value;
+      // Målvariabelen der den finnes (KPIF, KPI-JAE, kjerne), ellers KPI
+      const cpi = c.cpi_core?.value ?? c.cpi?.value;
       if (cpi == null) continue;
+      const which = c.cpi_core ? ` (${c.cpi_core.label.split(" (")[0]})` : "";
       if (i12(c) <= -25 && cpi >= 3) ideas.push({ tag: "Kutt tross høy inflasjon", text: `Markedet venter <b>${moves(i12(c))}</b> fra ${c.bank} selv om
-        inflasjonen er ${nb1.format(cpi)} %. Faller ikke inflasjonen, kan kuttene forsvinne fra kursen – det ville støtte ${c.currency}.` });
+        inflasjonen${which} er ${nb1.format(cpi)} %. Faller ikke inflasjonen, kan kuttene forsvinne fra kursen – det ville støtte ${c.currency}.` });
       else if (i12(c) >= 25 && cpi <= 1.5) ideas.push({ tag: "Hevinger tross lav inflasjon", text: `Markedet venter <b>${moves(i12(c))}</b> fra ${c.bank} med en
-        inflasjon på bare ${nb1.format(cpi)} %. Uteblir hevingene, er ${c.currency} sårbar.` });
+        inflasjon${which} på bare ${nb1.format(cpi)} %. Uteblir hevingene, er ${c.currency} sårbar.` });
     }
   }
   const delivered = countries.filter((c) => c.policy_change && c.policy_change.to > c.policy_change.from && c.policy_change.fx_since != null && c.policy_change.fx_since < 0)
@@ -180,7 +182,11 @@ export function renderIdeas(countries, market) {
     ideas.push({ tag: "Alle på samme side", text: `Spekulantene er tungt <b>${c.cot.net > 0 ? "long" : "short"} ${c.currency}</b> (${signed(c.cot.pct_oi)} % av åpen
       interesse). Når alle sitter likt, blir reverseringene brå – særlig rundt rentemøtet ${shortDate(c.meeting)}.` });
   }
-  document.getElementById("ideas").innerHTML = ideas.slice(0, 4).map((i, n) =>
+  const shown = ideas.slice(0, 4);
+  const words = ["Ingenting", "Én ting", "To ting", "Tre ting", "Fire ting"];
+  const h = document.getElementById("ideasHeading");
+  if (h) h.textContent = `${words[shown.length]} å legge merke til`;
+  document.getElementById("ideas").innerHTML = shown.map((i, n) =>
     `<div class="idea"><div class="num">0${n + 1}</div><div><div class="tag">${i.tag}</div><p>${i.text}</p></div></div>`).join("")
     || `<p class="note">For lite data til å peke på noe ennå.</p>`;
 }
