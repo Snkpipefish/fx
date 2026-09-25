@@ -1493,6 +1493,49 @@ def curve_metrics(points, policy, basis=None):
     }
 
 
+def meeting_implied_curve(points, policy, basis, meetings, today=None, window=90, max_days=80):
+    """Priset endring (bp) på neste møte lest ut av 1 mnd- og 3 mnd-renten i en spotkurve.
+
+    3-mnd-renten er snittet av styringsrenten de neste 90 dagene pluss basis (s): med ett
+    møte om n dager er (r_3m − s − p) = Δ·(90 − n)/90, altså Δ = (r_3m − s − p)·90/(90 − n).
+    Finnes et 1-mnd-punkt og ingen møte de første 30 dagene, gir det basisen direkte
+    (r_1m − p); ligger møtet innenfor 1 mnd, gir 1-mnd-renten Δ for det, og 3-mnd-renten
+    resten til møte 2. To møter i 3-mnd-vinduet uten 1-mnd-punkt deles likt. Møter
+    nærmere vinduets slutt enn `max_days` gir for få dager å måle på → None."""
+    if not points or policy is None:
+        return None
+    today = today or date.today()
+    pts, synthetic = curve_points(points, policy)
+    if not pts or synthetic:
+        return None  # syntetisk anker: 3-mnd-renten er satt lik styringsrenten, ingen informasjon
+    r3 = spot_rate(pts, 0.25)
+    r1 = points.get(tenor_key(1 / 12))
+    upcoming = sorted(m for m in meetings if m >= str(today))
+    inside = [(m, (date.fromisoformat(m) - today).days + 1) for m in upcoming]
+    inside = [(m, n) for m, n in inside if n <= window]
+    if not inside:
+        return None
+    (m1, n1), rest = inside[0], inside[1:]
+    if n1 > max_days:
+        return None
+    s = basis
+    if r1 is not None and n1 > 30:
+        s = r1 - policy  # ingen møte i 1-mnd-vinduet: 1-mnd-renten er ren basis
+    if s is None:
+        return None
+    x3 = r3 - s - policy
+    if r1 is not None and n1 <= 25:
+        delta1 = (r1 - s - policy) * 30 / (30 - n1)
+    elif rest and rest[0][1] <= max_days:
+        n2 = rest[0][1]
+        delta1 = x3 * window / ((window - n1) + (window - n2))  # likt fordelt på to møter
+    else:
+        delta1 = x3 * window / (window - n1)
+    bp = round(delta1 * 100)
+    return {"bp": bp, "move": "heving" if bp >= 13 else "kutt" if bp <= -13 else "uendret",
+            "source": f"rentekurven ({'1 og 3' if r1 is not None else '3'} mnd), fordelt på møtet"}
+
+
 def curve_at(series, target_day):
     """Kurvepunktene på eller like før en dato."""
     days = [d for d in series if d <= target_day]
@@ -1988,8 +2031,13 @@ def main():
             elif odds and odds.get("date") == next_meeting["date"]:
                 next_meeting.update({k: odds[k] for k in ("bp", "prob", "move", "source") if k in odds})
             elif curve:
-                # Kurven har bare månedsoppløsning: bruk prisingen for de neste 3 månedene som indikasjon
-                next_meeting.update({"bp_3m": curve["implied"]["3m"], "source": "rentekurven (3 mnd)"})
+                # Uten futures: les møtet ut av 1/3-mnd-renten der fronten følger styringsrenten (OIS,
+                # swap). Statsveksler har knapphetspremie som ikke kan skilles fra priset bevegelse
+                # med medianbasisen, så der vises bare 3-mnd-prisingen som indikasjon.
+                from_curve = meeting_implied_curve(curve.get("points"), policy, (curve.get("anchor") or {}).get("basis"), upcoming) \
+                    if curve["kind"] in ("ois", "swap") else None
+                next_meeting["bp_3m"] = curve["implied"]["3m"]
+                next_meeting.update(from_curve or {"source": "rentekurven (3 mnd)"})
         countries.append({
             **{k: c[k] for k in ("id", "name", "currency", "bank", "flag")},
             "fx": fx,

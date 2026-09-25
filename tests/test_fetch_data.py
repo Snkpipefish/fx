@@ -432,6 +432,49 @@ class NzFuturesTest(unittest.TestCase):
         self.assertIsNone(fd.build_curve("nz", {}, {}, fut))
 
 
+class MeetingImpliedCurveTest(unittest.TestCase):
+    """Møteprising fra 1/3-mnd-renten, kontrollert mot RBA- og BoC-tallene fra futures (22 og 13 bp)."""
+
+    def test_single_meeting_from_3m(self):
+        from datetime import date as d
+        # AUD 25. sep: 3 mnd 4,63, basis 0,04, styringsrente 4,35, møte 29. sep (n = 5)
+        pts = {"0.25": 4.63, "1": 4.78, "2": 4.76}
+        r = fd.meeting_implied_curve(pts, 4.35, 0.04, ["2026-09-29"], today=d(2026, 9, 25))
+        self.assertEqual(r["move"], "heving")
+        self.assertAlmostEqual(r["bp"], round(0.24 * 90 / 85 * 100))  # 25 bp; futures sa 22, manuell fil 23
+        self.assertIn("3 mnd", r["source"])
+        # Med novembermøtet også innenfor 90 dager deles bevegelsen likt: 0,24·90/(85+50) = 16 bp
+        r2 = fd.meeting_implied_curve(pts, 4.35, 0.04, ["2026-09-29", "2026-11-03"], today=d(2026, 9, 25))
+        self.assertEqual(r2["bp"], 16)
+
+    def test_two_meetings_split_equally(self):
+        from datetime import date as d
+        # Møter om 30 og 72 dager, 3-mnd-renten priser i snitt 0,20 over basis: Δ hver = 0,20·90/(60+18)
+        r = fd.meeting_implied_curve({"0.25": 2.45, "1": 2.7, "2": 2.9}, 2.25, 0.0, ["2026-10-24", "2026-12-05"], today=d(2026, 9, 25))
+        self.assertEqual(r["bp"], round(0.20 * 90 / 78 * 100))
+
+    def test_one_month_rate_gives_basis_and_near_meeting(self):
+        from datetime import date as d
+        pts = {"0.083": 3.80, "0.25": 3.95, "0.5": 4.1, "1": 4.3, "2": 4.5}
+        # Møte om 41 dager: 1 mnd-vinduet er uten møte, så basis = 3,80 − 3,75 = 0,05 (medianen ignoreres)
+        r = fd.meeting_implied_curve(pts, 3.75, 0.20, ["2026-11-05"], today=d(2026, 9, 25))
+        self.assertAlmostEqual(r["bp"], round((3.95 - 0.05 - 3.75) * 90 / (90 - 42) * 100))
+        self.assertIn("1 og 3", r["source"])
+        # Møte om 10 dager: 1 mnd-renten priser det, 3 mnd-renten gir resten til møte 2
+        pts2 = {"0.083": 3.97, "0.25": 4.05, "1": 4.3, "2": 4.5}
+        r2 = fd.meeting_implied_curve(pts2, 3.75, 0.05, ["2026-10-05", "2026-11-15"], today=d(2026, 9, 25))
+        self.assertAlmostEqual(r2["bp"], round((3.97 - 0.05 - 3.75) * 30 / (30 - 11) * 100))
+
+    def test_no_answer_when_uninformative(self):
+        from datetime import date as d
+        pts = {"0.25": 4.63, "1": 4.78, "2": 4.76}
+        self.assertIsNone(fd.meeting_implied_curve({"1": 1.6, "2": 1.9, "5": 2.4}, 1.0, 0.0, ["2026-10-30"], today=d(2026, 9, 25)))  # syntetisk anker
+        self.assertIsNone(fd.meeting_implied_curve(pts, 4.35, 0.04, ["2026-12-20"], today=d(2026, 9, 25)))  # møtet er utenfor 80 dager
+        self.assertIsNone(fd.meeting_implied_curve(pts, 4.35, 0.04, ["2026-09-20"], today=d(2026, 9, 25)))  # passert
+        self.assertIsNone(fd.meeting_implied_curve(pts, 4.35, None, ["2026-09-29"], today=d(2026, 9, 25)))  # ingen basis
+        self.assertIsNone(fd.meeting_implied_curve({}, 4.35, 0.04, ["2026-09-29"], today=d(2026, 9, 25)))
+
+
 if __name__ == "__main__":
     unittest.main()
 

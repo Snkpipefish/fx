@@ -43,7 +43,7 @@ Kryss av (`[x]`) når en PR er slått sammen, og skriv PR-nummer bak.
 
 - [ ] **Neste-møte-prising er manuell.**
   *Problem:* `meeting_odds.json` finnes bare for RBA og BoC. Andre banker viser kurvens 3-mnd-prising, som ikke skiller møtet fra resten av kvartalet.
-  *Løsning:* Generisk `meetingImplied(curve, meetings, policy)` i `calc.js`: med 1 mnd/3 mnd-rente og `n` dager til møtet, `Δ = (r_3m − s − p) · 90 / (90 − n)`; to møter i vinduet gir rest fordelt til møte 2. Test mot RBA/BoC-tallene vi har manuelt. Overstyr med futures der de finnes (USD, AUD, CAD, GBP-OIS).
+  *Løsning:* ✅ *(PR «moteprising», 25. sep 2026)* Generisk `meeting_implied_curve(points, policy, basis, meetings)` – lagt i `fetch_data.py` (der futures-prisingen alt ligger), ikke `calc.js`, så én kilde til `next_meeting.bp`. Med 1 mnd/3 mnd-rente og `n` dager til møtet: `Δ = (r_3m − s − p) · 90 / (90 − n)`; finnes 1-mnd-punkt uten møte i vinduet gir det basisen direkte, ligger møtet innenfor 1 mnd gir 1-mnd-renten Δ og 3-mnd-renten resten til møte 2; to møter uten 1-mnd-punkt deles likt. Testet mot RBA (25/16 bp mot futures 22) i fixture. **Funn:** for statsvekselkurver (EUR, SEK, NOK, CAD, USD) kan medianbasisen ikke skille knapphetspremien i veksler fra priset bevegelse – SEK ga −6 bp og NOK −21 bp for neste møte mens 3-mnd-prisingen sa +62 og +7. Formelen brukes derfor bare der fronten følger styringsrenten (OIS: GBP; swap: NZD når B2 finnes); futures gjelder for USD, AUD, CAD, NZD; øvrige viser 3-mnd-prisingen som indikasjon (`bp_3m`, som nå alltid følger med).
 
 - [ ] **Sentralbankenes baner oppdateres ikke.**
   *Problem:* `cb_paths.json` finnes bare for Fed, Riksbanken, Norges Bank og RBNZ, og vedlikeholdes for hånd.

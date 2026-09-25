@@ -34,7 +34,7 @@ Tre små JSON-filer i `data/` holdes ved like for hånd:
 
 - `meetings.json` – neste rentemøter per sentralbank.
 - `policy_overrides.json` – rentevedtak seriene ennå ikke har fanget opp. Styringsrentene hentes nå direkte fra Norges Bank, Riksbanken, Bank of Canada, ECB, FRED (Fed), Bank of England, RBA og SNB, med BIS som historikk; bare Bank of Japan og RBNZ er avhengige av fila. Posten (annonseringsdato) brukes til serien viser samme rente, med fem dagers slingringsmonn for virkningsdato; avviker serien lenger enn det, vinner serien og innhentingen varsler. Kalendervakt: er et møte passert uten at serien dekker det, merkes renten «ubekreftet etter møtet» på kortet og i kildestatus.
-- `meeting_odds.json` – hva markedet priser for neste rentemøte, som reserve for banker uten futures. For USD, AUD og CAD regnes møteprisingen automatisk fra futures på styringsrenten; ellers brukes denne filen, og til sist kurvens 3-måneders prising som indikasjon.
+- `meeting_odds.json` – hva markedet priser for neste rentemøte, som reserve for banker uten futures. For USD, AUD og CAD regnes møteprisingen automatisk fra futures på styringsrenten, for GBP fra 1- og 3-måneders OIS; ellers brukes denne filen, og til sist kurvens 3-måneders prising som indikasjon (statsveksler har knapphetspremie som ikke lar seg skille fra priset bevegelse).
 - `cb_paths.json` – sentralbankenes egne renteanslag (dot plot, rentebane), som vises som en rombe i hantelgrafen og gir setningen «markedet ligger lengst fra bankens eget anslag for …».
 
 
