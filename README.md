@@ -56,7 +56,7 @@ Kurvehistorikken lagres i `data/curves.json` og bygges opp over tid. BoE og MoF 
 
 ```bash
 python3 -m unittest discover -s tests -v   # terminrenter, interpolasjon, xlsx-leser
-node --test tests/                         # korrelasjon, volatilitet, signal, motpost-rangering
+node --test tests/*.test.mjs               # korrelasjon, volatilitet, signal, motpost-rangering
 ```
 
 Testene kjøres i GitHub Actions før innhentingen. Alle kilder hentes parallelt med korte timeouts, og `dashboard.json` inneholder `sources` med status og nyeste dato per kilde (vises under «Kildestatus» i bunnteksten). Etter publisering kjører [scripts/check_sources.py](scripts/check_sources.py), som gir rød kjøring hvis en kilde er mer enn 10 dager gammel (14 for COT, 75 for månedlige serier) – et varsel som ikke stopper oppdateringen.

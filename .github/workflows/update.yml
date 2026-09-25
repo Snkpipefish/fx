@@ -30,7 +30,7 @@ jobs:
       - name: Kjør tester
         run: |
           python3 -m unittest discover -s tests -v
-          node --test tests/
+          node --test tests/*.test.mjs
 
       - name: Hent ferske markedsdata
         run: python3 scripts/fetch_data.py
