@@ -1,5 +1,5 @@
 /* Ren beregningslogikk uten DOM – testes med node --test (tests/calc.test.mjs). */
-import { bp, rate, sortedEntries } from "./format.js";
+import { bp, rate, moves, sortedEntries } from "./format.js";
 
 export function dailyReturns(series) {
   const e = sortedEntries(series);
@@ -66,14 +66,14 @@ export function directionSignal(c) {
   const m3 = c.rates?.m3, policy = c.rates?.policy;
   if (imp6 != null) {
     score += clamp(imp6 / 40) * 0.45;
-    if (Math.abs(imp6) > 15) parts.push(`markedet priser <b>${bp(imp6)} innen 6 mnd</b>`);
-    else parts.push("markedet priser <b>om lag uendret rente</b> neste 6 mnd");
+    if (Math.abs(imp6) > 15) parts.push(`markedet venter <b>${moves(imp6)}</b> innen 6 mnd`);
+    else parts.push("markedet venter <b>uendret rente</b> neste 6 mnd");
   } else if (m3 != null && policy != null) {
     const spread = m3 - policy;
     score += clamp(spread / 0.4) * 0.45;
-    if (spread > 0.15) parts.push("pengemarkedet priser <b>renteheving</b>");
-    else if (spread < -0.15) parts.push("pengemarkedet priser <b>rentekutt</b>");
-    else parts.push("pengemarkedet priser <b>uendret rente</b>");
+    if (spread > 0.15) parts.push("pengemarkedet venter <b>renteheving</b>");
+    else if (spread < -0.15) parts.push("pengemarkedet venter <b>rentekutt</b>");
+    else parts.push("pengemarkedet venter <b>uendret rente</b>");
   }
 
   let mom = c.fx?.changes?.m3;

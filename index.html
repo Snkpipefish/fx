@@ -3,101 +3,99 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>G10 Valutadashboard</title>
-  <meta name="description" content="Valutakurser, hva rentemarkedet har priset inn, inflasjon og posisjonering for G10-landene, med Norge i sentrum.">
+  <title>G10 Valutabrief</title>
+  <meta name="description" content="Hva rentemarkedet venter av sentralbankene, og hva det betyr for kronen og de andre G10-valutaene. Oppdateres hver ukedag.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <script src="js/vendor/chart.umd.min.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <h1>💱 G10 Valutadashboard</h1>
-    <p class="subtitle">Hva rentemarkedet venter av sentralbankene – og hva det betyr for kronen og de ni andre G10-valutaene.</p>
+  <nav class="nav" aria-label="Seksjoner">
+    <a class="brand" href="#top">💱 Valutabrief</a>
+    <a href="#renter">Renter</a>
+    <a href="#kronen">Kronen</a>
+    <a href="#tre-ting">Tre ting</a>
+    <a href="#handel">Finn motpart</a>
+    <a href="#land">Land</a>
+  </nav>
+
+  <header class="hero" id="top">
+    <p class="kicker" id="kicker">G10 valutabrief</p>
+    <h1 id="headline">Laster dagens bilde …</h1>
+    <div class="hero-stats" id="heroStats"></div>
     <p class="updated" id="updated"></p>
   </header>
 
-  <nav class="nav" aria-label="Seksjoner">
-    <a href="#oversikt">Oversikt</a>
-    <a href="#renter">Renteforventninger</a>
-    <a href="#handel">Finn en handel</a>
-    <a href="#land">Land for land</a>
-    <a href="#ordliste">Ordliste</a>
-  </nav>
-
-  <section class="overview">
-    <div id="oversikt" class="anchor"></div>
-    <div id="today" class="today" aria-label="Dagens bilde"></div>
-
-    <div id="renter" class="anchor"></div>
-    <div class="panel" id="pricedPanel">
-      <h3>Hva venter markedet av sentralbankene? <small>· lest ut av rentekurvene, oppdatert hver ukedag</small></h3>
-      <div id="pricedTable"></div>
-      <details class="method" id="pathDetails">
-        <summary>Vis rentebanen markedet priser, 24 måneder frem <label class="toggle"><input type="checkbox" id="pathWeek"> med én uke siden (stiplet)</label></summary>
-        <div class="chart-wrap-md"><canvas id="pathChart" role="img" aria-label="Styringsrente markedet priser per land, 0 til 24 måneder frem"></canvas></div>
+  <main class="flow">
+    <section class="chapter" id="renter">
+      <div class="chapter-head"><span class="num">1</span>
+        <div><h2>Hva venter markedet av sentralbankene?</h2>
+          <p>Renten nå, og renten markedet priser om 12 måneder. Lengre strek = større endring ventet.</p></div></div>
+      <div id="rates"></div>
+      <details class="more" id="pathDetails">
+        <summary>Vis hele rentebanen, 24 måneder frem <label class="toggle"><input type="checkbox" id="pathWeek"> med én uke siden (stiplet)</label></summary>
+        <div class="chart-box"><canvas id="pathChart" role="img" aria-label="Styringsrente markedet priser per land, 0 til 24 måneder frem"></canvas></div>
       </details>
-    </div>
+      <details class="more"><summary>Slik regnes det</summary>
+        <p class="note">Forskjellen mellom hva markedet betaler for renter som starter om 6 eller 12 måneder og dagens 3-måneders rente, lest ut av
+        OIS-kurven (Storbritannia) eller statspapirkurven (øvrige). Terminrenter inneholder også en risikopremie, så tallene viser retning og
+        størrelse på det som er priset – ikke sannsynligheter. For Japan, som mangler korte punkter, er 3-måneders renten satt lik styringsrenten.</p></details>
+    </section>
 
-    <div class="panel" id="ideasPanel">
-      <h3>Tre ting å legge merke til <small>· lest ut av dataene – ikke anbefalinger</small></h3>
+    <section class="chapter" id="kronen">
+      <div class="chapter-head"><span class="num">2</span>
+        <div><h2>Kronen</h2><p>Hvem har gått mest mot kronen, og hva som driver risikoappetitten akkurat nå.</p></div></div>
+      <div id="krone"></div>
+      <div class="chart-box tall"><canvas id="comparisonChart" role="img" aria-label="Alle G10-valutaer mot kronen siste år, rebasert til 100"></canvas></div>
+      <p class="note">Alle valutaer mot kronen siste år, 100 = kursen for ett år siden. Klikk i tegnforklaringen for å slå av og på.</p>
+    </section>
+
+    <section class="chapter" id="tre-ting">
+      <div class="chapter-head"><span class="num">3</span>
+        <div><h2>Tre ting å legge merke til</h2><p>Lest ut av dataene i dag. Observasjoner, ikke råd.</p></div></div>
       <div class="ideas" id="ideas"></div>
-    </div>
+    </section>
 
-    <div id="handel" class="anchor"></div>
-    <div class="panel" id="pairPanel">
-      <h3>Finn motparten til en handel <small>· en valuta kjøpes alltid mot en annen</small></h3>
-      <p class="pair-intro">Vil du eie en valuta, må du selge en annen – kroner om du ikke velger noe. Hvilken du selger avgjør
-        hva du egentlig satser på. Velg valuta og retning, så viser tabellen hvilke motparter som passer.
-        <details class="inline"><summary>Hvorfor?</summary>Én posisjon er alltid to: det du kjøpte og det du betalte med. Er du long én ting,
-        er du samtidig short alt du ikke kjøpte. Velger du motparten bevisst, samler du risikoen du vil ha og nøytraliserer den
-        du ikke har et syn på.</details></p>
+    <section class="chapter" id="handel">
+      <div class="chapter-head"><span class="num">4</span>
+        <div><h2>Finn motparten til en handel</h2>
+          <p>En valuta kjøpes alltid mot en annen – kroner om du ikke velger noe. Hvilken du selger, avgjør hva du egentlig satser på.
+          <details class="inline"><summary>Hvorfor?</summary> Én posisjon er alltid to: det du kjøpte og det du betalte med. Er du long én ting,
+          er du samtidig short alt du ikke kjøpte. Velger du motparten bevisst, samler du risikoen du vil ha og nøytraliserer den du ikke har et syn på.</details></p></div></div>
       <div class="pair-controls">
-        <label>Jeg vil være
-          <select id="pairDir"><option value="long">long</option><option value="short">short</option></select></label>
-        <label><select id="pairLeg" aria-label="Valuta"></select></label>
+        <div class="segment" id="pairDir"><button type="button" data-dir="long" class="on">Jeg vil eie</button><button type="button" data-dir="short">Jeg vil selge</button></div>
+        <div class="chips" id="pairLeg"></div>
       </div>
-      <div id="pairResult"><p class="loading">Laster historikk …</p></div>
-    </div>
+      <div id="pairResult"><p class="note">Laster historikk …</p></div>
+    </section>
 
-    <div class="panel-row">
-      <div class="panel">
-        <h3>Alle valutaer mot kronen siste år <small>· 100 = kursen for ett år siden · klikk i tegnforklaringen for å slå av/på</small></h3>
-        <div class="chart-wrap-lg"><canvas id="comparisonChart" role="img" aria-label="Alle G10-valutaer mot NOK siste år, rebasert til 100"></canvas></div>
-      </div>
-      <div class="panel" id="riskPanel">
-        <h3>Risikobarometer</h3>
-        <div class="risk-tiles" id="riskTiles"></div>
-      </div>
-    </div>
-  </section>
-
-  <div id="land" class="anchor"></div>
-  <div class="grid-head">
-    <h2>Land for land</h2>
-    <button type="button" id="cardMode" class="btn" aria-pressed="false">Vis detaljer</button>
-  </div>
-  <main id="grid" class="grid compact">
-    <p class="loading">Laster data …</p>
+    <section class="chapter" id="land">
+      <div class="chapter-head"><span class="num">5</span>
+        <div><h2>Land for land</h2><p>Kurs, utvikling og hva markedet venter av hver sentralbank.</p></div>
+        <button type="button" id="cardMode" class="btn" aria-pressed="false">Vis detaljer</button></div>
+      <div id="grid" class="grid compact"><p class="note">Laster data …</p></div>
+    </section>
   </main>
 
   <footer class="footer">
-    <div id="ordliste" class="anchor"></div>
-    <details class="method glossary"><summary>Ordliste</summary>
+    <details class="more glossary" id="ordliste"><summary>Ordliste</summary>
       <dl>
         <dt>Heving / kutt</dt><dd>Én endring i styringsrenten på 0,25 prosentpoeng. «≈ 3 hevinger» betyr at rentekurven priser om lag 0,75 pp høyere rente.</dd>
-        <dt>Prosentpoeng (pp)</dt><dd>Forskjell mellom to renter. 4,25 % → 4,50 % er +0,25 pp.</dd>
-        <dt>Rentekurve</dt><dd>Renten markedet betaler for ulike løpetider (3 mnd, 1 år, 10 år …). Stiger den bratt, venter markedet høyere renter.</dd>
-        <dt>Carry</dt><dd>Renteforskjellen du tjener (eller betaler) på å eie én valuta mot en annen, per år. Terminkursen er der carryen «spises opp».</dd>
-        <dt>Terminkurs</dt><dd>Kursen du kan avtale i dag for et bytte om ett år. Følger av renteforskjellen, og er ikke en spådom.</dd>
-        <dt>Risikoappetitt</dt><dd>Om investorer vil ta risiko. Måles her med VIX (frykt) og AUD/JPY (stiger når appetitten er høy). Høy appetitt støtter normalt kronen.</dd>
-        <dt>Spekulanter / åpen interesse</dt><dd>Ukentlige tall fra CFTC over hvor mye spekulanter er long eller short i valutafutures. Er «alle» på samme side, øker faren for brå reversering.</dd>
+        <dt>Prosentpoeng (pp)</dt><dd>Forskjellen mellom to renter. 4,25 % → 4,50 % er +0,25 pp.</dd>
+        <dt>Rentekurve</dt><dd>Renten markedet betaler for ulike løpetider. Stiger den bratt, venter markedet høyere renter.</dd>
+        <dt>Renteforskjell / carry</dt><dd>Det du tjener (eller betaler) per år på å eie én valuta mot en annen. Terminkursen er der forskjellen «spises opp».</dd>
+        <dt>Terminkurs</dt><dd>Kursen du kan avtale i dag for et bytte om ett år. Følger av renteforskjellen og er ikke en spådom.</dd>
+        <dt>Risikoappetitt</dt><dd>Om investorer vil ta risiko. Måles med VIX (frykt) og AUD/JPY (stiger når appetitten er høy). Høy appetitt støtter normalt kronen.</dd>
+        <dt>Spekulanter / åpen interesse</dt><dd>Ukentlige tall fra CFTC over hvor mye spekulanter er long eller short i valutafutures. Sitter alle likt, blir reverseringene brå.</dd>
         <dt>I-44</dt><dd>Norges Banks importveide kroneindeks. Lavere tall = sterkere krone.</dd>
-        <dt>Kjøpekraftsparitet (PPP)</dt><dd>Hva kursen «burde» være om varer kostet det samme i begge land. Sier lite om neste måned, mer om neste tiår.</dd>
+        <dt>Kjøpekraft (PPP)</dt><dd>Hva kursen «burde» være om varer kostet det samme i begge land. Sier lite om neste måned, mer om neste tiår.</dd>
       </dl>
     </details>
-    <p><strong>Alt på siden er observasjoner, ikke råd.</strong> Retningssignalet er en enkel regel av renteforventninger, kursutvikling og
-      realrente. Tallene for hva markedet venter kommer fra terminrenter, som også inneholder en risikopremie.</p>
-    <p>Kilder: ECB, Norges Bank, BIS, OECD, Eurostat, FRED, Japans finansdepartement, Bank of England, Bank of Canada, RBA, Riksbanken,
-      CFTC og World Bank. Oppdateres automatisk hver ukedag.</p>
+    <p><strong>Alt på siden er observasjoner, ikke råd.</strong> Retningssignalet er en enkel regel av renteforventninger, kursutvikling og realrente.</p>
+    <p>Kilder: ECB, Norges Bank, BIS, OECD, Eurostat, FRED, Japans finansdepartement, Bank of England, Bank of Canada, RBA, Riksbanken, CFTC og World Bank.
+      Oppdateres automatisk hver ukedag.</p>
     <div id="sources"></div>
   </footer>
 

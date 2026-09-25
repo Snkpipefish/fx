@@ -1,45 +1,14 @@
-# G10 Valutadashboard
+# G10 Valutabrief
 
-Dashboard over G10-valutaene (USD, EUR, JPY, GBP, CHF, CAD, AUD, NZD, SEK, NOK) sett fra et norsk perspektiv. Per land vises:
+Redaksjonell «brief» over G10-valutaene (USD, EUR, JPY, GBP, CHF, CAD, AUD, NZD, SEK, NOK) sett fra et norsk perspektiv, i én kolonne med fem kapitler:
 
-- **Valutakurs mot NOK** med endring siste dag/uke/måned/3 mnd/år, realisert volatilitet og 1 års kursgraf (Norge vises som Norges Banks importveide kroneindeks I-44)
-- **Renter**: styringsrente (BIS) med 2 års historikk-graf, 3-mnd pengemarkedsrente, 10-års statsrente og rentekurve-helning (OECD)
-- **Inflasjon og arbeidsledighet**: siste KPI å/å og ledighetsrate (OECD)
-- **PPP-verdivurdering**: over-/undervurdering mot USD basert på kjøpekraftsparitet (World Bank; Tyskland som proxy for eurosonen)
-- **Spekulativ posisjonering (COT)**: netto non-commercial posisjon fra CFTC per valuta-future (ukentlig; finnes ikke for NOK/SEK)
-- **Neste rentemøte** per sentralbank (fra [data/meetings.json](data/meetings.json))
-- **Priset inn**: hva rentekurven priser av endringer i den korte renten om 6/12/24 mnd, ytterpunktet i banen («bunn 3,10 % om 14 mnd») og 1-års terminkurs mot NOK (breakeven for carry)
-- **Retningssignal**: en enkel heuristikk basert på rentedifferanse (3 mnd minus styringsrente), kursmomentum og realrente – *ikke* en prognose eller investeringsråd
+1. **Hva venter markedet av sentralbankene?** Hantelgraf med renten nå og renten markedet priser om 12 måneder (og en markør for 6 måneder), i vanlig norsk («≈ 3 hevinger»). Hele rentebanen 24 måneder frem og metodeforklaring ligger bak «vis»-lenker.
+2. **Kronen.** Én setning om kronen, risikoappetitten (VIX, AUD/JPY) og oljen, en søyleliste over hvem som har gått mest mot kronen (uke/måned/3 mnd/år) og en linjegraf over alle valutaene mot kronen siste år.
+3. **Tre ting å legge merke til.** Automatisk genererte observasjoner: sprik i renteforventninger, reprising, kutt/hevinger som ikke rimer med inflasjonen, renteforskjell mot kronen, ensidig posisjonering.
+4. **Finn motparten til en handel.** Velg valuta (chips) og retning, få tre forslag («Beste match», «Mest betalt for å vente», «Renest rentesyn») med begrunnelse, og hele kandidattabellen bak «Vis alle». Bygger på ideen om at én posisjon alltid er to, og at motparten bør velges bevisst.
+5. **Land for land.** Kort per land med kurs, utvikling, sparkline og én setning om hva markedet venter av sentralbanken; «Vis detaljer» åpner renter, inflasjon, ledighet, kjøpekraft, terminkurs og posisjonering.
 
-Siden er delt i fire seksjoner (Oversikt, Renteforventninger, Finn en handel, Land for land) pluss en ordliste, og bruker vanlig norsk («≈ 3 hevinger») med basispunkter og fagtall bak «Vis mer»/«Slik regnes det». Øverst ligger:
-
-- **Toppmovers**: sterkeste og svakeste valuta mot NOK siste uke
-- **Hva venter markedet av sentralbankene?**: én oppsummerende setning og en tabell per sentralbank med ventet endring neste 6 og 12 mnd («≈ 3 hevinger», +0,75 pp), når toppen/bunnen nås og hvordan forventningene har endret seg siste uke. Rentebanen 24 mnd frem ligger bak «Vis rentebanen»
-- **Finn motparten til en handel**: velg en valuta du vil være long eller short i, og siden viser hva du egentlig eier (priset rentebane, 1-års rente, risiko- og oljekorrelasjon, momentum, posisjonering, PPP) og rangerer kandidater til den andre siden av paret etter carry, priset rentegap, momentum, om paret nøytraliserer risikoappetitt/olje, volatilitet og posisjonering. Bygger på ideen om at én posisjon alltid er to (posisjonen + cash) og at long i én ting er implisitt short i alt du ikke kjøpte, så motposten bør velges bevisst som en pakke
-- **Tre ting å legge merke til**: automatisk genererte observasjoner (sprik i renteforventninger, reprising, kutt tross høy inflasjon, carry mot NOK, ensidig posisjonering) – inspirasjon til videre graving, ikke anbefalinger
-- **Sammenligningsgraf**: alle valutaene mot NOK, rebasert til 100 for ett år siden
-- **Risikobarometer**: AUD/JPY, VIX og Brent-olje (med 90-dagers korrelasjon olje↔krone)
-
-## Slik regnes «priset inn»
-
-Per land hentes en daglig rentekurve med løpetider fra 1 mnd til 10 år:
-
-| Land | Kilde | Type |
-|---|---|---|
-| USA | FRED (DGS-seriene) | statspapirer |
-| Eurosonen | ECB, AAA-statskurve (Svensson) | statspapirer |
-| Japan | Finansdepartementet (MoF) | statsobligasjoner, 1 år og lenger |
-| Storbritannia | Bank of England | **OIS-kurve** (1–60 mnd + 10 år) |
-| Canada | Bank of Canada (Valet) | statskasseveksler + referanseobligasjoner |
-| Australia | RBA-tabellene F1/F2 | OIS/statspapirer (RBA blokkerer en del automatiske kall; faller bort hvis kilden feiler) |
-| Sverige | Riksbanken | statsskuldväxlar + statsobligasjoner |
-| Norge | Norges Bank | nullkupong statskurve + 3-mnd statskasseveksel |
-
-Sveits og New Zealand mangler daglig kurve (SNBs API er ikke oppdatert siden 2025, RBNZ blokkerer automatiske kall) og får derfor ikke «priset inn»-tall.
-
-Fra spotkurven regnes 3-måneders terminrenter: `f(h) = (r(h+¼)·(h+¼) − r(h)·h) / ¼`. Priset endring ved horisont *h* er `f(h) − r(¼)`, og nivået i rentebanen er styringsrenten pluss denne endringen. Dermed faller et konstant basis-avvik mellom statspapirer og styringsrente bort. Terminrenter inneholder likevel terminpremie, så tallene skal leses som retning og størrelse på det som er priset, ikke som sannsynligheter. For kurver uten punkter under 6 mnd (Japan) settes 3-mnd-renten lik styringsrenten (merket med `*`).
-
-Kurvehistorikken lagres i `data/curves.json` og bygges opp over tid. BoE og MoF publiserer bare inneværende måned per fil, så første kjøring backfyller fra arkivfiler.
+Øverst står en overskrift som oppsummerer dagen («Markedet venter høyere renter fra alle sentralbankene – mest fra Canada») med fire nøkkeltall. Nederst ligger ordliste, kilder og kildestatus. Designet bruker Fraunces (overskrifter) og Inter (brødtekst), varme nøytrale farger og egne SVG-grafer; Chart.js brukes bare til de to linjegrafene.
 
 ## Slik virker det
 

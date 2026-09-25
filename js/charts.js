@@ -36,7 +36,7 @@ function baseLineOptions(tooltipLabel) {
           callback(value) { return shortDate(this.getLabelForValue(value)); } },
         grid: { display: false },
       },
-      y: { ticks: { color: cssVar("--muted"), maxTicksLimit: 4 }, grid: { color: cssVar("--border") } },
+      y: { ticks: { color: cssVar("--muted"), maxTicksLimit: 4 }, grid: { color: cssVar("--rule") } },
     },
   };
 }
@@ -113,7 +113,7 @@ export function drawPathChart(countries) {
             callback(value) { const m = +this.getLabelForValue(value); return m === 0 ? "nå" : m % 6 === 0 ? `${m} mnd` : null; } },
           grid: { display: false },
         },
-        y: { ticks: { color: cssVar("--muted"), callback: (v) => `${nb1.format(v)} %` }, grid: { color: cssVar("--border") } },
+        y: { ticks: { color: cssVar("--muted"), callback: (v) => `${nb1.format(v)} %` }, grid: { color: cssVar("--rule") } },
       },
     },
   });
@@ -125,4 +125,62 @@ export function drawPathChart(countries) {
       chart.update();
     });
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Egne SVG-grafer til den redaksjonelle layouten. Rendres som tekst i HTML,
+ * bruker CSS-variabler for farger og skalerer med bredden.
+ * ------------------------------------------------------------------------- */
+
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+
+/**
+ * «Hantel»-graf: én rad per sentralbank med renten nå (hul prikk) og renten
+ * markedet venter om 12 mnd (fylt prikk), bundet sammen med en strek.
+ * rows: [{label, flag, now, expected, six, text, color, id}]
+ */
+export function dumbbellChart(rows, { minX, maxX, compact = false } = {}) {
+  const vals = rows.flatMap((r) => [r.now, r.expected, r.six].filter((v) => v != null));
+  const lo = Math.floor((minX ?? Math.min(...vals)) * 2) / 2 - 0.5;
+  const hi = Math.ceil((maxX ?? Math.max(...vals)) * 2) / 2 + 0.5;
+  // Kompakt variant til smale skjermer: kortere etiketter, så teksten ikke skaleres ned
+  const W = compact ? 380 : 720, LABEL = compact ? 78 : 150, RIGHT = compact ? 92 : 150, ROW = compact ? 36 : 34, TOP = 26;
+  const H = TOP + rows.length * ROW + 10;
+  const x = (v) => LABEL + (v - lo) / (hi - lo) * (W - LABEL - RIGHT);
+  const ticks = [];
+  for (let t = Math.ceil(lo); t <= hi; t += 1) ticks.push(t);
+  const grid = ticks.map((t) => `<line x1="${x(t)}" x2="${x(t)}" y1="${TOP - 8}" y2="${H - 10}" class="db-grid"/>
+    <text x="${x(t)}" y="${TOP - 12}" class="db-tick" text-anchor="middle">${t} %</text>`).join("");
+  const body = rows.map((r, i) => {
+    const y = TOP + i * ROW + ROW / 2;
+    const dir = r.expected > r.now + 0.05 ? "up" : r.expected < r.now - 0.05 ? "down" : "flat";
+    return `<g class="db-row ${dir}">
+      <title>${esc(r.title || "")}</title>
+      <text x="${LABEL - 10}" y="${y + 4}" class="db-label" text-anchor="end">${esc(r.flag)} ${esc(compact ? r.short ?? r.label : r.label)}</text>
+      <line x1="${x(r.now)}" x2="${x(r.expected)}" y1="${y}" y2="${y}" class="db-line"/>
+      ${r.six != null ? `<line x1="${x(r.six)}" x2="${x(r.six)}" y1="${y - 5}" y2="${y + 5}" class="db-six"/>` : ""}
+      <circle cx="${x(r.now)}" cy="${y}" r="5.5" class="db-now"/>
+      <circle cx="${x(r.expected)}" cy="${y}" r="6" class="db-exp"/>
+      <text x="${W - RIGHT + 12}" y="${y + 4}" class="db-text">${esc(compact ? r.textShort ?? r.text : r.text)}</text>
+    </g>`;
+  }).join("");
+  return `<svg class="dumbbell" viewBox="0 0 ${W} ${H}" role="img" aria-label="Rente nå og ventet om 12 måneder per sentralbank">
+    ${grid}${body}</svg>
+    <div class="legend-row"><span><i class="lg-now"></i> rente nå</span><span><i class="lg-six"></i> om 6 mnd</span><span><i class="lg-exp"></i> om 12 mnd</span></div>`;
+}
+
+/**
+ * Rangert liste med horisontale søyler rundt null. rows: [{label, flag, value, color}], fmt(value).
+ */
+export function barList(rows, fmt, { unit = "" } = {}) {
+  const max = Math.max(0.01, ...rows.map((r) => Math.abs(r.value)));
+  return `<div class="barlist">${rows.map((r) => {
+    const w = Math.abs(r.value) / max * 50;
+    const pos = r.value >= 0;
+    return `<div class="bl-row">
+      <span class="bl-label">${esc(r.flag)} ${esc(r.label)}</span>
+      <span class="bl-track"><i class="bl-bar ${pos ? "pos" : "neg"}" style="${pos ? "left:50%" : "right:50%"};width:${w.toFixed(1)}%"></i></span>
+      <span class="bl-value ${pos ? "pos" : "neg"}">${fmt(r.value)}${unit}</span>
+    </div>`;
+  }).join("")}</div>`;
 }
