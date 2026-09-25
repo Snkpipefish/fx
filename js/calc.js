@@ -50,6 +50,18 @@ export function extremeText(curve) {
 }
 
 /**
+ * Inflasjonen banken styrer etter: kjernemålet når det er bankens målvariabel (kjerne-PCE,
+ * trimmet gjennomsnitt, CPI-trim/median, KPI-JAE, KPIF), ellers samlet KPI (BoE, SNB, BoJ, RBNZ).
+ */
+export function targetInflation(c) {
+  if (c.cpi_core?.is_target && c.cpi_core.value != null) {
+    return { value: c.cpi_core.value, label: c.cpi_core.label.split(" (")[0], note: " (mot målvariabelen)" };
+  }
+  if (c.cpi?.value != null) return { value: c.cpi.value, label: "KPI", note: "" };
+  return { value: c.cpi_core?.value ?? null, label: c.cpi_core?.label?.split(" (")[0] ?? "", note: c.cpi_core ? " (mot kjerne)" : "" };
+}
+
+/**
  * Datadrevet retningssignal for valutaen (heuristikk, ikke prognose):
  *  - rentesignal: hva rentekurven priser av endringer neste 6 mnd
  *                 (fallback: 3 mnd-rente minus styringsrente)
@@ -84,13 +96,13 @@ export function directionSignal(c) {
     else if (mom < -0.5) parts.push("valutaen har <b>svekket seg</b> siste 3 mnd");
   }
 
-  // Realrente mot kjerneinflasjon der den finnes (nærmere det sentralbankene styrer etter)
-  const cpi = c.cpi_core?.value ?? c.cpi?.value;
-  if (policy != null && cpi != null) {
-    const real = policy - cpi;
+  // Realrente mot det banken faktisk styrer etter: målvariabelen der vi har den, ellers samlet KPI
+  const target = targetInflation(c);
+  if (policy != null && target.value != null) {
+    const real = policy - target.value;
     score += clamp(real / 2) * 0.2;
-    if (real > 0.5) parts.push(`positiv realrente${c.cpi_core ? " (mot kjerne)" : ""}`);
-    else if (real < -0.5) parts.push(`negativ realrente${c.cpi_core ? " (mot kjerne)" : ""}`);
+    if (real > 0.5) parts.push(`positiv realrente${target.note}`);
+    else if (real < -0.5) parts.push(`negativ realrente${target.note}`);
   }
 
   const dir = score > 0.12 ? "up" : score < -0.12 ? "down" : "flat";
