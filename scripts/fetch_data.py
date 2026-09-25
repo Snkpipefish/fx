@@ -1996,6 +1996,29 @@ def rates_by_currency(oecd_series, previous=None):
     return out
 
 
+# Valutaer der kurvens 3-mnd-punkt følger styringsrenten (OIS) og kan fylle ut OECD-serien
+# som henger etter: Storbritannia (OECD stopper i februar 2026, BoE-OIS er daglig).
+CURVE_IR3_FILL = {"GBP"}
+
+
+def fill_ir3_from_curves(ir3, curves, currencies=CURVE_IR3_FILL):
+    """Fyller måneder som mangler i 3-mnd-serien med månedssnittet av kurvens 3-mnd-punkt
+    (tenor 0.25), for valutaer i `currencies`. OECD-månedene beholdes; nye måneder legges til.
+    Returnerer ny dict."""
+    out = {k: dict(v) for k, v in ir3.items()}
+    for cur in currencies:
+        sums = {}
+        for day, points in (curves.get(cur) or {}).items():
+            v = points.get("0.25")
+            if v is not None:
+                sums.setdefault(day[:7], []).append(v)
+        target = out.setdefault(cur, {})
+        for month, vals in sums.items():
+            if month not in target:
+                target[month] = round(sum(vals) / len(vals), 3)
+    return out
+
+
 def energy_driver(oil_corr, gas_corr, margin=0.1):
     """Hvilken av olje og gass som har forklart kronen best siste 90 dager: den med størst
     |korrelasjon|, «begge» når de ligger innenfor `margin` av hverandre, None uten tall."""
@@ -2748,7 +2771,7 @@ def main():
         print(f"Fylte ut {filled} snapshots bakover")
     history["path12"] = path12_history(SNAPSHOT_DIR, countries)
     # 3-mnd renter (OECD, månedlig) per valuta til totalavkastning med carry i sammenligningsgrafen
-    history["ir3"] = rates_by_currency(sources.get("ir3") or {}, old_history.get("ir3", {}))
+    history["ir3"] = fill_ir3_from_curves(rates_by_currency(sources.get("ir3") or {}, old_history.get("ir3", {})), curve_history)
 
     dashboard_path.write_text(json.dumps(
         {"updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
