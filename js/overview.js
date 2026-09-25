@@ -95,7 +95,7 @@ export function renderRates(countries) {
 /** Seksjon 2: kronen – hvem har gått mest mot NOK, valgbar horisont, pluss risikobildet. */
 export function renderKrone(countries, market) {
   const no = countries.find((c) => c.id === "no");
-  const horizons = [["w1", "denne uken"], ["m1", "siste måned"], ["m3", "siste 3 mnd"], ["y1", "siste år"]];
+  const horizons = [["w1", "uke"], ["m1", "måned"], ["m3", "3 mnd"], ["y1", "år"]];
   const el = document.getElementById("krone");
   const draw = (h) => {
     const rows = countries.filter((c) => c.fx && !c.fx.index && c.fx.changes?.[h] != null)

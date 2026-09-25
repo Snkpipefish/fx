@@ -137,7 +137,8 @@ details.inline summary { display: inline; cursor: pointer; color: var(--accent);
 .db-row.up .db-text { fill: var(--up); }
 .db-row.down .db-text { fill: var(--down); }
 .db-six { stroke: var(--text); stroke-width: 2; opacity: 0.55; }
-.legend-row { display: flex; gap: 1.2rem; justify-content: center; font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; }
+.legend-row { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; justify-content: center; font-size: 0.78rem; color: var(--muted); margin: 0.4rem 0 1rem; }
+.legend-row span { white-space: nowrap; }
 .legend-row i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 0.3rem; }
 .lg-now { border: 2px solid var(--muted); background: var(--surface); }
 .lg-exp { background: var(--up); }
@@ -209,7 +210,7 @@ details.inline summary { display: inline; cursor: pointer; color: var(--accent);
 .rates { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
 .rates div { background: var(--chip); border-radius: 10px; padding: 0.4rem 0.3rem; text-align: center; display: flex; flex-direction: column; }
 .rates span { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
-.rates b { font-size: 0.95rem; }
+.rates b { font-size: 0.95rem; white-space: nowrap; }
 .row { display: flex; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
 
 /* ---------- Sparklines ---------- */
@@ -232,7 +233,15 @@ details.inline summary { display: inline; cursor: pointer; color: var(--accent);
 
 /* ---------- Mobil ---------- */
 @media (max-width: 640px) {
-  .hero { padding: 2.2rem 1rem 1.8rem; }
+  .nav { padding: 0.35rem 0.4rem; }
+  .nav .brand { display: none; }           /* én rad meny – sparer skjermplass */
+  .hero { padding: 2rem 1rem 1.6rem; }
+  .kicker { font-size: 0.72rem; letter-spacing: 0.08em; }
+  .chapter-head { position: relative; padding-right: 0; }
+  .chapter-head .btn { width: 100%; margin-top: 0.6rem; }
+  .rates { grid-template-columns: 1fr 1fr; }
+  .rates span { font-size: 0.62rem; }
+  .pc-why { min-height: 0; }
   .hero-stats { grid-template-columns: 1fr 1fr; gap: 0.8rem; }
   .stat .big { font-size: 1.5rem; }
   .flow, .footer { padding-left: 1rem; padding-right: 1rem; }
