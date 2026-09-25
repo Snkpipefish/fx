@@ -14,10 +14,10 @@ class BacktestTest(unittest.TestCase):
     def test_factors_from_snapshot(self):
         rec = {"implied": {"6m": 20}, "fx_m3": -2.0, "policy": 4.0, "cpi_target": 3.0, "path": [None, None, None, 4.8, None]}
         self.assertEqual(bt.factors_from(rec), (0.5, -0.5, 0.5))
-        self.assertEqual(bt.factors_from(rec, "12m"), (1.0, -0.5, 0.5))  # (4.8 − 4.0) = 80 bp → clamp
+        self.assertEqual(bt.factors_from(rec, "12m"), (1.0, -0.5, 0.5))  # (4.8 − 4.0) = 80 bp → clamp til 1
         back = {"implied": None, "fx_m3": 1.0, "policy": 4.0, "cpi_target": None, "path": [None, None, None, 4.2, None]}
         self.assertEqual(bt.factors_from(back), (None, 0.25, None))
-        self.assertEqual(bt.factors_from(back, "12m")[0], 0.5)
+        self.assertAlmostEqual(bt.factors_from(back, "12m")[0], 0.5)
 
     def test_ols_recovers_known_coefficients(self):
         import random
