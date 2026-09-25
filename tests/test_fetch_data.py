@@ -422,6 +422,26 @@ class OverrideTest(unittest.TestCase):
 
 
 class BrentContractTest(unittest.TestCase):
+    def test_front_rolls_to_next_when_front_is_stale(self):
+        fut = {"front": {"2026-09-24": 105.3, "2026-09-25": 104.0}, "next": {"2026-09-24": 103.0, "2026-09-25": 102.5},
+               "front_label": "nov", "next_label": "des"}
+        self.assertEqual(fd.brent_front_and_next(fut), (fut["front"], "nov", fut["next"], "des"))
+        fut["next"]["2026-09-30"] = 101.0  # front utløpt: neste kontrakt har nyere kurs
+        front, label, nxt, nlabel = fd.brent_front_and_next(fut)
+        self.assertEqual((label, nxt, nlabel), ("des", {}, None))
+        self.assertEqual(front, fut["next"])
+        self.assertEqual(fd.brent_front_and_next({"front": {}, "next": {}, "front_label": "a", "next_label": "b"})[0], {})
+
+    def test_premium_series_and_trailing_mean(self):
+        dated = {"2026-09-18": 118.0, "2026-09-19": 117.0, "2026-09-22": 114.89}
+        fut = {"2026-09-18": 104.0, "2026-09-22": 99.25, "2026-09-25": 105.3}
+        prem = fd.premium_series(dated, fut)
+        self.assertEqual(prem, {"2026-09-18": 14.0, "2026-09-22": 15.64})  # bare felles datoer
+        self.assertEqual(fd.trailing_mean(prem), 14.82)
+        self.assertEqual(fd.trailing_mean({"2026-06-01": 2.0, "2026-09-22": 16.0}), 16.0)  # 1. juni er utenfor 90 dager
+        self.assertIsNone(fd.trailing_mean({}))
+        self.assertEqual(fd.brent_label("BZX26.NYM"), "nov. 2026-kontrakten (BZX26)")
+
     def test_front_contract_rolls_after_expiry(self):
         from datetime import date as d
         self.assertEqual(fd.brent_front_contracts(d(2026, 9, 25)), ["BZX26.NYM", "BZZ26.NYM"])
